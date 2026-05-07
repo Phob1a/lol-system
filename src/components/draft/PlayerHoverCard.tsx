@@ -8,6 +8,26 @@ import { PlayerInfoCard } from '@/components/draft/PlayerInfoCard';
 const OPEN_DELAY_MS = 150;
 const GAP = 8;
 const FALLBACK_CARD_WIDTH = 280;
+const Z_INDEX = 70;
+
+type Coords = { top: number; left: number };
+
+function computeCoords(rect: DOMRect, cardWidth: number, cardHeight: number): Coords {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = rect.right + GAP;
+  if (left + cardWidth > vw - GAP) {
+    left = rect.left - cardWidth - GAP;
+  }
+  if (left < GAP) left = GAP;
+
+  let top = rect.top;
+  if (cardHeight > 0 && top + cardHeight > vh - GAP) {
+    top = vh - cardHeight - GAP;
+  }
+  if (top < GAP) top = GAP;
+  return { top, left };
+}
 
 type Props = {
   player: PlayerRef;
@@ -15,8 +35,6 @@ type Props = {
   disabled?: boolean;
   children: React.ReactNode;
 };
-
-type Coords = { top: number; left: number };
 
 export function PlayerHoverCard({ player, disabled, children }: Props) {
   const triggerRef = useRef<HTMLSpanElement | null>(null);
@@ -37,30 +55,14 @@ export function PlayerHoverCard({ player, disabled, children }: Props) {
     setOpen(false);
   }
 
-  function computeCoords(rect: DOMRect, cardWidth: number, cardHeight: number): Coords {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = rect.right + GAP;
-    if (left + cardWidth > vw - GAP) {
-      left = rect.left - cardWidth - GAP;
-    }
-    if (left < GAP) left = GAP;
-
-    let top = rect.top;
-    if (cardHeight > 0 && top + cardHeight > vh - GAP) {
-      top = vh - cardHeight - GAP;
-    }
-    if (top < GAP) top = GAP;
-    return { top, left };
-  }
-
   function handleMouseEnter() {
     if (disabled) return;
     const el = triggerRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
     clearTimer();
     timerRef.current = setTimeout(() => {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
       setCoords(computeCoords(rect, FALLBACK_CARD_WIDTH, 0));
       setOpen(true);
     }, OPEN_DELAY_MS);
@@ -77,8 +79,13 @@ export function PlayerHoverCard({ player, disabled, children }: Props) {
 
   // If parent flips disabled true mid-hover, force-close.
   useEffect(() => {
-    if (disabled) close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (disabled) {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setOpen(false);
+    }
   }, [disabled]);
 
   // After portal render, measure real card size and refine position.
@@ -116,7 +123,7 @@ export function PlayerHoverCard({ player, disabled, children }: Props) {
                 position: 'fixed',
                 top: coords.top,
                 left: coords.left,
-                zIndex: 70,
+                zIndex: Z_INDEX,
                 pointerEvents: 'none',
               }}
             >
