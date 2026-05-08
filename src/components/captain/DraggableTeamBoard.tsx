@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
+import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 
 type Props = {
   team: TeamPreview & { id: string };
@@ -147,7 +148,9 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
         {POSITION_LABEL[slot.position]}
       </span>
       {slot.player ? (
-        <DraggablePlayer slot={slot} disabled={disabled} />
+        <PlayerHoverCard player={slot.player} disabled={disabled}>
+          <DraggablePlayer slot={slot} disabled={disabled} />
+        </PlayerHoverCard>
       ) : (
         <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
       )}

@@ -3,6 +3,7 @@
 import type { TeamPreview } from '@/lib/teams/preview';
 import { TcPos } from '@/components/tactical/TcPos';
 import { POSITION_LABEL } from '@/components/players/positions';
+import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 
 type Props = {
   team: TeamPreview;
@@ -64,50 +65,58 @@ export function TeamPanel({ team, isOwn }: Props) {
       </div>
 
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {team.slots.map((slot) => (
-          <div
-            key={slot.position}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '46px 1fr auto',
-              gap: 8,
-              alignItems: 'center',
-              padding: '4px 6px',
-              background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
-              border: '1px solid var(--tc-line)',
-              fontSize: 11,
-            }}
-          >
-            <span className="tc-label" style={{ fontSize: 9 }}>
-              {POSITION_LABEL[slot.position]}
-            </span>
-            {slot.player ? (
-              <span
-                style={{
-                  minWidth: 0,
-                  fontFamily: 'var(--tc-font-display)',
-                  color: 'var(--tc-text)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {slot.player.nickname}
-                <span className="tc-mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--tc-text-faint)' }}>
-                  @{slot.player.gameId}
-                </span>
-              </span>
-            ) : (
-              <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
-            )}
-            <span
-              className="tc-num"
-              style={{ fontSize: 11, color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
+        {team.slots.map((slot) => {
+          const row = (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '46px 1fr auto',
+                gap: 8,
+                alignItems: 'center',
+                padding: '4px 6px',
+                background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
+                border: '1px solid var(--tc-line)',
+                fontSize: 11,
+              }}
             >
-              {slot.player ? slot.player.cost : '—'}
-            </span>
-          </div>
-        ))}
+              <span className="tc-label" style={{ fontSize: 9 }}>
+                {POSITION_LABEL[slot.position]}
+              </span>
+              {slot.player ? (
+                <span
+                  style={{
+                    minWidth: 0,
+                    fontFamily: 'var(--tc-font-display)',
+                    color: 'var(--tc-text)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {slot.player.nickname}
+                  <span className="tc-mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--tc-text-faint)' }}>
+                    @{slot.player.gameId}
+                  </span>
+                </span>
+              ) : (
+                <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
+              )}
+              <span
+                className="tc-num"
+                style={{ fontSize: 11, color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
+              >
+                {slot.player ? slot.player.cost : '—'}
+              </span>
+            </div>
+          );
+          return slot.player ? (
+            <PlayerHoverCard key={slot.position} player={slot.player}>
+              {row}
+            </PlayerHoverCard>
+          ) : (
+            <div key={slot.position}>{row}</div>
+          );
+        })}
       </div>
     </div>
   );
