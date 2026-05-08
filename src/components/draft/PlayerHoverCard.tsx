@@ -61,8 +61,12 @@ export function PlayerHoverCard({ player, disabled, children }: Props) {
     if (!el) return;
     clearTimer();
     timerRef.current = setTimeout(() => {
-      if (!triggerRef.current) return;
-      const rect = triggerRef.current.getBoundingClientRect();
+      const wrapper = triggerRef.current;
+      // wrapper has display:contents so its own rect is empty;
+      // measure the first rendered child instead.
+      const target = (wrapper?.firstElementChild as HTMLElement | null) ?? wrapper;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
       setCoords(computeCoords(rect, FALLBACK_CARD_WIDTH, 0));
       setOpen(true);
     }, OPEN_DELAY_MS);
@@ -91,7 +95,8 @@ export function PlayerHoverCard({ player, disabled, children }: Props) {
   // After portal render, measure real card size and refine position.
   useLayoutEffect(() => {
     if (!open) return;
-    const el = triggerRef.current;
+    const wrapper = triggerRef.current;
+    const el = (wrapper?.firstElementChild as HTMLElement | null) ?? wrapper;
     const card = cardRef.current;
     if (!el || !card) return;
     const rect = el.getBoundingClientRect();
