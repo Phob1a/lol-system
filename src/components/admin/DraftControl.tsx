@@ -9,6 +9,7 @@ import { TcBar } from '@/components/tactical/TcBar';
 import { PlayerPool } from '@/components/draft/PlayerPool';
 import { TOTAL_ROUNDS } from '@/lib/draft/engine';
 import { POSITION_LABEL } from '@/components/players/positions';
+import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { RoundConfigDialog } from './RoundConfigDialog';
 
 type PoolPlayer = Pick<
@@ -255,60 +256,68 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
                       <TcBar pct={t.budgetLeft / Math.max(1, teamBudget)} w="100%" color="var(--tc-amber)" />
                     </div>
                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {t.slots.map((slot) => (
-                        <div
-                          key={slot.position}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '46px 1fr auto',
-                            gap: 6,
-                            alignItems: 'center',
-                            padding: '3px 6px',
-                            background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
-                            border: '1px solid var(--tc-line)',
-                            fontSize: 11,
-                          }}
-                        >
-                          <span className="tc-label" style={{ fontSize: 9 }}>
-                            {POSITION_LABEL[slot.position]}
-                          </span>
-                          {slot.player ? (
-                            <span
-                              style={{
-                                minWidth: 0,
-                                fontFamily: 'var(--tc-font-display)',
-                                color: slot.player.id === t.captainId ? 'var(--tc-cyan)' : 'var(--tc-text)',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {slot.player.nickname}
-                              {slot.player.id === t.captainId && (
-                                <span
-                                  className="tc-mono"
-                                  style={{ marginLeft: 4, fontSize: 9, color: 'var(--tc-cyan)' }}
-                                >
-                                  ◆ C
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-                              — empty —
-                            </span>
-                          )}
-                          <span
-                            className="tc-num"
+                      {t.slots.map((slot) => {
+                        const row = (
+                          <div
                             style={{
+                              display: 'grid',
+                              gridTemplateColumns: '46px 1fr auto',
+                              gap: 6,
+                              alignItems: 'center',
+                              padding: '3px 6px',
+                              background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
+                              border: '1px solid var(--tc-line)',
                               fontSize: 11,
-                              color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)',
                             }}
                           >
-                            {slot.player ? slot.player.cost : '—'}
-                          </span>
-                        </div>
-                      ))}
+                            <span className="tc-label" style={{ fontSize: 9 }}>
+                              {POSITION_LABEL[slot.position]}
+                            </span>
+                            {slot.player ? (
+                              <span
+                                style={{
+                                  minWidth: 0,
+                                  fontFamily: 'var(--tc-font-display)',
+                                  color: slot.player.id === t.captainId ? 'var(--tc-cyan)' : 'var(--tc-text)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {slot.player.nickname}
+                                {slot.player.id === t.captainId && (
+                                  <span
+                                    className="tc-mono"
+                                    style={{ marginLeft: 4, fontSize: 9, color: 'var(--tc-cyan)' }}
+                                  >
+                                    ◆ C
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
+                                — empty —
+                              </span>
+                            )}
+                            <span
+                              className="tc-num"
+                              style={{
+                                fontSize: 11,
+                                color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)',
+                              }}
+                            >
+                              {slot.player ? slot.player.cost : '—'}
+                            </span>
+                          </div>
+                        );
+                        return slot.player ? (
+                          <PlayerHoverCard key={slot.position} player={slot.player}>
+                            {row}
+                          </PlayerHoverCard>
+                        ) : (
+                          <div key={slot.position}>{row}</div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
