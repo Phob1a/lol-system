@@ -58,12 +58,14 @@ export function filterPlayers<P extends PlayerForPool>(
       }
     }
 
-    if (primary.length > 0 && !hasIntersection(p.primaryPositions, primary)) {
-      return false;
-    }
-
-    if (secondary.length > 0 && !hasIntersection(p.secondaryPositions, secondary)) {
-      return false;
+    // Cross-group OR: when both primary and secondary filters are active,
+    // a player passes if EITHER their primary positions match the chosen
+    // primaries OR their secondary positions match the chosen secondaries.
+    // When only one group is active, that group acts as a normal constraint.
+    if (primary.length > 0 || secondary.length > 0) {
+      const primaryMatch = primary.length > 0 && hasIntersection(p.primaryPositions, primary);
+      const secondaryMatch = secondary.length > 0 && hasIntersection(p.secondaryPositions, secondary);
+      if (!primaryMatch && !secondaryMatch) return false;
     }
 
     if (filter.costMin != null && p.cost < filter.costMin) return false;

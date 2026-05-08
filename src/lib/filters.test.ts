@@ -55,13 +55,14 @@ describe('filterPlayers', () => {
     expect(r.map((x) => x.gameId).sort()).toEqual(['canyon', 'faker']);
   });
 
-  it('AND across primary + secondary groups', () => {
-    // primary MID AND secondary TOP -> only faker
+  it('OR across primary + secondary groups', () => {
+    // primary MID OR secondary TOP -> faker (both), showmaker (primary MID),
+    // canyon (secondary TOP). keria/gumayusi don't match either group.
     const r = filterPlayers(players, {
       primaryPositions: ['MID'],
       secondaryPositions: ['TOP'],
     });
-    expect(r.map((x) => x.gameId)).toEqual(['faker']);
+    expect(r.map((x) => x.gameId).sort()).toEqual(['canyon', 'faker', 'showmaker']);
   });
 
   it('cost range (both bounds)', () => {
