@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 
 export function CaptainNav({ gameId, nickname }: { gameId: string; nickname: string }) {
+  const pathname = usePathname();
   return (
     <nav
       style={{
