@@ -282,9 +282,9 @@ model Team {
 
 ### Undo Semantics
 
-- **Revoke last game** (`GAME_REVOKED`): delete the last `MatchGame`, recompute match status (rewind FINISHED→IN_PROGRESS if applicable).
-- **Revoke an advanced winner**: if the match's winner has already been pushed to a downstream knockout match and that downstream match already has games recorded, **reject** with `{ blockingMatchId }` and instruct admin to revoke downstream first.
-- **Edit a finished match** (`MATCH_EDITED`): rewrite the games array; if the winner changes and was already advanced, emit a cascade of `KNOCKOUT_ADVANCED` reversals down the bracket (only allowed if no downstream matches have games recorded).
+- **Revoke last game** (`GAME_REVOKED`): delete the last `MatchGame`, recompute match status (rewind FINISHED→IN_PROGRESS if applicable). If revoking causes the match to fall back from FINISHED and the winner had already been pushed into a downstream knockout slot, the downstream slot is cleared (set `teamAId` or `teamBId` to null) in the same transaction. This is permitted only if the downstream match has zero games recorded; otherwise return 422 with `{ blockingMatchId }`.
+- **Edit a finished match** (`MATCH_EDITED`): rewrite the games array; if the winner changes and was already advanced, emit a cascade of `KNOCKOUT_ADVANCED` reversals down the bracket (only allowed if no downstream matches have games recorded; otherwise reject with `blockingMatchId`).
+- **Edit a finished WALKOVER**: the `/edit` endpoint accepts a fresh games array, clears `walkoverNote`, and treats the match as normal from that point. Downstream-blocking rules apply identically.
 
 ---
 
@@ -378,7 +378,7 @@ Updates pushed via SSE; client uses `EventSource` with exponential backoff recon
 | Creating tournament with active draft | Guard returns 403. |
 | SSE disconnect | EventSource auto-reconnect with backoff (pattern reused from draft-bus). |
 | Reset semantics | Current row renamed `[archived] <name>`, fresh tournament row inserted. Historical data preserved. |
-| Walkover edits | Editing a WALKOVER reverts it to a normal match flow (admin must re-record games). |
+| Walkover edits | Editing a WALKOVER goes through `/edit`, clears `walkoverNote`, accepts fresh games. Same downstream-blocking rules. |
 
 ---
 
