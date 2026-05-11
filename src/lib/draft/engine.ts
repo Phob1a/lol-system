@@ -157,6 +157,7 @@ export async function getDraftSnapshot(): Promise<DraftSnapshot> {
 
   const teamSnapshots: DraftTeamSnapshot[] = teams.map((team) => ({
     id: team.id,
+    name: team.name,
     captainId: team.captainId,
     captainGameId: team.captain.gameId,
     captainNickname: team.captain.nickname,

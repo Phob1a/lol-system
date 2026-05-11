@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import type { TournamentState } from '@/lib/tournament/tournament-state';
+import { TeamRenameInline } from '@/components/team/TeamRenameInline';
 
 interface TeamSummary { id: string; name: string }
 
@@ -80,7 +81,7 @@ export function GroupsTab({ state, onChange }: { state: TournamentState; onChang
         <ul className="space-y-1">
           {unassigned.map(team => (
             <li key={team.id} className="flex justify-between items-center border rounded p-2">
-              <span>{team.name}</span>
+              <TeamRenameInline teamId={team.id} currentName={team.name} canEdit={true} onRenamed={() => onChange()} />
               {editable && (
                 <button disabled={pending} onClick={() => assign(team.id)}
                         className="text-sm rounded bg-primary text-primary-foreground px-2 py-1">
@@ -102,7 +103,9 @@ export function GroupsTab({ state, onChange }: { state: TournamentState; onChang
               <h3 className="font-medium">组 {g.letter} ({g.teams.length}/{state.tournament.teamsPerGroup})</h3>
               <ul className="mt-2 space-y-1 text-sm">
                 {g.teams.map(t => (
-                  <li key={t.teamId} className="border rounded px-2 py-1">{t.name}</li>
+                  <li key={t.teamId} className="border rounded px-2 py-1">
+                    <TeamRenameInline teamId={t.teamId} currentName={t.name} canEdit={true} onRenamed={() => onChange()} />
+                  </li>
                 ))}
                 {g.teams.length === 0 && (
                   <li className="text-muted-foreground">空</li>
