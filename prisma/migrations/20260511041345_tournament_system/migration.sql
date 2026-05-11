@@ -115,6 +115,9 @@ CREATE INDEX "matches_tournamentId_phase_idx" ON "matches"("tournamentId", "phas
 CREATE INDEX "matches_scheduledAt_idx" ON "matches"("scheduledAt");
 
 -- CreateIndex
+CREATE INDEX "matches_groupId_idx" ON "matches"("groupId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "match_games_matchId_gameNumber_key" ON "match_games"("matchId", "gameNumber");
 
 -- CreateIndex
@@ -130,7 +133,7 @@ WITH dups AS (
   FROM teams
 )
 UPDATE teams t
-SET name = t.name || '-' || substring(t.id, 1, 4)
+SET name = t.name || '-' || dups.rn
 FROM dups
 WHERE t.id = dups.id AND dups.rn > 1;
 
@@ -163,6 +166,9 @@ ALTER TABLE "matches" ADD CONSTRAINT "matches_teamBId_fkey" FOREIGN KEY ("teamBI
 
 -- AddForeignKey
 ALTER TABLE "matches" ADD CONSTRAINT "matches_winnerTeamId_fkey" FOREIGN KEY ("winnerTeamId") REFERENCES "teams"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "matches" ADD CONSTRAINT "matches_nextMatchId_fkey" FOREIGN KEY ("nextMatchId") REFERENCES "matches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "match_games" ADD CONSTRAINT "match_games_matchId_fkey" FOREIGN KEY ("matchId") REFERENCES "matches"("id") ON DELETE CASCADE ON UPDATE CASCADE;

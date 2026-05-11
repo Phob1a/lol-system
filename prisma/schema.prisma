@@ -311,6 +311,7 @@ model Tournament {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@map("tournaments")
 }
 
@@ -321,6 +322,7 @@ model Group {
   tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   teams        GroupTeam[]
   matches      Match[]
+
   @@unique([tournamentId, letter])
   @@map("groups")
 }
@@ -329,8 +331,9 @@ model GroupTeam {
   groupId String
   teamId  String
   seed    Int
-  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  team    Team  @relation(fields: [teamId], references: [id])
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team    Team   @relation(fields: [teamId], references: [id])
+
   @@id([groupId, teamId])
   @@unique([teamId])
   @@map("group_teams")
@@ -343,12 +346,12 @@ model Match {
   format       MatchFormat
   status       MatchStatus @default(SCHEDULED)
 
-  groupId      String?
+  groupId String?
 
-  roundIndex   Int?
-  matchIndex   Int?
-  nextMatchId  String?
-  nextSide     String?
+  roundIndex  Int?
+  matchIndex  Int?
+  nextMatchId String?
+  nextSide    String?
 
   teamAId      String?
   teamBId      String?
@@ -356,17 +359,21 @@ model Match {
   winnerTeamId String?
   walkoverNote String?
 
-  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  group      Group?      @relation(fields: [groupId], references: [id])
-  teamA      Team?       @relation("MatchTeamA", fields: [teamAId], references: [id])
-  teamB      Team?       @relation("MatchTeamB", fields: [teamBId], references: [id])
-  winner     Team?       @relation("MatchWinner", fields: [winnerTeamId], references: [id])
-  games      MatchGame[]
+  tournament  Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group       Group?      @relation(fields: [groupId], references: [id])
+  teamA       Team?       @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamB       Team?       @relation("MatchTeamB", fields: [teamBId], references: [id])
+  winner      Team?       @relation("MatchWinner", fields: [winnerTeamId], references: [id])
+  games       MatchGame[]
+  nextMatch   Match?      @relation("MatchBracketTree", fields: [nextMatchId], references: [id], onDelete: SetNull)
+  prevMatches Match[]     @relation("MatchBracketTree")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@index([tournamentId, phase])
   @@index([scheduledAt])
+  @@index([groupId])
   @@map("matches")
 }
 
@@ -378,6 +385,7 @@ model MatchGame {
   recordedAt   DateTime @default(now())
   match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
   winnerTeam   Team     @relation("GameWinner", fields: [winnerTeamId], references: [id])
+
   @@unique([matchId, gameNumber])
   @@map("match_games")
 }
@@ -391,6 +399,7 @@ model TournamentEvent {
   seq          Int
   tournament   Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   createdAt    DateTime            @default(now())
+
   @@unique([tournamentId, seq])
   @@index([tournamentId, createdAt])
   @@map("tournament_events")
