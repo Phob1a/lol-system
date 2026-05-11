@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 
 export function CaptainNav({ gameId, nickname }: { gameId: string; nickname: string }) {
@@ -29,6 +31,32 @@ export function CaptainNav({ gameId, nickname }: { gameId: string; nickname: str
             DRAFT<span style={{ color: 'var(--tc-cyan)' }}>{'//'}</span>BAY
           </span>
           <span className="tc-chip" style={{ marginLeft: 4 }}>CAPTAIN</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
+          {[{ href: '/tournament', label: '赛事' }].map((it) => {
+            const active = pathname === it.href || pathname?.startsWith(it.href + '/');
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                style={{
+                  padding: '6px 14px',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--tc-font-display)',
+                  fontSize: 11,
+                  letterSpacing: 1.5,
+                  color: active ? 'var(--tc-bg-0)' : 'var(--tc-text-dim)',
+                  background: active ? 'var(--tc-cyan)' : 'transparent',
+                  border: `1px solid ${active ? 'var(--tc-cyan)' : 'var(--tc-line2)'}`,
+                  boxShadow: active ? '0 0 12px rgba(0,229,255,0.4)' : undefined,
+                  transition: 'all .12s',
+                }}
+              >
+                {it.label}
+              </Link>
+            );
+          })}
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>

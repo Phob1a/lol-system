@@ -9,6 +9,7 @@ const items = [
   { href: '/admin/players', label: 'ROSTER' },
   { href: '/admin/config', label: 'CONFIG' },
   { href: '/admin/draft', label: 'DRAFT' },
+  { href: '/admin/tournament', label: '赛事' },
   { href: '/admin/audit', label: 'AUDIT' },
 ];
 
