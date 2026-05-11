@@ -123,13 +123,21 @@ model Config {
 
 model Team {
   id         String @id @default(cuid())
-  name       String
+  name       String @unique
   captainId  String @unique
   captain    Player @relation("TeamCaptain", fields: [captainId], references: [id])
   budgetLeft Float
 
   slots TeamSlot[]
   picks DraftPick[] @relation("PickingTeam")
+
+  // tournament back-relations
+  groupTeam      GroupTeam?
+  matchesAsA     Match[]      @relation("MatchTeamA")
+  matchesAsB     Match[]      @relation("MatchTeamB")
+  matchesWon     Match[]      @relation("MatchWinner")
+  gamesWon       MatchGame[]  @relation("GameWinner")
+  tournamentsWon Tournament[] @relation("TournamentChampion")
 
   createdAt DateTime @default(now())
 
@@ -227,4 +235,163 @@ model DraftEvent {
   @@unique([sessionId, seq])
   @@index([sessionId, createdAt])
   @@map("draft_events")
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Tournament — group stage + single-elim knockout
+// ──────────────────────────────────────────────────────────────────────
+
+enum TournamentStatus {
+  NOT_STARTED
+  GROUP_STAGE
+  BRACKET_SEEDING
+  KNOCKOUT
+  FINISHED
+}
+
+enum MatchPhase {
+  GROUP
+  TIEBREAKER
+  QF
+  SF
+  FINAL
+}
+
+enum MatchFormat {
+  BO1
+  BO3
+  BO5
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINISHED
+  WALKOVER
+  CANCELLED
+}
+
+enum TournamentEventType {
+  TOURNAMENT_CREATED
+  GROUPS_DEFINED
+  TEAM_ASSIGNED
+  MATCHES_GENERATED
+  MATCH_SCHEDULED
+  MATCH_RESCHEDULED
+  GAME_RECORDED
+  GAME_REVOKED
+  MATCH_FINISHED
+  MATCH_EDITED
+  MATCH_WALKOVER
+  TIEBREAKER_CREATED
+  GROUP_STAGE_CLOSED
+  BRACKET_SEEDED
+  BRACKET_LOCKED
+  KNOCKOUT_ADVANCED
+  TOURNAMENT_FINISHED
+  TOURNAMENT_RESET
+}
+
+model Tournament {
+  id                String           @id @default(cuid())
+  name              String
+  status            TournamentStatus @default(NOT_STARTED)
+  groupCount        Int
+  teamsPerGroup     Int
+  advancingPerGroup Int
+  seq               Int              @default(0)
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  championId        String?
+  champion          Team?            @relation("TournamentChampion", fields: [championId], references: [id])
+
+  groups  Group[]
+  matches Match[]
+  events  TournamentEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("tournaments")
+}
+
+model Group {
+  id           String      @id @default(cuid())
+  tournamentId String
+  letter       String
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teams        GroupTeam[]
+  matches      Match[]
+  @@unique([tournamentId, letter])
+  @@map("groups")
+}
+
+model GroupTeam {
+  groupId String
+  teamId  String
+  seed    Int
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team    Team  @relation(fields: [teamId], references: [id])
+  @@id([groupId, teamId])
+  @@unique([teamId])
+  @@map("group_teams")
+}
+
+model Match {
+  id           String      @id @default(cuid())
+  tournamentId String
+  phase        MatchPhase
+  format       MatchFormat
+  status       MatchStatus @default(SCHEDULED)
+
+  groupId      String?
+
+  roundIndex   Int?
+  matchIndex   Int?
+  nextMatchId  String?
+  nextSide     String?
+
+  teamAId      String?
+  teamBId      String?
+  scheduledAt  DateTime?
+  winnerTeamId String?
+  walkoverNote String?
+
+  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group      Group?      @relation(fields: [groupId], references: [id])
+  teamA      Team?       @relation("MatchTeamA", fields: [teamAId], references: [id])
+  teamB      Team?       @relation("MatchTeamB", fields: [teamBId], references: [id])
+  winner     Team?       @relation("MatchWinner", fields: [winnerTeamId], references: [id])
+  games      MatchGame[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([tournamentId, phase])
+  @@index([scheduledAt])
+  @@map("matches")
+}
+
+model MatchGame {
+  id           String   @id @default(cuid())
+  matchId      String
+  gameNumber   Int
+  winnerTeamId String
+  recordedAt   DateTime @default(now())
+  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winnerTeam   Team     @relation("GameWinner", fields: [winnerTeamId], references: [id])
+  @@unique([matchId, gameNumber])
+  @@map("match_games")
+}
+
+model TournamentEvent {
+  id           String              @id @default(cuid())
+  tournamentId String
+  type         TournamentEventType
+  payload      Json
+  actorId      String
+  seq          Int
+  tournament   Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+  @@unique([tournamentId, seq])
+  @@index([tournamentId, createdAt])
+  @@map("tournament_events")
 }
