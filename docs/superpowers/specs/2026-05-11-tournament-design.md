@@ -16,6 +16,7 @@
 - Admin can schedule each match (date + time), record scores game-by-game, mark walkovers, and edit finished matches.
 - Public pages show schedule, group composition, group standings, and the knockout bracket. Updates are live (SSE).
 - Mirror the existing event-sourced draft architecture (`DraftSession` + `DraftEvent`) so undo and audit work natively.
+- Captains can rename their own team; admins can rename any team. Renames are allowed at any time and read-through everywhere (no snapshotting).
 
 ### Non-Goals (v1)
 - Multiple concurrent tournaments / seasons. Only one active tournament at a time; previous ones are archived as read-only.
@@ -40,6 +41,7 @@
 | Score detail | Game-by-game (winner per game). Series auto-completes when threshold reached. |
 | Permissions | Admin-only score entry/edit. Walkover supported. |
 | Lifecycle | Singleton active tournament; created from a finished draft; previous tournaments archived. |
+| Team naming | Captain renames own team; admin renames any team. Always editable (no lock during tournament). All views read current `Team.name` — no snapshot. |
 
 ---
 
@@ -223,12 +225,23 @@ model TournamentEvent {
 }
 ```
 
-### `Team` Additions (back-relations only — no column changes)
+### `Team` Additions
+
+Back-relations for the new tables, plus a `@unique` on `name` to support the team-rename feature (§13). The existing `name` column is preserved; only an index is added. Backfill of any pre-existing duplicate auto-generated names is described in §13 Migration.
 
 ```prisma
 model Team {
-  // ... existing fields untouched ...
+  // existing fields
+  id         String @id @default(cuid())
+  name       String @unique                                 // ← NEW: unique constraint for renames
+  captainId  String @unique
+  captain    Player @relation("TeamCaptain", fields: [captainId], references: [id])
+  budgetLeft Float
+  slots      TeamSlot[]
+  picks      DraftPick[] @relation("PickingTeam")
+  createdAt  DateTime    @default(now())
 
+  // new back-relations
   groupTeam      GroupTeam?
   matchesAsA     Match[]      @relation("MatchTeamA")
   matchesAsB     Match[]      @relation("MatchTeamB")
@@ -330,7 +343,15 @@ All routes under `src/app/api/tournament/`. Admin routes guarded by `requireAdmi
 | `POST /[id]/bracket/lock` | ADMIN | Transition to KNOCKOUT | See transition table |
 | `POST /[id]/reset` | ADMIN | Archive current, create fresh tournament row in NOT_STARTED | — |
 
-All write operations execute in a single Prisma transaction:
+### Team naming (not tournament-scoped; lives under `/api/teams/`)
+
+| Method + Path | Auth | Purpose | Key Validation |
+|---|---|---|---|
+| `PATCH /api/teams/[id]` | CAPTAIN (own team) **or** ADMIN | Body: `{ name }` — rename the team | See §13 validation rules |
+
+Team renames are **not** event-sourced (they're a team-level attribute, not a tournament event). A plain `UPDATE teams SET name = ?, updated_at = now()` is sufficient. SSE broadcasts a `STATE_UPDATED` event on any active tournament that includes this team so viewers refresh.
+
+All other write operations execute in a single Prisma transaction:
 
 ```
 db.$transaction([
@@ -364,6 +385,14 @@ db.$transaction([
 
 Updates pushed via SSE; client uses `EventSource` with exponential backoff reconnect (same pattern as draft).
 
+### Team Rename UI
+
+- **Captain dashboard** (`/captain` — existing): an inline rename input next to the team header, with optimistic update + error toast on validation failure.
+- **Admin** — rename action surfaced wherever teams are listed:
+  - `/admin/draft` (existing draft admin view)
+  - `/admin/tournament/[id]` Groups tab (each team card)
+  - Click → small dialog (shadcn `Dialog`) with the rename input. 
+
 ---
 
 ## 9. Error Handling & Edge Cases
@@ -394,6 +423,7 @@ vitest (already configured).
 | **tournament-events** unit | seq monotonicity; concurrent event simulation (one succeeds, one 409); replay from events reconstructs state. |
 | **API integration** | Full lifecycle: create → assign → start → record all GROUP matches → close (with and without ties) → tiebreaker if needed → seed → lock → record QF/SF/FINAL → championId written. |
 | **DB constraint tests** | Same team in two groups → fails; duplicate group letter → fails; duplicate gameNumber → fails. |
+| **Team rename** | Captain renames own team → 200; captain renames another team → 403; admin renames any team → 200; empty / too-long / duplicate name → 400/409; rename during KNOCKOUT → 200 (no lock); SSE broadcasts STATE_UPDATED. |
 
 ---
 
@@ -412,3 +442,66 @@ vitest (already configured).
 - Audit tab pagination threshold (e.g., 50 events per page).
 
 These are implementation-detail choices and do not block the design.
+
+---
+
+## 13. Team Naming
+
+### Behavior
+
+- `Team.name` already exists in the schema; today it's auto-initialized at draft start as `"<captain.nickname> 队"` (see `src/lib/draft/engine.ts:61`) and there is no UI to change it.
+- This feature exposes rename to two roles:
+  - **CAPTAIN**: may rename **their own** team (the team where `captainId == requester.player.id`).
+  - **ADMIN**: may rename any team.
+- **No time lock.** Rename is allowed in any tournament state, including during `KNOCKOUT`. All views read `Team.name` directly; the bracket / standings / schedule reflect the new name immediately.
+
+### Validation Rules (Zod, enforced at service entry)
+
+| Rule | Value | Error code |
+|---|---|---|
+| Length (after `.trim()`) | 2 – 30 characters | 400 |
+| Allowed characters | Unicode letters/digits/whitespace + common punctuation; no control chars | 400 |
+| Uniqueness | Unique across all non-archived teams (case-sensitive) | 409 |
+| Rate limit | At most 1 rename per team per 10 seconds (cheap defense against spam) | 429 |
+
+### API
+
+- `PATCH /api/teams/[id]` with body `{ name: string }`.
+- Authz:
+  - If session role = `ADMIN` → allow.
+  - Else if session user owns a `Player` with `isCaptain && team.id == :id` → allow.
+  - Else → 403.
+- Implementation: single `UPDATE teams SET name = ?, updated_at = now() WHERE id = ?`. After success, if there is an active `Tournament` whose `Group → GroupTeam` references this team, publish `STATE_UPDATED` on `tournament-bus` so live viewers refresh.
+- This endpoint is **not** event-sourced (renames are a team attribute, not a tournament event). The DB `updated_at` provides minimal audit; richer auditing can come later via an `AuditLog` table if needed.
+
+### UI
+
+- **Captain `/captain` page**: inline editable team name with shadcn `<Input>` + save icon, optimistic update + `sonner` toast on error.
+- **Admin** rename action appears wherever teams are listed:
+  - `/admin/draft` (existing)
+  - `/admin/tournament/[id]` Groups tab
+  - Renders as a small "rename" button on the team card → `Dialog` with name input.
+
+### Edge Cases
+
+| Scenario | Handling |
+|---|---|
+| Captain tries to rename another team | 403 from route guard |
+| Two captains attempt the same name simultaneously | DB unique constraint (`teams.name`) → first wins, second gets 409 — UI shows "name already taken" |
+| Empty / whitespace-only name | Zod rejects after `.trim()` → 400 |
+| Rename mid-knockout | Allowed; downstream bracket UI auto-updates via SSE |
+| Archived tournament views | Show the **current** `Team.name`, not a snapshot. Acceptable per user decision: no historical name snapshot. |
+
+### Migration
+
+- Add `@unique` on `Team.name` in Prisma schema. Generate migration `add_team_name_unique`.
+- **Pre-migration backfill check**: if seed data already has duplicate auto-generated names (e.g., two captains share a nickname → both get `"<nickname> 队"`), the migration will fail. Mitigation: a small backfill script appends a numeric suffix to duplicates before the unique constraint is applied. Run order:
+  1. `prisma migrate dev --create-only` (generate but don't apply)
+  2. Edit migration to prepend backfill SQL: `UPDATE teams SET name = name || '-' || substring(id, 1, 4) WHERE id IN (...)`
+  3. `prisma migrate dev` to apply
+- Rollback: drop the unique constraint; the column remains.
+
+### Testing
+
+Already enumerated in §10. Key cases: captain-self / captain-other / admin / validation errors / SSE broadcast on rename.
+
