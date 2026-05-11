@@ -1,5 +1,6 @@
 import type { PrismaClient, Tournament, Group } from '@prisma/client';
 import { appendEvent, TournamentStateError } from './tournament-events';
+import { computeStandings } from './standings-service';
 
 export { TournamentStateError };
 
@@ -105,4 +106,100 @@ export async function resetTournament(
     },
   });
   return (await db.tournament.findUnique({ where: { id: t.id } }))!;
+}
+
+export async function closeGroupStage(
+  db: PrismaClient,
+  input: { tournamentId: string; actorId: string },
+): Promise<void> {
+  const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
+  if (!t) throw new TournamentStateError('NOT_FOUND', 'tournament not found');
+  if (t.status !== 'GROUP_STAGE') {
+    throw new TournamentStateError('WRONG_STATUS', 'must be GROUP_STAGE');
+  }
+  const matches = await db.match.findMany({
+    where: { tournamentId: t.id, phase: { in: ['GROUP', 'TIEBREAKER'] } },
+  });
+  const unfinished = matches.filter(
+    m => m.status !== 'FINISHED' && m.status !== 'WALKOVER' && m.status !== 'CANCELLED',
+  );
+  if (unfinished.length > 0) {
+    throw new TournamentStateError(
+      'UNFINISHED_MATCHES',
+      `${unfinished.length} group match(es) still unfinished`,
+    );
+  }
+  const standings = computeStandings(matches.map(m => ({
+    id: m.id, phase: m.phase, groupId: m.groupId, status: m.status,
+    teamAId: m.teamAId, teamBId: m.teamBId, winnerTeamId: m.winnerTeamId,
+  })));
+  if (standings.tieGroups.length > 0) {
+    const err = new TournamentStateError(
+      'UNRESOLVED_TIES',
+      `unresolved ties: ${JSON.stringify(standings.tieGroups)}`,
+    );
+    (err as TournamentStateError & { tieGroups?: unknown }).tieGroups = standings.tieGroups;
+    throw err;
+  }
+  // Compute advancing list by taking top advancingPerGroup of each group
+  const advancing: string[] = [];
+  for (const g of Object.keys(standings.byGroup)) {
+    advancing.push(...standings.byGroup[g].slice(0, t.advancingPerGroup).map(r => r.teamId));
+  }
+  await appendEvent(db, {
+    tournamentId: t.id,
+    expectedSeq: t.seq,
+    actorId: input.actorId,
+    type: 'GROUP_STAGE_CLOSED',
+    payload: { advancing },
+    mutate: async (tx) => {
+      await tx.tournament.update({ where: { id: t.id }, data: { status: 'BRACKET_SEEDING' } });
+    },
+  });
+}
+
+export async function createTiebreaker(
+  db: PrismaClient,
+  input: { tournamentId: string; teamAId: string; teamBId: string; actorId: string },
+): Promise<void> {
+  const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
+  if (!t) throw new TournamentStateError('NOT_FOUND', 'tournament not found');
+  if (t.status !== 'GROUP_STAGE') {
+    throw new TournamentStateError('WRONG_STATUS', 'tiebreaker only in GROUP_STAGE');
+  }
+  const aGroup = await db.groupTeam.findUnique({
+    where: { teamId: input.teamAId }, include: { group: true },
+  });
+  const bGroup = await db.groupTeam.findUnique({
+    where: { teamId: input.teamBId }, include: { group: true },
+  });
+  if (!aGroup || !bGroup) {
+    throw new TournamentStateError('TEAM_NOT_FOUND', 'one or both teams not in any group');
+  }
+  if (aGroup.group.tournamentId !== t.id || bGroup.group.tournamentId !== t.id) {
+    throw new TournamentStateError('WRONG_TOURNAMENT', 'teams not in this tournament');
+  }
+  if (aGroup.groupId !== bGroup.groupId) {
+    throw new TournamentStateError('DIFFERENT_GROUPS', 'tiebreaker must be within one group');
+  }
+  await appendEvent(db, {
+    tournamentId: t.id,
+    expectedSeq: t.seq,
+    actorId: input.actorId,
+    type: 'TIEBREAKER_CREATED',
+    payload: { teamAId: input.teamAId, teamBId: input.teamBId, groupId: aGroup.groupId },
+    mutate: async (tx) => {
+      await tx.match.create({
+        data: {
+          tournamentId: t.id,
+          phase: 'TIEBREAKER',
+          format: 'BO1',
+          status: 'SCHEDULED',
+          groupId: aGroup.groupId,
+          teamAId: input.teamAId,
+          teamBId: input.teamBId,
+        },
+      });
+    },
+  });
 }

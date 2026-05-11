@@ -64,3 +64,89 @@ describe('tournament-service', () => {
     expect(await getActiveTournament(db)).toBeNull();
   });
 });
+
+import { closeGroupStage, createTiebreaker } from './tournament-service';
+import { assignTeam, startGroupStage } from './groups-service';
+import { recordGame } from './matches-service';
+
+describe('closeGroupStage / createTiebreaker', () => {
+  it('closeGroupStage transitions to BRACKET_SEEDING when no ties and all matches FINISHED', async () => {
+    await db.matchGame.deleteMany();
+    await db.match.deleteMany();
+    await db.groupTeam.deleteMany();
+    await db.group.deleteMany();
+    await db.tournamentEvent.deleteMany();
+    await db.tournament.deleteMany();
+    await db.teamSlot.deleteMany();
+    await db.team.deleteMany();
+    await db.player.deleteMany();
+    await db.user.deleteMany();
+    await db.draftSession.deleteMany();
+    await db.draftSession.create({ data: { status: 'FINISHED', finishedAt: new Date() } });
+    const teams = [];
+    for (let i = 0; i < 8; i++) {
+      const user = await db.user.create({ data: { gameId: `c${i}`, passwordHash: 'x', role: 'CAPTAIN' } });
+      const p = await db.player.create({
+        data: { gameId: `c${i}`, nickname: `C${i}`, primaryPositions: ['MID'],
+          secondaryPositions: [], cost: 100, isCaptain: true, userId: user.id },
+      });
+      teams.push(await db.team.create({ data: { name: `T-${i}`, captainId: p.id, budgetLeft: 900 } }));
+    }
+    const t = await createTournament(db, {
+      name: 'X', groupCount: 4, teamsPerGroup: 2, advancingPerGroup: 2, actorId: 'a',
+    });
+    const letters = ['A', 'B', 'C', 'D'] as const;
+    for (let i = 0; i < 8; i++) {
+      await assignTeam(db, {
+        tournamentId: t.id, teamId: teams[i].id,
+        groupLetter: letters[Math.floor(i / 2)], actorId: 'a',
+      });
+    }
+    await startGroupStage(db, { tournamentId: t.id, actorId: 'a' });
+    const matches = await db.match.findMany({ where: { tournamentId: t.id, phase: 'GROUP' } });
+    for (const m of matches) {
+      await recordGame(db, { tournamentId: t.id, matchId: m.id, winnerTeamId: m.teamAId!, actorId: 'a' });
+    }
+    await closeGroupStage(db, { tournamentId: t.id, actorId: 'a' });
+    const after = await db.tournament.findUnique({ where: { id: t.id } });
+    expect(after?.status).toBe('BRACKET_SEEDING');
+  });
+
+  it('createTiebreaker creates a BO1 TIEBREAKER match between two teams in the same group', async () => {
+    // Same setup as above
+    await db.matchGame.deleteMany();
+    await db.match.deleteMany();
+    await db.groupTeam.deleteMany();
+    await db.group.deleteMany();
+    await db.tournamentEvent.deleteMany();
+    await db.tournament.deleteMany();
+    await db.teamSlot.deleteMany();
+    await db.team.deleteMany();
+    await db.player.deleteMany();
+    await db.user.deleteMany();
+    await db.draftSession.deleteMany();
+    await db.draftSession.create({ data: { status: 'FINISHED', finishedAt: new Date() } });
+    const teams = [];
+    for (let i = 0; i < 8; i++) {
+      const user = await db.user.create({ data: { gameId: `c${i}`, passwordHash: 'x', role: 'CAPTAIN' } });
+      const p = await db.player.create({
+        data: { gameId: `c${i}`, nickname: `C${i}`, primaryPositions: ['MID'],
+          secondaryPositions: [], cost: 100, isCaptain: true, userId: user.id },
+      });
+      teams.push(await db.team.create({ data: { name: `T-${i}`, captainId: p.id, budgetLeft: 900 } }));
+    }
+    const t = await createTournament(db, {
+      name: 'X', groupCount: 4, teamsPerGroup: 2, advancingPerGroup: 2, actorId: 'a',
+    });
+    await assignTeam(db, { tournamentId: t.id, teamId: teams[0].id, groupLetter: 'A', actorId: 'a' });
+    await assignTeam(db, { tournamentId: t.id, teamId: teams[1].id, groupLetter: 'A', actorId: 'a' });
+    await db.tournament.update({ where: { id: t.id }, data: { status: 'GROUP_STAGE' } });
+    await createTiebreaker(db, {
+      tournamentId: t.id, teamAId: teams[0].id, teamBId: teams[1].id, actorId: 'a',
+    });
+    const tb = await db.match.findFirst({ where: { tournamentId: t.id, phase: 'TIEBREAKER' } });
+    expect(tb).toBeTruthy();
+    expect(tb?.format).toBe('BO1');
+    expect(tb?.status).toBe('SCHEDULED');
+  });
+});
