@@ -15,9 +15,10 @@ import type { Position } from '@prisma/client';
 import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { TeamRenameInline } from '@/components/team/TeamRenameInline';
 
 type Props = {
-  team: TeamPreview & { id: string };
+  team: TeamPreview & { id: string; name: string };
   /** Snapshot version for optimistic-conflict detection; bump invalidates local state. */
   seq: number;
 };
@@ -27,6 +28,7 @@ type LocalSlot = { position: Position; player: PlayerRef | null };
 export function DraggableTeamBoard({ team, seq }: Props) {
   const [slots, setSlots] = useState<LocalSlot[]>(team.slots);
   const [submitting, setSubmitting] = useState(false);
+  const [teamName, setTeamName] = useState(team.name);
 
   useEffect(() => {
     setSlots(team.slots);
@@ -99,6 +101,14 @@ export function DraggableTeamBoard({ team, seq }: Props) {
           </div>
           <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
             @{team.captainGameId}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <TeamRenameInline
+              teamId={team.id}
+              currentName={teamName}
+              canEdit={true}
+              onRenamed={setTeamName}
+            />
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>

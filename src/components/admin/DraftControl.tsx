@@ -11,6 +11,7 @@ import { TOTAL_ROUNDS } from '@/lib/draft/engine';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { RoundConfigDialog } from './RoundConfigDialog';
+import { TeamRenameInline } from '@/components/team/TeamRenameInline';
 
 type PoolPlayer = Pick<
   Player,
@@ -251,6 +252,14 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
                     </div>
                     <div className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)', marginTop: 2 }}>
                       @{t.captainGameId} · {t.slots.filter((s) => s.player).length}/5 filled
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      <TeamRenameInline
+                        teamId={t.id}
+                        currentName={t.name}
+                        canEdit={true}
+                        onRenamed={() => void reload()}
+                      />
                     </div>
                     <div style={{ marginTop: 8 }}>
                       <TcBar pct={t.budgetLeft / Math.max(1, teamBudget)} w="100%" color="var(--tc-amber)" />

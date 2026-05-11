@@ -18,6 +18,7 @@ export type DraftTeamSlotSnapshot = {
 
 export type DraftTeamSnapshot = {
   id: string;
+  name: string;
   captainId: string;
   captainGameId: string;
   captainNickname: string;

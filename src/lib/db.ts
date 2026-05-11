@@ -14,3 +14,6 @@ export const prisma =
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma;
 }
+
+/** Alias for `prisma` — used by tournament services and tests. */
+export const db = prisma;

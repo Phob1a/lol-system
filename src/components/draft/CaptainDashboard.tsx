@@ -195,6 +195,7 @@ export function CaptainDashboard({
                     key={ownLiveTeam.id}
                     team={{
                       id: ownLiveTeam.id,
+                      name: ownLiveTeam.name,
                       captainId: ownLiveTeam.captainId,
                       captainGameId: ownLiveTeam.captainGameId,
                       captainNickname: ownLiveTeam.captainNickname,
