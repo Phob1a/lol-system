@@ -15,6 +15,8 @@ import type { Position } from '@prisma/client';
 import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 type Props = {
   team: TeamPreview & { id: string };
@@ -73,47 +75,29 @@ export function DraggableTeamBoard({ team, seq }: Props) {
     void persist(next);
   }
 
-  const accent = 'var(--tc-cyan)';
-
   return (
-    <div
-      className="tc-card"
-      style={{
-        padding: 12,
-        position: 'relative',
-        border: `1px solid ${accent}`,
-        background: 'rgba(0,229,255,0.06)',
-        boxShadow: 'inset 0 0 18px rgba(0,229,255,0.12)',
-      }}
-    >
-      <span className="corner tl" style={{ borderColor: accent }} />
-      <span className="corner tr" style={{ borderColor: accent }} />
-      <span className="corner bl" style={{ borderColor: accent }} />
-      <span className="corner br" style={{ borderColor: accent }} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="tc-display" style={{ fontSize: 14, color: 'var(--tc-cyan)' }}>
+    <div className="rounded-xl border-2 border-primary bg-primary/5 shadow p-3 relative">
+      <div className="flex justify-between items-baseline gap-2 mb-2.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-primary truncate">
             {team.captainNickname}
-            <span className="tc-chip tc-chip-on" style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px' }}>
+            <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
               MINE · DRAG TO SWAP
-            </span>
+            </Badge>
           </div>
-          <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-            @{team.captainGameId}
-          </div>
+          <div className="text-xs text-muted-foreground font-mono">@{team.captainGameId}</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="tc-label" style={{ fontSize: 9 }}>BUDGET</div>
-          <div className="tc-num" style={{ fontSize: 15, color: 'var(--tc-amber)' }}>
+        <div className="text-right shrink-0">
+          <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
+          <div className="text-base font-bold text-amber-600 tabular-nums">
             {team.budgetLeft}
-            <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-dim)', marginLeft: 2 }}>CR</span>
+            <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
           </div>
         </div>
       </div>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+        <div className="flex flex-col gap-1">
           {slots.map((slot) => (
             <DroppableSlot key={slot.position} slot={slot} disabled={submitting} />
           ))}
@@ -128,25 +112,17 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
   return (
     <div
       ref={setDropRef}
-      style={{
-        position: 'relative',
-        display: 'grid',
-        gridTemplateColumns: '46px 1fr auto',
-        gap: 8,
-        alignItems: 'center',
-        padding: '6px 8px',
-        background: isOver
-          ? 'rgba(0,229,255,0.14)'
+      className={cn(
+        'grid items-center gap-2 px-2 py-1.5 rounded-md border text-xs transition-colors',
+        isOver
+          ? 'ring-2 ring-primary bg-accent border-primary'
           : slot.registration
-          ? 'rgba(255,255,255,0.025)'
-          : 'rgba(255,255,255,0.01)',
-        border: `1px solid ${isOver ? 'var(--tc-cyan)' : 'var(--tc-line)'}`,
-        boxShadow: isOver ? '0 0 12px rgba(0,229,255,0.35)' : 'none',
-        transition: 'background .12s, border-color .12s',
-        fontSize: 11,
-      }}
+          ? 'border-border bg-muted/30'
+          : 'border-border bg-muted/10',
+      )}
+      style={{ gridTemplateColumns: '46px 1fr auto' }}
     >
-      <span className="tc-label" style={{ fontSize: 9 }}>
+      <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">
         {POSITION_LABEL[slot.position]}
       </span>
       {slot.registration ? (
@@ -154,11 +130,13 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
           <DraggablePlayer slot={slot} disabled={disabled} />
         </PlayerHoverCard>
       ) : (
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
+        <span className="text-xs text-muted-foreground font-mono">— empty —</span>
       )}
       <span
-        className="tc-num"
-        style={{ fontSize: 11, color: slot.registration ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
+        className={cn(
+          'tabular-nums text-xs font-medium',
+          slot.registration ? 'text-amber-600' : 'text-muted-foreground',
+        )}
       >
         {slot.registration ? slot.registration.cost : '—'}
       </span>
@@ -188,20 +166,11 @@ function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolea
         minWidth: 0,
       }}
     >
-      <span style={{ color: 'var(--tc-text-faint)', fontSize: 10 }}>⋮⋮</span>
-      <span
-        className="tc-display"
-        style={{
-          fontSize: 12,
-          color: 'var(--tc-text)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
+      <span className="text-muted-foreground text-[10px]">⋮⋮</span>
+      <span className="text-xs font-medium text-foreground truncate">
         {slot.registration.nickname}
       </span>
-      <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)' }}>
+      <span className="text-[9px] text-muted-foreground font-mono shrink-0">
         @{slot.registration.gameId}
       </span>
     </span>

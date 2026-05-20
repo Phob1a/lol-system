@@ -6,7 +6,20 @@ import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
-import { TcPos } from '@/components/tactical/TcPos';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+/** Short letter label for a position — rendered inline, no tactical import needed. */
+const POS_LETTER: Record<string, string> = {
+  TOP: 'T',
+  JG: 'J',
+  JUNGLE: 'J',
+  MID: 'M',
+  ADC: 'A',
+  SUP: 'S',
+  SUPPORT: 'S',
+};
 
 type Props = {
   open: boolean;
@@ -68,116 +81,87 @@ export function PickAction({
   return (
     <div
       onClick={() => onOpenChange(false)}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(7,8,12,0.78)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="tc-card"
-        style={{ width: 520, maxWidth: '100%', padding: 24, background: 'var(--tc-bg-1)', position: 'relative' }}
+        className="w-full max-w-lg rounded-xl border bg-card shadow-lg p-6 relative"
       >
-        <span className="corner tl" style={{ borderColor: 'var(--tc-cyan)' }} />
-        <span className="corner tr" style={{ borderColor: 'var(--tc-cyan)' }} />
-        <span className="corner bl" style={{ borderColor: 'var(--tc-cyan)' }} />
-        <span className="corner br" style={{ borderColor: 'var(--tc-cyan)' }} />
-
-        <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <div style={{ width: 4, height: 28, background: 'var(--tc-cyan)', boxShadow: '0 0 12px var(--tc-cyan)' }} />
+        <header className="flex items-center gap-3 mb-4">
+          <div className="w-1 h-7 rounded-sm bg-primary shrink-0" />
           <div>
-            <div className="tc-h1" style={{ fontSize: 18 }}>
-              PICK<span style={{ color: 'var(--tc-cyan)' }}>{'//'}</span>{player.nickname.toUpperCase()}
+            <div className="text-base font-bold tracking-wide text-foreground">
+              PICK <span className="text-muted-foreground">//</span> {player.nickname.toUpperCase()}
             </div>
-            <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
+            <div className="text-xs text-muted-foreground font-mono mt-0.5">
               @{player.gameId} · cost {player.cost} CR · budget {budgetLeft} CR
             </div>
           </div>
         </header>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div className="flex gap-1.5 flex-wrap mb-4">
           {player.primaryPositions.map((p) => (
-            <span key={`p-${p}`} className="tc-chip tc-chip-on" style={{ fontSize: 10 }}>
-              ◆ {p} <span style={{ marginLeft: 4, opacity: 0.65 }}>{POSITION_LABEL[p]}</span>
-            </span>
+            <Badge key={`p-${p}`} variant="default" className="text-xs gap-1">
+              ◆ {p} <span className="opacity-70">{POSITION_LABEL[p]}</span>
+            </Badge>
           ))}
           {player.secondaryPositions.map((p) => (
-            <span key={`s-${p}`} className="tc-chip" style={{ fontSize: 10 }}>
-              ○ {p} <span style={{ marginLeft: 4, opacity: 0.65 }}>{POSITION_LABEL[p]}</span>
-            </span>
+            <Badge key={`s-${p}`} variant="outline" className="text-xs gap-1">
+              ○ {p} <span className="opacity-70">{POSITION_LABEL[p]}</span>
+            </Badge>
           ))}
         </div>
 
         {insufficientBudget && (
-          <div
-            style={{
-              padding: '8px 10px',
-              marginBottom: 12,
-              background: 'rgba(255,61,92,0.08)',
-              borderLeft: '3px solid var(--tc-red)',
-              fontFamily: 'var(--tc-font-mono)',
-              fontSize: 11,
-              color: 'var(--tc-red)',
-            }}
-          >
+          <div className="px-3 py-2 mb-3 border-l-[3px] border-l-destructive bg-destructive/10 rounded-sm text-xs text-destructive font-mono">
             ⚠ 预算不足：还差 {player.cost - budgetLeft} CR
           </div>
         )}
         {noSlots && (
-          <div
-            style={{
-              padding: '8px 10px',
-              marginBottom: 12,
-              background: 'rgba(255,61,92,0.08)',
-              borderLeft: '3px solid var(--tc-red)',
-              fontFamily: 'var(--tc-font-mono)',
-              fontSize: 11,
-              color: 'var(--tc-red)',
-            }}
-          >
+          <div className="px-3 py-2 mb-3 border-l-[3px] border-l-destructive bg-destructive/10 rounded-sm text-xs text-destructive font-mono">
             ⚠ 该战队已无空位
           </div>
         )}
 
-        <div style={{ marginBottom: 16 }}>
-          <span className="tc-label">ASSIGN POSITION（不校验熟练位）</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 6 }}>
+        <div className="mb-4">
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+            ASSIGN POSITION（不校验熟练位）
+          </span>
+          <div className="grid grid-cols-5 gap-1.5 mt-2">
             {POSITIONS.map((pos) => {
               const empty = emptySlots.includes(pos);
               const active = position === pos;
-              const accent = active ? 'var(--tc-cyan)' : 'var(--tc-line2)';
+              const letter = POS_LETTER[pos] ?? pos[0];
               return (
                 <button
                   key={pos}
                   type="button"
                   disabled={!empty || insufficientBudget}
                   onClick={() => setPosition(pos)}
-                  style={{
-                    padding: '10px 6px',
-                    background: active ? 'rgba(0,229,255,0.10)' : 'var(--tc-bg-0)',
-                    border: `1px solid ${accent}`,
-                    boxShadow: active ? '0 0 12px rgba(0,229,255,0.35)' : 'none',
-                    color: active ? 'var(--tc-cyan)' : 'var(--tc-text)',
-                    cursor: empty && !insufficientBudget ? 'pointer' : 'not-allowed',
-                    opacity: empty ? 1 : 0.35,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontFamily: 'var(--tc-font-display)',
-                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-md border text-xs transition-colors',
+                    active
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
+                    !empty && 'opacity-35 cursor-not-allowed',
+                    empty && !insufficientBudget && 'cursor-pointer',
+                  )}
                 >
-                  <TcPos pos={pos} size={20} on={active} dim={!empty} />
-                  <span style={{ fontSize: 10, letterSpacing: 1 }}>{POSITION_LABEL[pos]}</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center justify-center w-5 h-5 rounded-sm border text-[10px] font-bold',
+                      active
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : empty
+                        ? 'border-border text-foreground'
+                        : 'border-muted-foreground/30 text-muted-foreground/40',
+                    )}
+                  >
+                    {letter}
+                  </span>
+                  <span className="tracking-wide">{POSITION_LABEL[pos]}</span>
                   {!empty && (
-                    <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)' }}>OCCUPIED</span>
+                    <span className="text-[9px] text-muted-foreground font-mono">OCCUPIED</span>
                   )}
                 </button>
               );
@@ -185,21 +169,21 @@ export function PickAction({
           </div>
         </div>
 
-        <div className="tc-divider" />
+        <div className="border-t" />
 
-        <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-          <button type="button" className="tc-btn" onClick={() => onOpenChange(false)}>
+        <footer className="flex justify-end gap-2 mt-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             CANCEL
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="tc-btn tc-btn-primary"
+            variant="default"
             onClick={submit}
             disabled={submitting || !position || insufficientBudget || noSlots}
-            style={{ minWidth: 160, justifyContent: 'center' }}
+            className="min-w-[160px]"
           >
             {submitting ? '▸ SUBMITTING…' : '▸ CONFIRM PICK'}
-          </button>
+          </Button>
         </footer>
       </div>
     </div>

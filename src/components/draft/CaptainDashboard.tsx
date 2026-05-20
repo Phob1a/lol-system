@@ -12,6 +12,8 @@ import {
   CaptainNotificationDialog,
   type CaptainNoticeKind,
 } from '@/components/captain/CaptainNotificationDialog';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 type Props = {
   initialSnapshot: DraftSnapshot;
@@ -90,31 +92,34 @@ export function CaptainDashboard({
     else if (justOnClock) setNoticeKind('turn');
   }, [snapshot, prevSnapshot, ownCaptainId]);
 
-  const accent = isMyTurn
-    ? 'var(--tc-cyan)'
-    : running
-    ? 'var(--tc-green)'
-    : finished
-    ? 'var(--tc-purple)'
-    : 'var(--tc-amber)';
   const onTheClockNick = onTheClockId
     ? snapshot?.teams.find((t) => t.captainId === onTheClockId)?.captainNickname ?? onTheClockId
     : null;
 
   return (
-    <div
-      className="tc-board"
-      style={{ minHeight: '100%', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}
-    >
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 4, height: 30, background: accent, boxShadow: `0 0 12px ${accent}` }} />
+    <div className="min-h-full p-4 flex flex-col gap-3 bg-background">
+      <header className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              'w-1 h-8 rounded-sm',
+              isMyTurn
+                ? 'bg-primary'
+                : running
+                ? 'bg-green-500'
+                : finished
+                ? 'bg-violet-500'
+                : 'bg-amber-500',
+            )}
+          />
           <div>
-            <div className="tc-h1" style={{ fontSize: 22 }}>
-              DRAFT<span style={{ color: accent }}>{'//'}</span>BAY
+            <div className="text-lg font-bold tracking-wide text-foreground">
+              DRAFT <span className="text-muted-foreground">//</span> BAY
             </div>
-            <div className="tc-label">
-              {!running && !finished && <>STATUS NOT_STARTED · BUDGET {teamBudget} CR · {teamsToRender.length} TEAMS</>}
+            <div className="text-xs text-muted-foreground">
+              {!running && !finished && (
+                <>STATUS NOT_STARTED · BUDGET {teamBudget} CR · {teamsToRender.length} TEAMS</>
+              )}
               {running && (
                 <>
                   STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS
@@ -124,22 +129,22 @@ export function CaptainDashboard({
             </div>
           </div>
         </div>
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-          <span style={{ color: connected ? 'var(--tc-green)' : 'var(--tc-amber)' }}>●</span>{' '}
+        <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+          <span className={connected ? 'text-green-500' : 'text-amber-500'}>●</span>
           {connected ? 'SSE_CONNECTED' : 'RECONNECTING'}
         </span>
       </header>
 
-      <div className="tc-divider" />
+      <div className="border-t" />
 
       {!running && !finished && (
-        <Banner accent="var(--tc-amber)" label="SESSION_PENDING">
+        <Banner variant="amber" label="SESSION_PENDING">
           选秀未开始 · 当前为只读视图，等待管理员开启选秀
         </Banner>
       )}
       {running && (
         <Banner
-          accent={accent}
+          variant={isMyTurn ? 'primary' : 'green'}
           label={isMyTurn ? 'PRIORITY_ALERT · ON_CLOCK' : 'SESSION_LIVE'}
           pulse={isMyTurn}
         >
@@ -156,26 +161,19 @@ export function CaptainDashboard({
         </Banner>
       )}
       {finished && (
-        <Banner accent="var(--tc-purple)" label="SESSION_COMPLETE">
+        <Banner variant="violet" label="SESSION_COMPLETE">
           ✓ 选秀已完成 · 最终阵容如下，可拖动调整己方位置
         </Banner>
       )}
 
       <section>
-        <div className="tc-h3" style={{ marginBottom: 8 }}>▸ TEAMS</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
+        <div className="text-xs font-semibold text-foreground mb-2">▸ TEAMS</div>
+        <div
+          className="grid gap-2.5"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
+        >
           {teamsToRender.length === 0 ? (
-            <div
-              className="tc-mono"
-              style={{
-                gridColumn: '1 / -1',
-                padding: 24,
-                textAlign: 'center',
-                color: 'var(--tc-text-faint)',
-                fontSize: 11,
-                border: '1px dashed var(--tc-line2)',
-              }}
-            >
+            <div className="col-span-full py-6 text-center text-xs text-muted-foreground border border-dashed rounded-md">
               暂无战队
             </div>
           ) : (
@@ -207,24 +205,23 @@ export function CaptainDashboard({
       </section>
 
       <section>
-        <div className="tc-h3" style={{ marginBottom: 8 }}>▸ POOL · {decoratedPool.length} CANDIDATES</div>
+        <div className="text-xs font-semibold text-foreground mb-2">
+          ▸ POOL · {decoratedPool.length} CANDIDATES
+        </div>
         <PlayerPool
           players={decoratedPool}
           renderActions={
             isMyTurn
               ? (p) => (
-                  <button
+                  <Button
+                    size="sm"
+                    variant="default"
                     onClick={() => setPickTarget(p as RegistrationRef)}
                     disabled={p.isPicked || p.cost > myBudget || myEmptySlots.length === 0}
-                    className="tc-btn tc-btn-primary"
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: 10,
-                      opacity: p.isPicked || p.cost > myBudget || myEmptySlots.length === 0 ? 0.4 : 1,
-                    }}
+                    className="text-xs px-2.5 py-1 h-auto"
                   >
                     ▸ PICK
-                  </button>
+                  </Button>
                 )
               : undefined
           }
@@ -257,32 +254,41 @@ export function CaptainDashboard({
 }
 
 function Banner({
-  accent,
+  variant,
   label,
   pulse,
   children,
 }: {
-  accent: string;
+  variant: 'primary' | 'green' | 'violet' | 'amber';
   label: string;
   pulse?: boolean;
   children: React.ReactNode;
 }) {
+  const borderStyles: Record<string, string> = {
+    primary: 'border-l-primary bg-primary/5',
+    green: 'border-l-green-500 bg-green-500/5',
+    violet: 'border-l-violet-500 bg-violet-500/5',
+    amber: 'border-l-amber-500 bg-amber-500/5',
+  };
+  const labelStyles: Record<string, string> = {
+    primary: 'text-primary',
+    green: 'text-green-600',
+    violet: 'text-violet-600',
+    amber: 'text-amber-600',
+  };
+
   return (
     <div
-      style={{
-        position: 'relative',
-        padding: '10px 14px',
-        background: `${accent}10`,
-        borderLeft: `3px solid ${accent}`,
-        animation: pulse ? 'tc-pulse 1.4s ease-in-out infinite' : undefined,
-      }}
+      className={cn(
+        'relative px-3.5 py-2.5 border-l-[3px] rounded-sm',
+        borderStyles[variant],
+        pulse && 'animate-pulse',
+      )}
     >
-      <div className="tc-label" style={{ color: accent, fontSize: 9 }}>
+      <div className={cn('text-[9px] font-semibold tracking-widest uppercase mb-0.5', labelStyles[variant])}>
         ▸ {label}
       </div>
-      <div className="tc-mono" style={{ fontSize: 12, color: 'var(--tc-text-dim)', marginTop: 3, lineHeight: 1.5 }}>
-        {children}
-      </div>
+      <div className="text-xs text-muted-foreground leading-relaxed">{children}</div>
     </div>
   );
 }

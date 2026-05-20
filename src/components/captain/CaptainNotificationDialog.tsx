@@ -8,7 +8,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 export type CaptainNoticeKind = 'started' | 'turn' | 'started-and-turn';
 
@@ -48,18 +50,18 @@ export function CaptainNotificationDialog({
       ? {
           title: 'DRAFT INITIATED · YOU ARE ON CLOCK',
           subtitle: '▸ session_started + on_clock_signal',
-          accent: 'var(--tc-cyan)',
+          isPrimary: true,
         }
       : kind === 'turn'
       ? {
           title: 'YOU ARE ON CLOCK',
           subtitle: '▸ on_clock_signal :: pick required',
-          accent: 'var(--tc-cyan)',
+          isPrimary: true,
         }
       : {
           title: 'DRAFT INITIATED',
           subtitle: '▸ session_started :: roster locked',
-          accent: 'var(--tc-amber)',
+          isPrimary: false,
         };
 
   // ENTER to ack
@@ -73,340 +75,178 @@ export function CaptainNotificationDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onConfirm()}>
-      <DialogContent
-        className="max-w-md p-0 gap-0 border-0 bg-transparent shadow-none"
-        style={{ animation: 'tc-slide-up .35s cubic-bezier(.2,.9,.3,1)' }}
-      >
+      <DialogContent className="max-w-md p-0 gap-0 overflow-hidden rounded-xl">
+        {/* Top accent stripe — pulses for turn states */}
         <div
-          className="tc-card"
-          style={{
-            position: 'relative',
-            border: `1px solid ${meta.accent}`,
-            boxShadow: `0 0 40px ${meta.accent}40, inset 0 0 30px ${meta.accent}10`,
-          }}
-        >
-          <span className="corner tl" style={{ borderColor: meta.accent }} />
-          <span className="corner tr" style={{ borderColor: meta.accent }} />
-          <span className="corner bl" style={{ borderColor: meta.accent }} />
-          <span className="corner br" style={{ borderColor: meta.accent }} />
+          className={cn(
+            'h-1 w-full',
+            meta.isPrimary ? 'bg-primary' : 'bg-amber-500',
+            isTurn && 'animate-pulse',
+          )}
+        />
 
-          {/* Top stripe — pulses for turn states */}
-          <div
-            style={{
-              height: 3,
-              background: meta.accent,
-              boxShadow: `0 0 14px ${meta.accent}, 0 0 24px ${meta.accent}80`,
-              animation: isTurn ? 'tc-pulse 1.4s ease-in-out infinite' : undefined,
-            }}
-          />
-
-          {/* HEADER */}
-          <DialogHeader
-            className="space-y-0"
-            style={{
-              padding: '18px 22px 14px',
-              borderBottom: '1px solid var(--tc-line)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}
+        {/* HEADER */}
+        <DialogHeader className="space-y-0 px-5 pt-4 pb-3 border-b">
+          <div className="flex justify-between items-center mb-2.5">
+            <Badge
+              variant={meta.isPrimary ? 'default' : 'secondary'}
+              className={cn('text-xs', isTurn && 'animate-pulse')}
             >
-              <span
-                className="tc-chip"
-                style={{
-                  background: `${meta.accent}18`,
-                  borderColor: meta.accent as string,
-                  color: meta.accent as string,
-                  animation: isTurn ? 'tc-blink 1s step-end infinite' : undefined,
-                }}
-              >
-                ● {isTurn ? 'PRIORITY_ALERT' : 'SYS_NOTICE'}
-              </span>
-              <span
-                className="tc-mono"
-                style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}
-              >
-                evt#{Date.now() % 1000} · ack_required
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              {/* Hex glyph */}
-              <div
-                style={{
-                  flexShrink: 0,
-                  width: 56,
-                  height: 56,
-                  position: 'relative',
-                }}
-              >
-                <svg width="56" height="56" viewBox="0 0 56 56" style={{ overflow: 'visible' }}>
-                  <polygon
-                    points={polyHex(28, 28, 24)}
-                    fill={`${meta.accent}15`}
-                    stroke={meta.accent as string}
-                    strokeWidth={1.5}
-                  />
-                  <polygon
-                    points={polyHex(28, 28, 18)}
-                    fill="none"
-                    stroke={`${meta.accent}60`}
-                    strokeWidth={1}
-                    strokeDasharray="2 3"
-                  />
-                  {isTurn ? (
-                    <g
-                      stroke={meta.accent as string}
-                      strokeWidth={2.5}
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="20" y1="28" x2="36" y2="28" />
-                      <polyline points="30,22 36,28 30,34" />
-                    </g>
-                  ) : (
-                    <g
-                      stroke={meta.accent as string}
-                      strokeWidth={2.5}
-                      fill="none"
-                      strokeLinecap="round"
-                    >
-                      <path d="M 20 32 A 10 10 0 1 0 36 32" />
-                      <line x1="28" y1="18" x2="28" y2="30" />
-                    </g>
-                  )}
-                </svg>
-                {isTurn && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: -3,
-                      border: `1px solid ${meta.accent}`,
-                      animation: 'tc-pulse 1.4s ease-in-out infinite',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
-              </div>
-
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <DialogTitle asChild>
-                  <div
-                    className="tc-display"
-                    style={{
-                      fontSize: 19,
-                      lineHeight: 1.2,
-                      color: 'var(--tc-text)',
-                      textShadow: `0 0 10px ${meta.accent}60`,
-                      letterSpacing: 1,
-                    }}
-                  >
-                    {meta.title}
-                  </div>
-                </DialogTitle>
-                <div
-                  className="tc-mono"
-                  style={{
-                    fontSize: 10,
-                    color: meta.accent as string,
-                    marginTop: 4,
-                    letterSpacing: 1,
-                  }}
-                >
-                  {meta.subtitle}
-                </div>
-              </div>
-            </div>
-          </DialogHeader>
-
-          {/* BODY */}
-          <div style={{ padding: '16px 22px 18px' }}>
-            {isStarted && (
-              <div
-                style={{
-                  padding: '10px 12px',
-                  marginBottom: isTurn ? 12 : 0,
-                  background: 'rgba(255,178,61,0.06)',
-                  borderLeft: '3px solid var(--tc-amber)',
-                }}
-              >
-                <div
-                  className="tc-label"
-                  style={{ color: 'var(--tc-amber)', fontSize: 10 }}
-                >
-                  ▸ SESSION_STARTED
-                </div>
-                <div
-                  className="tc-mono"
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--tc-text-dim)',
-                    marginTop: 3,
-                    lineHeight: 1.55,
-                  }}
-                >
-                  管理员已开启选秀。名册和配置已锁定。
-                  <br />
-                  <span style={{ color: 'var(--tc-text-faint)' }}>
-                    config_lock=true · roster_lock=true
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {isTurn && (
-              <div
-                style={{
-                  padding: '10px 12px',
-                  background: 'rgba(0,229,255,0.06)',
-                  borderLeft: '3px solid var(--tc-cyan)',
-                }}
-              >
-                <div
-                  className="tc-label"
-                  style={{ color: 'var(--tc-cyan)', fontSize: 10 }}
-                >
-                  ▸ ACTION_REQUIRED
-                </div>
-                <div
-                  className="tc-mono"
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--tc-text-dim)',
-                    marginTop: 3,
-                    lineHeight: 1.55,
-                  }}
-                >
-                  请从右侧候选池选择一名选手并指定其位置。
-                  {currentRound != null && (
-                    <>
-                      {' '}
-                      当前为
-                      <span style={{ color: 'var(--tc-cyan)' }}>
-                        {' '}
-                        round_{String(currentRound).padStart(2, '0')}
-                      </span>
-                      。
-                    </>
-                  )}
-                </div>
-
-                {(budgetLeft != null || emptySlots != null) && (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                    {budgetLeft != null && (
-                      <div
-                        style={{
-                          flex: 1,
-                          padding: '6px 10px',
-                          background: 'var(--tc-bg-0)',
-                          border: '1px solid var(--tc-line2)',
-                        }}
-                      >
-                        <div className="tc-label" style={{ fontSize: 9 }}>
-                          REMAINING
-                        </div>
-                        <div
-                          className="tc-num"
-                          style={{
-                            fontSize: 18,
-                            color: 'var(--tc-green)',
-                            marginTop: 1,
-                          }}
-                        >
-                          {budgetLeft}
-                          <span
-                            className="tc-mono"
-                            style={{
-                              fontSize: 10,
-                              color: 'var(--tc-text-dim)',
-                              marginLeft: 3,
-                            }}
-                          >
-                            CR
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    {emptySlots != null && (
-                      <div
-                        style={{
-                          flex: 1,
-                          padding: '6px 10px',
-                          background: 'var(--tc-bg-0)',
-                          border: '1px solid var(--tc-line2)',
-                        }}
-                      >
-                        <div className="tc-label" style={{ fontSize: 9 }}>
-                          EMPTY SLOTS
-                        </div>
-                        <div
-                          className="tc-num"
-                          style={{
-                            fontSize: 18,
-                            color: 'var(--tc-amber)',
-                            marginTop: 1,
-                          }}
-                        >
-                          {emptySlots}
-                          <span
-                            className="tc-mono"
-                            style={{
-                              fontSize: 10,
-                              color: 'var(--tc-text-dim)',
-                              marginLeft: 3,
-                            }}
-                          >
-                            / 5
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+              ● {isTurn ? 'PRIORITY_ALERT' : 'SYS_NOTICE'}
+            </Badge>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              evt#{Date.now() % 1000} · ack_required
+            </span>
           </div>
 
-          {/* FOOTER */}
-          <DialogFooter
-            style={{
-              padding: '12px 22px 18px',
-              borderTop: '1px solid var(--tc-line)',
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
-              alignItems: 'center',
-              gap: 14,
-            }}
-          >
-            <span
-              className="tc-mono"
-              style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}
+          <div className="flex gap-3.5 items-start">
+            {/* Hex glyph */}
+            <div className="shrink-0 w-14 h-14 relative">
+              <svg width="56" height="56" viewBox="0 0 56 56" style={{ overflow: 'visible' }}>
+                <polygon
+                  points={polyHex(28, 28, 24)}
+                  className={meta.isPrimary ? 'fill-primary/10 stroke-primary' : 'fill-amber-500/10 stroke-amber-500'}
+                  strokeWidth={1.5}
+                />
+                <polygon
+                  points={polyHex(28, 28, 18)}
+                  fill="none"
+                  className={meta.isPrimary ? 'stroke-primary/40' : 'stroke-amber-500/40'}
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                />
+                {isTurn ? (
+                  <g
+                    className="stroke-primary"
+                    strokeWidth={2.5}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="20" y1="28" x2="36" y2="28" />
+                    <polyline points="30,22 36,28 30,34" />
+                  </g>
+                ) : (
+                  <g
+                    className="stroke-amber-500"
+                    strokeWidth={2.5}
+                    fill="none"
+                    strokeLinecap="round"
+                  >
+                    <path d="M 20 32 A 10 10 0 1 0 36 32" />
+                    <line x1="28" y1="18" x2="28" y2="30" />
+                  </g>
+                )}
+              </svg>
+              {isTurn && (
+                <div
+                  className="absolute -inset-0.5 border border-primary rounded-sm animate-pulse pointer-events-none"
+                />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-base font-bold leading-tight tracking-wide text-foreground">
+                {meta.title}
+              </DialogTitle>
+              <div
+                className={cn(
+                  'text-[10px] font-mono mt-1 tracking-wide',
+                  meta.isPrimary ? 'text-primary' : 'text-amber-600',
+                )}
+              >
+                {meta.subtitle}
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* BODY */}
+        <div className="px-5 py-4 space-y-3">
+          {isStarted && (
+            <div
+              className={cn(
+                'px-3 py-2.5 border-l-[3px] rounded-sm',
+                'border-l-amber-500 bg-amber-500/5',
+                isTurn && 'mb-3',
+              )}
             >
-              <span style={{ color: 'var(--tc-green)' }}>●</span> sse_connected ·
-              press ENTER to ack
-            </span>
-            <Button
-              onClick={onConfirm}
-              className="tc-btn tc-btn-primary"
-              style={{
-                minWidth: 140,
-                justifyContent: 'center',
-                borderColor: meta.accent,
-                color: meta.accent === 'var(--tc-cyan)' ? 'var(--tc-bg-0)' : (meta.accent as string),
-                background:
-                  meta.accent === 'var(--tc-cyan)' ? 'var(--tc-cyan)' : 'transparent',
-              }}
-            >
-              ▸ ACK · 我知道了
-            </Button>
-          </DialogFooter>
+              <div className="text-[10px] font-semibold tracking-widest uppercase text-amber-600 mb-1">
+                ▸ SESSION_STARTED
+              </div>
+              <div className="text-xs text-muted-foreground font-mono leading-relaxed">
+                管理员已开启选秀。名册和配置已锁定。
+                <br />
+                <span className="text-muted-foreground/60">
+                  config_lock=true · roster_lock=true
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isTurn && (
+            <div className="px-3 py-2.5 border-l-[3px] border-l-primary bg-primary/5 rounded-sm">
+              <div className="text-[10px] font-semibold tracking-widest uppercase text-primary mb-1">
+                ▸ ACTION_REQUIRED
+              </div>
+              <div className="text-xs text-muted-foreground font-mono leading-relaxed">
+                请从右侧候选池选择一名选手并指定其位置。
+                {currentRound != null && (
+                  <>
+                    {' '}
+                    当前为
+                    <span className="text-primary">
+                      {' '}
+                      round_{String(currentRound).padStart(2, '0')}
+                    </span>
+                    。
+                  </>
+                )}
+              </div>
+
+              {(budgetLeft != null || emptySlots != null) && (
+                <div className="flex gap-2.5 mt-2.5">
+                  {budgetLeft != null && (
+                    <div className="flex-1 px-2.5 py-1.5 rounded-md border bg-muted/30">
+                      <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">
+                        REMAINING
+                      </div>
+                      <div className="text-lg font-bold text-green-600 tabular-nums mt-0.5">
+                        {budgetLeft}
+                        <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
+                      </div>
+                    </div>
+                  )}
+                  {emptySlots != null && (
+                    <div className="flex-1 px-2.5 py-1.5 rounded-md border bg-muted/30">
+                      <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">
+                        EMPTY SLOTS
+                      </div>
+                      <div className="text-lg font-bold text-amber-600 tabular-nums mt-0.5">
+                        {emptySlots}
+                        <span className="text-xs text-muted-foreground ml-0.5 font-normal">/ 5</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* FOOTER */}
+        <DialogFooter className="grid grid-cols-[1fr_auto] items-center gap-3.5 px-5 py-3 border-t">
+          <span className="text-[10px] text-muted-foreground font-mono">
+            <span className="text-green-500">●</span> sse_connected · press ENTER to ack
+          </span>
+          <Button
+            onClick={onConfirm}
+            variant="default"
+            className="min-w-[140px]"
+          >
+            ▸ ACK · 我知道了
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
