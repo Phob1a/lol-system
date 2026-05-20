@@ -51,16 +51,16 @@ export function RoundConfigDialog({
   const [submitting, setSubmitting] = useState(false);
   const [order, setOrder] = useState<string[]>(snapshot.teams.map((t) => t.captainId));
   const [assignments, setAssignments] = useState<
-    Record<string, { playerId: string; position: Position | '' }>
+    Record<string, { registrationId: string; position: Position | '' }>
   >({});
 
   useEffect(() => {
     if (open) {
       setMode(canReverse ? 'ADMIN_ORDER' : 'ADMIN_ORDER');
       setOrder(snapshot.teams.map((t) => t.captainId));
-      const init: Record<string, { playerId: string; position: Position | '' }> = {};
+      const init: Record<string, { registrationId: string; position: Position | '' }> = {};
       for (const t of snapshot.teams) {
-        init[t.captainId] = { playerId: '', position: '' };
+        init[t.captainId] = { registrationId: '', position: '' };
       }
       setAssignments(init);
     }
@@ -101,14 +101,14 @@ export function RoundConfigDialog({
 
   async function submit() {
     if (mode === 'MANUAL') {
-      // Validate: every captain has playerId + position
+      // Validate: every captain has registrationId + position
       const issues: string[] = [];
       const usedPlayers = new Set<string>();
       for (const t of snapshot.teams) {
         const a = assignments[t.captainId];
-        if (!a?.playerId) issues.push(`${t.captainNickname}: 未选择选手`);
-        else if (usedPlayers.has(a.playerId)) issues.push(`${t.captainNickname}: 选手与他队冲突`);
-        else usedPlayers.add(a.playerId);
+        if (!a?.registrationId) issues.push(`${t.captainNickname}: 未选择选手`);
+        else if (usedPlayers.has(a.registrationId)) issues.push(`${t.captainNickname}: 选手与他队冲突`);
+        else usedPlayers.add(a.registrationId);
         if (!a?.position) issues.push(`${t.captainNickname}: 未选择位置`);
       }
       if (issues.length > 0) {
@@ -126,13 +126,13 @@ export function RoundConfigDialog({
     const body: {
       mode: RoundMode;
       adminProvidedOrder?: string[];
-      manualAssignments?: { captainId: string; playerId: string; position: Position }[];
+      manualAssignments?: { captainId: string; registrationId: string; position: Position }[];
     } = { mode };
     if (mode === 'ADMIN_ORDER') body.adminProvidedOrder = order;
     if (mode === 'MANUAL') {
       body.manualAssignments = snapshot.teams.map((t) => ({
         captainId: t.captainId,
-        playerId: assignments[t.captainId].playerId,
+        registrationId: assignments[t.captainId].registrationId,
         position: assignments[t.captainId].position as Position,
       }));
     }
@@ -213,7 +213,7 @@ export function RoundConfigDialog({
               <Card>
                 <CardContent className="divide-y p-0">
                   {snapshot.teams.map((t) => {
-                    const a = assignments[t.captainId] ?? { playerId: '', position: '' };
+                    const a = assignments[t.captainId] ?? { registrationId: '', position: '' };
                     const empties = emptySlotsByCaptain.get(t.captainId) ?? [];
                     const budget = budgetByCaptain.get(t.captainId) ?? 0;
                     const eligiblePool = pool.filter((p) => p.cost <= budget);
@@ -224,8 +224,8 @@ export function RoundConfigDialog({
                           <span className="text-[10px] text-muted-foreground">预算 {budget}</span>
                         </div>
                         <Select
-                          value={a.playerId}
-                          onValueChange={(v) => setAssignments((cur) => ({ ...cur, [t.captainId]: { ...a, playerId: v } }))}
+                          value={a.registrationId}
+                          onValueChange={(v) => setAssignments((cur) => ({ ...cur, [t.captainId]: { ...a, registrationId: v } }))}
                         >
                           <SelectTrigger><SelectValue placeholder="选择选手" /></SelectTrigger>
                           <SelectContent>

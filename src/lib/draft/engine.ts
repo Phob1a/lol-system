@@ -140,7 +140,7 @@ export async function startDraft(
  * Reset the draft for a season.
  *
  * Wipes the season's DraftSession / DraftRound / DraftPick / DraftEvent records
- * (cascade), clears every TeamSlot.registrationId for the season, and resets each
+ * (cascade), deletes the season's TeamSlot rows, and resets each
  * Team.budgetLeft to 0. Teams themselves, Registrations, Players and Users are
  * preserved. The season is moved back to ROSTER_LOCKED so the admin can restart.
  *
@@ -154,11 +154,8 @@ export async function resetDraft(seasonId: string): Promise<void> {
     // Scoped to this season's single session (seasonId is @unique on DraftSession).
     await tx.draftSession.deleteMany({ where: { seasonId } });
 
-    // Clear slot occupancy and reset budgets for the season's teams.
-    await tx.teamSlot.updateMany({
-      where: { team: { seasonId } },
-      data: { registrationId: null },
-    });
+    // Delete all slot rows for the season's teams so startDraft can re-create them.
+    await tx.teamSlot.deleteMany({ where: { team: { seasonId } } });
     await tx.team.updateMany({
       where: { seasonId },
       data: { budgetLeft: 0 },
@@ -462,6 +459,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
 }
 
 export type SubmitPickInput = {
+  seasonId: string;
   byCaptainId: string;
   registrationId: string;
   position: Position;
@@ -486,11 +484,11 @@ export type SubmitPickResult = {
  */
 export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
   return prisma.$transaction(async (tx) => {
-    // Row lock on the in-progress session.
+    // Row lock on the in-progress session, scoped to this season.
     const locked = await tx.$queryRaw<{ id: string; seq: number; on_the_clock: string | null; current_round: number }[]>`
       SELECT id, seq, "onTheClock" AS on_the_clock, "currentRound" AS current_round
       FROM "draft_sessions"
-      WHERE status = 'IN_PROGRESS'
+      WHERE "seasonId" = ${input.seasonId} AND status = 'IN_PROGRESS'
       FOR UPDATE
     `;
     if (locked.length === 0) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');

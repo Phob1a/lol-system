@@ -54,6 +54,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await submitPick({
+      seasonId: season.id,
       byCaptainId,
       registrationId: parsed.data.registrationId,
       position: parsed.data.position,
