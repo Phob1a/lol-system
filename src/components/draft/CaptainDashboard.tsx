@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Player } from '@prisma/client';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import type { DraftSnapshot } from '@/lib/draft/types';
-import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
+import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { PlayerPool } from '@/components/draft/PlayerPool';
 import { TeamPanel } from '@/components/draft/TeamPanel';
 import { DraggableTeamBoard } from '@/components/captain/DraggableTeamBoard';
@@ -14,17 +13,11 @@ import {
   type CaptainNoticeKind,
 } from '@/components/captain/CaptainNotificationDialog';
 
-type PoolPlayer = Pick<
-  Player,
-  'id' | 'gameId' | 'nickname' | 'primaryPositions' | 'secondaryPositions' | 'cost' | 'isCaptain' | 'isRetired'
->;
-
 type Props = {
   initialSnapshot: DraftSnapshot;
-  pool: PoolPlayer[];
+  pool: RegistrationRef[];
   virtualTeams: TeamPreview[];
-  ownGameId: string;
-  /** Captain's own Player.id — used to determine if they're on the clock. */
+  /** Registration.id of the captain who owns this session. */
   ownCaptainId: string | null;
   teamBudget: number;
 };
@@ -33,12 +26,11 @@ export function CaptainDashboard({
   initialSnapshot,
   pool,
   virtualTeams,
-  ownGameId,
   ownCaptainId,
   teamBudget,
 }: Props) {
   const { snapshot, prevSnapshot, connected } = useDraftStream(initialSnapshot);
-  const [pickTarget, setPickTarget] = useState<PoolPlayer | null>(null);
+  const [pickTarget, setPickTarget] = useState<RegistrationRef | null>(null);
   const [noticeKind, setNoticeKind] = useState<CaptainNoticeKind | null>(null);
 
   const session = snapshot?.session ?? null;
@@ -56,7 +48,7 @@ export function CaptainDashboard({
       budgetLeft: t.budgetLeft,
       slots: t.slots.map((s) => ({
         position: s.position,
-        player: s.player as PlayerRef | null,
+        player: s.registration as RegistrationRef | null,
       })),
     }));
   }, [snapshot]);
@@ -68,8 +60,8 @@ export function CaptainDashboard({
 
   const teamsToRender = running || finished ? liveTeams : virtualTeams;
   const pickedSet = useMemo(
-    () => new Set(snapshot?.pickedPlayerIds ?? []),
-    [snapshot?.pickedPlayerIds],
+    () => new Set(snapshot?.pickedRegistrationIds ?? []),
+    [snapshot?.pickedRegistrationIds],
   );
   const decoratedPool = useMemo(
     () => pool.map((p) => ({ ...p, isPicked: pickedSet.has(p.id) })),
@@ -77,7 +69,7 @@ export function CaptainDashboard({
   );
 
   const myEmptySlots = useMemo(
-    () => ownLiveTeam?.slots.filter((s) => s.player === null).map((s) => s.position) ?? [],
+    () => ownLiveTeam?.slots.filter((s) => s.registration === null).map((s) => s.position) ?? [],
     [ownLiveTeam],
   );
   const myBudget = ownLiveTeam?.budgetLeft ?? 0;
@@ -125,10 +117,10 @@ export function CaptainDashboard({
               {!running && !finished && <>STATUS NOT_STARTED · BUDGET {teamBudget} CR · {teamsToRender.length} TEAMS</>}
               {running && (
                 <>
-                  STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedPlayerIds.length ?? 0} PICKS
+                  STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS
                 </>
               )}
-              {finished && <>STATUS FINISHED · {snapshot?.pickedPlayerIds.length ?? 0} PICKS</>}
+              {finished && <>STATUS FINISHED · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS</>}
             </div>
           </div>
         </div>
@@ -188,7 +180,7 @@ export function CaptainDashboard({
             </div>
           ) : (
             teamsToRender.map((t) => {
-              const isOwn = t.captainGameId === ownGameId;
+              const isOwn = t.captainId === ownCaptainId;
               if (isOwn && ownLiveTeam) {
                 return (
                   <DraggableTeamBoard
@@ -201,7 +193,7 @@ export function CaptainDashboard({
                       budgetLeft: ownLiveTeam.budgetLeft,
                       slots: ownLiveTeam.slots.map((s) => ({
                         position: s.position,
-                        player: s.player as PlayerRef | null,
+                        player: s.registration as RegistrationRef | null,
                       })),
                     }}
                     seq={snapshot?.seq ?? 0}
@@ -222,7 +214,7 @@ export function CaptainDashboard({
             isMyTurn
               ? (p) => (
                   <button
-                    onClick={() => setPickTarget(p as PoolPlayer)}
+                    onClick={() => setPickTarget(p as RegistrationRef)}
                     disabled={p.isPicked || p.cost > myBudget || myEmptySlots.length === 0}
                     className="tc-btn tc-btn-primary"
                     style={{

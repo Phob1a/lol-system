@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { PlayerRef } from '@/lib/teams/preview';
+import type { RegistrationRef } from '@/lib/teams/preview';
 import { PlayerInfoCard } from '@/components/draft/PlayerInfoCard';
 
 const OPEN_DELAY_MS = 150;
@@ -30,7 +30,7 @@ function computeCoords(rect: DOMRect, cardWidth: number, cardHeight: number): Co
 }
 
 type Props = {
-  player: PlayerRef;
+  player: RegistrationRef;
   /** When true, suppresses hover entirely and force-closes any open card. */
   disabled?: boolean;
   children: React.ReactNode;

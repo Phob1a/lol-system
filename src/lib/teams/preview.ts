@@ -6,6 +6,7 @@ export type RegistrationRef = {
   gameId: string;
   nickname: string;
   primaryPositions: Position[];
+  secondaryPositions: Position[];
   cost: number;
 };
 

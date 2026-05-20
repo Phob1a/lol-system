@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
-import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
+import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 
@@ -22,7 +22,7 @@ type Props = {
   seq: number;
 };
 
-type LocalSlot = { position: Position; player: PlayerRef | null };
+type LocalSlot = { position: Position; player: RegistrationRef | null };
 
 export function DraggableTeamBoard({ team, seq }: Props) {
   const [slots, setSlots] = useState<LocalSlot[]>(team.slots);
@@ -40,7 +40,7 @@ export function DraggableTeamBoard({ team, seq }: Props) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        slots: next.map((s) => ({ position: s.position, playerId: s.player?.id ?? null })),
+        slots: next.map((s) => ({ position: s.position, registrationId: s.player?.id ?? null })),
       }),
     });
     setSubmitting(false);

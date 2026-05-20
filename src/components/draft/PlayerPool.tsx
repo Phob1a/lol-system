@@ -6,7 +6,7 @@ import {
   sortPlayers,
   DEFAULT_FILTER,
   DEFAULT_SORT,
-  type PlayerForPool,
+  type RegistrationForPool,
   type PlayerFilter,
   type SortKey,
 } from '@/lib/filters';
@@ -15,9 +15,9 @@ import { POSITION_OPTIONS } from '@/components/players/positions';
 import { TcPos } from '@/components/tactical/TcPos';
 
 type Props = {
-  players: PlayerForPool[];
+  players: RegistrationForPool[];
   /** Per-row action area (e.g. "选他" button when on the clock). */
-  renderActions?: (player: PlayerForPool) => React.ReactNode;
+  renderActions?: (player: RegistrationForPool) => React.ReactNode;
 };
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
