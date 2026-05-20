@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
+import { getActiveSeason } from '@/lib/season/season-service';
+import { getDraftSnapshot } from '@/lib/draft/engine';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 
@@ -19,6 +21,9 @@ export async function GET(req: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
+  const season = await getActiveSeason(prisma);
+  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+
   const url = new URL(req.url);
   const format = (url.searchParams.get('format') ?? 'csv').toLowerCase();
   if (format !== 'csv' && format !== 'json') {
@@ -26,11 +31,26 @@ export async function GET(req: Request) {
   }
 
   const teams = await prisma.team.findMany({
+    where: { seasonId: season.id },
     include: {
-      captain: { select: { id: true, gameId: true, nickname: true, cost: true } },
+      captain: {
+        select: {
+          id: true,
+          nickname: true,
+          cost: true,
+          player: { select: { gameId: true } },
+        },
+      },
       slots: {
         include: {
-          player: { select: { id: true, gameId: true, nickname: true, cost: true } },
+          registration: {
+            select: {
+              id: true,
+              nickname: true,
+              cost: true,
+              player: { select: { gameId: true } },
+            },
+          },
         },
       },
     },
@@ -40,10 +60,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: '当前无战队，请先启动选秀' }, { status: 409 });
   }
 
+  // Verify there is an active or finished draft snapshot.
+  const snapshot = await getDraftSnapshot(season.id);
+  if (!snapshot.session) {
+    return NextResponse.json({ error: '尚未启动选秀' }, { status: 409 });
+  }
+
   // Sort teams by captain gameId; sort slots in POSITIONS enum order.
   const sorted = teams
     .slice()
-    .sort((a, b) => a.captain.gameId.localeCompare(b.captain.gameId))
+    .sort((a, b) => a.captain.player.gameId.localeCompare(b.captain.player.gameId))
     .map((t) => ({
       captain: t.captain,
       budgetLeft: t.budgetLeft,
@@ -62,17 +88,17 @@ export async function GET(req: Request) {
     const body = {
       exportedAt: new Date().toISOString(),
       teams: sorted.map((t) => ({
-        captainGameId: t.captain.gameId,
+        captainGameId: t.captain.player.gameId,
         captainNickname: t.captain.nickname,
         budgetLeft: t.budgetLeft,
         slots: t.slots.map((s) => ({
           position: s.position,
-          player: s.player
+          registration: s.registration
             ? {
-                gameId: s.player.gameId,
-                nickname: s.player.nickname,
-                cost: s.player.cost,
-                isCaptain: s.player.id === t.captain.id,
+                gameId: s.registration.player.gameId,
+                nickname: s.registration.nickname,
+                cost: s.registration.cost,
+                isCaptain: s.registration.id === t.captain.id,
               }
             : null,
         })),
@@ -86,7 +112,7 @@ export async function GET(req: Request) {
     });
   }
 
-  // CSV: one row per (team, position). Empty slots produce a row with empty player fields.
+  // CSV: one row per (team, position). Empty slots produce a row with empty registration fields.
   const headers = [
     '战队队长游戏ID',
     '战队队长昵称',
@@ -100,16 +126,16 @@ export async function GET(req: Request) {
   const rows: string[] = [headers.map(csvEscape).join(',')];
   for (const t of sorted) {
     for (const s of t.slots) {
-      const isCaptain = s.player?.id === t.captain.id;
+      const isCaptain = s.registration?.id === t.captain.id;
       rows.push(
         [
-          t.captain.gameId,
+          t.captain.player.gameId,
           t.captain.nickname,
           t.budgetLeft,
           POSITION_LABEL[s.position],
-          s.player?.gameId ?? '',
-          s.player?.nickname ?? '',
-          s.player?.cost ?? '',
+          s.registration?.player.gameId ?? '',
+          s.registration?.nickname ?? '',
+          s.registration?.cost ?? '',
           isCaptain ? '是' : '',
         ]
           .map(csvEscape)

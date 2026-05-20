@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { rearrangeSlots, getDraftSnapshot, DraftStateError } from '@/lib/draft/engine';
+import { getActiveSeason } from '@/lib/season/season-service';
 import { POSITIONS } from '@/lib/players/schema';
 import { publish } from '@/server/draft-bus';
 
@@ -13,7 +14,7 @@ const Body = z.object({
     .array(
       z.object({
         position: z.enum(POSITIONS),
-        playerId: z.string().nullable(),
+        registrationId: z.string().nullable(),
       }),
     )
     .length(POSITIONS.length),
@@ -26,16 +27,14 @@ export async function POST(
   const session = await getSession();
   if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
+  const season = await getActiveSeason(prisma);
+  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+
   const { id: teamId } = await params;
 
   // Authorization: admin OR the captain who owns this team.
   if (session.user.role !== 'ADMIN') {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: { captain: { select: { gameId: true } } },
-    });
-    if (!team) return NextResponse.json({ error: '战队不存在' }, { status: 404 });
-    if (team.captain.gameId !== session.user.gameId) {
+    if (!session.user.teamId || session.user.teamId !== teamId) {
       return NextResponse.json({ error: '只能调整自己的战队' }, { status: 403 });
     }
   }
@@ -51,7 +50,7 @@ export async function POST(
 
   try {
     const result = await rearrangeSlots(teamId, parsed.data.slots, session.user.id);
-    const snapshot = await getDraftSnapshot();
+    const snapshot = await getDraftSnapshot(season.id);
     publish({ type: 'state.invalidated', seq: snapshot.seq });
     return NextResponse.json({ ...result, snapshot });
   } catch (e) {
