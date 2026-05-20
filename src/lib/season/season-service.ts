@@ -1,5 +1,6 @@
-import type { Prisma, PrismaClient, Season } from '@prisma/client';
+import type { Prisma, PrismaClient, Season, SeasonStatus } from '@prisma/client';
 import type { CreateSeasonInput } from './season-schema';
+import { SeasonError } from './errors';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -36,4 +37,35 @@ export async function createSeason(
       data: { name: input.name, teamBudget: input.teamBudget, status: 'SETUP' },
     });
   });
+}
+
+// Allowed status edges. ARCHIVED is reached only via createSeason / archiveActiveSeason.
+const ALLOWED: Record<SeasonStatus, SeasonStatus[]> = {
+  SETUP: ['REGISTRATION'],
+  REGISTRATION: ['ROSTER_LOCKED'],
+  ROSTER_LOCKED: ['REGISTRATION', 'DRAFTING'],
+  DRAFTING: ['COMPLETED'],
+  COMPLETED: [],
+  ARCHIVED: [],
+};
+
+/**
+ * Move a season to `next`. Validates the edge only — caller-specific
+ * preconditions (e.g. captains exist before DRAFTING) are enforced by the
+ * relevant service (captain-service / draft engine).
+ */
+export async function transitionSeason(
+  db: Db,
+  seasonId: string,
+  next: SeasonStatus,
+): Promise<Season> {
+  const season = await db.season.findUnique({ where: { id: seasonId } });
+  if (!season) throw new SeasonError('PRECONDITION_FAILED', '赛季不存在');
+  if (!ALLOWED[season.status].includes(next)) {
+    throw new SeasonError(
+      'INVALID_TRANSITION',
+      `不允许的赛季状态变更: ${season.status} → ${next}`,
+    );
+  }
+  return db.season.update({ where: { id: seasonId }, data: { status: next } });
 }

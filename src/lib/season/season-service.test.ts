@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { testDb } from '@/lib/test/db';
-import { archiveActiveSeason, createSeason, getActiveSeason, listSeasons } from './season-service';
+import { archiveActiveSeason, createSeason, getActiveSeason, listSeasons, transitionSeason } from './season-service';
+import { SeasonError } from './errors';
 
 describe('season-service: create / get / list', () => {
   it('creates a season in SETUP', async () => {
@@ -26,5 +27,25 @@ describe('season-service: create / get / list', () => {
     await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
     await createSeason(testDb, { name: 'S2', teamBudget: 1000 });
     expect((await listSeasons(testDb)).map((s) => s.name)).toEqual(['S2', 'S1']);
+  });
+});
+
+describe('season-service: transitions', () => {
+  it('SETUP -> REGISTRATION is allowed', async () => {
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    expect((await transitionSeason(testDb, s.id, 'REGISTRATION')).status).toBe('REGISTRATION');
+  });
+
+  it('REGISTRATION -> DRAFTING is rejected (not adjacent)', async () => {
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    await transitionSeason(testDb, s.id, 'REGISTRATION');
+    await expect(transitionSeason(testDb, s.id, 'DRAFTING')).rejects.toBeInstanceOf(SeasonError);
+  });
+
+  it('ROSTER_LOCKED -> REGISTRATION reopen is allowed', async () => {
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    await transitionSeason(testDb, s.id, 'REGISTRATION');
+    await transitionSeason(testDb, s.id, 'ROSTER_LOCKED');
+    expect((await transitionSeason(testDb, s.id, 'REGISTRATION')).status).toBe('REGISTRATION');
   });
 });
