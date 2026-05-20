@@ -25,24 +25,17 @@ export function TeamCard({ team, live, maxBudget }: Props) {
   return (
     <div
       className={[
-        'rounded-md border px-3 py-2 bg-slate-900/70 transition-all',
-        live
-          ? 'border-cyan-400/70 ring-2 ring-cyan-400/30 bg-cyan-950/40'
-          : 'border-slate-700/50',
+        'rounded-lg border bg-card p-3 transition-all',
+        live ? 'ring-2 ring-primary' : '',
       ].join(' ')}
     >
       {/* Team name */}
       <div className="flex items-baseline justify-between gap-1 mb-2">
-        <span
-          className={[
-            'text-sm font-semibold truncate',
-            live ? 'text-cyan-300' : 'text-slate-200',
-          ].join(' ')}
-        >
+        <span className="text-sm font-semibold truncate">
           {team.captainNickname}
         </span>
         {live && (
-          <span className="shrink-0 text-[9px] font-mono tracking-widest text-cyan-400 uppercase">
+          <span className="shrink-0 text-[9px] font-mono tracking-widest uppercase text-primary">
             ON CLOCK
           </span>
         )}
@@ -59,8 +52,8 @@ export function TeamCard({ team, live, maxBudget }: Props) {
               className={[
                 'flex items-center justify-center w-6 h-6 rounded text-[9px] font-bold border',
                 filled
-                  ? 'bg-cyan-500/25 border-cyan-400/50 text-cyan-300'
-                  : 'bg-slate-800/40 border-slate-600/30 text-slate-600',
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted text-muted-foreground border-muted',
               ].join(' ')}
             >
               {POSITION_LABEL[pos]}
@@ -71,16 +64,13 @@ export function TeamCard({ team, live, maxBudget }: Props) {
 
       {/* Budget bar */}
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 rounded-full bg-slate-700/50 overflow-hidden">
+        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
           <div
-            className={[
-              'h-full rounded-full transition-all',
-              budgetPct > 50 ? 'bg-amber-400' : budgetPct > 20 ? 'bg-amber-500' : 'bg-rose-500',
-            ].join(' ')}
+            className="h-full rounded-full bg-primary transition-all"
             style={{ width: `${budgetPct}%` }}
           />
         </div>
-        <span className="text-[10px] font-mono text-amber-300/80 shrink-0">{team.budgetLeft}</span>
+        <span className="text-[10px] font-mono text-muted-foreground shrink-0">{team.budgetLeft}</span>
       </div>
     </div>
   );
