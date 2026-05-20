@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { POSITIONS } from '@/lib/players/schema';
 import { pickCaptainSlot } from '@/lib/teams/preview';
-import type { DraftSnapshot, DraftTeamSnapshot } from './types';
+import type { DraftSnapshot, DraftTeamSnapshot, RegistrationRef } from './types';
 
 export class DraftStateError extends Error {
   constructor(public readonly code: DraftStateErrorCode, message: string) {
@@ -69,7 +69,7 @@ export async function startDraft(
     }
 
     const existing = await tx.draftSession.findFirst({
-      where: { status: 'IN_PROGRESS' },
+      where: { seasonId, status: 'IN_PROGRESS' },
     });
     if (existing) {
       throw new DraftStateError('ALREADY_RUNNING', '已有进行中的选秀');
@@ -189,7 +189,7 @@ type RegistrationRow = Prisma.RegistrationGetPayload<{
 }>;
 
 /** Flatten the nested player.gameId into the snapshot's RegistrationRef shape. */
-function toRegistrationRef(r: RegistrationRow) {
+function toRegistrationRef(r: RegistrationRow): RegistrationRef {
   return {
     id: r.id,
     nickname: r.nickname,
@@ -304,6 +304,7 @@ export type ManualAssignment = {
 };
 
 export type StartRoundInput = {
+  seasonId: string;
   mode: RoundMode;
   adminProvidedOrder?: string[];
   manualAssignments?: ManualAssignment[];
@@ -334,7 +335,7 @@ export type StartRoundResult = {
  */
 export async function startRound(input: StartRoundInput): Promise<StartRoundResult> {
   return prisma.$transaction(async (tx) => {
-    const session = await tx.draftSession.findFirst({ where: { status: 'IN_PROGRESS' } });
+    const session = await tx.draftSession.findFirst({ where: { seasonId: input.seasonId, status: 'IN_PROGRESS' } });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
 
     const nextRoundNo = session.currentRound + 1;
@@ -783,10 +784,10 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
  * Hard-deletes the entire current round (cascades its picks), refunds budgets,
  * frees slots, decrements currentRound, clears onTheClock, returns to IN_PROGRESS.
  */
-export async function rewindRound(actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
+export async function rewindRound(seasonId: string, actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
   return prisma.$transaction(async (tx) => {
     const session = await tx.draftSession.findFirst({
-      where: { status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      where: { seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
       orderBy: { createdAt: 'desc' },
     });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
@@ -862,17 +863,17 @@ export async function rearrangeSlots(
   actorUserId: string,
 ): Promise<{ newSeq: number }> {
   return prisma.$transaction(async (tx) => {
-    const session = await tx.draftSession.findFirst({
-      where: { status: { in: ['IN_PROGRESS', 'FINISHED'] } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
-
     const team = await tx.team.findUnique({
       where: { id: teamId },
       include: { slots: true },
     });
     if (!team) throw new DraftStateError('NO_TEAM', '战队不存在');
+
+    const session = await tx.draftSession.findFirst({
+      where: { seasonId: team.seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
 
     // Validate position set
     const desiredPositions = desired.map((d) => d.position);
@@ -899,7 +900,7 @@ export async function rearrangeSlots(
       currentRegistrationIds.length !== desiredRegistrationIds.length ||
       currentRegistrationIds.some((id, i) => id !== desiredRegistrationIds[i])
     ) {
-      throw new DraftStateError('PLAYER_SET_MISMATCH', '只能在本队内调整位置');
+      throw new DraftStateError('PLAYER_SET_MISMATCH', '调整后的选手集合必须与当前队伍一致');
     }
 
     // Apply: clear all slots first (avoid unique-violations on intermediate
