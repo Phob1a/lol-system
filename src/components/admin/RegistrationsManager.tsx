@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Season } from '@prisma/client';
@@ -60,11 +60,13 @@ function posLabels(arr: string[]) {
 /** Reusable checkbox group for selecting positions. */
 function PositionCheckGroup({
   label,
+  scope,
   value,
   onChange,
   exclude,
 }: {
   label: string;
+  scope: string;
   value: Position[];
   onChange: (v: Position[]) => void;
   exclude?: Position[];
@@ -85,13 +87,13 @@ function PositionCheckGroup({
           return (
             <div key={p} className="flex items-center gap-1">
               <Checkbox
-                id={`pos-${label}-${p}`}
+                id={`pos-${scope}-${label}-${p}`}
                 checked={value.includes(p)}
                 disabled={disabled}
                 onCheckedChange={() => !disabled && toggle(p)}
               />
               <label
-                htmlFor={`pos-${label}-${p}`}
+                htmlFor={`pos-${scope}-${label}-${p}`}
                 className="text-xs cursor-pointer select-none"
               >
                 {posLabel(p)}
@@ -319,6 +321,8 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
       setDeleteTarget(null);
       refresh();
       toast.success('已删除');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败');
     } finally {
       setDeleteBusy(false);
     }
@@ -333,7 +337,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
         method: 'POST',
       });
       if (res.status === 201) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setCreds({ teamId: data.teamId, username: data.username, password: data.password });
         setCredsOpen(true);
         refresh();
@@ -342,6 +346,8 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? '操作失败');
       }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '任命失败');
     } finally {
       setBusy(reg.id, false);
     }
@@ -362,6 +368,8 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error ?? '操作失败');
       }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '撤销失败');
     } finally {
       setBusy(reg.id, false);
     }
@@ -401,6 +409,11 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
   // ── add dialog ────────────────────────────────────────────────────────────
 
   async function handleAddSave() {
+    const costNum = Number(addForm.cost);
+    if (Number.isNaN(costNum) || costNum < 0) {
+      toast.error('费用必须是不小于 0 的数字');
+      return;
+    }
     setAddSaving(true);
     try {
       const res = await fetch('/api/admin/registrations', {
@@ -415,7 +428,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
           peakRank: addForm.peakRank,
           willingToCaptain: addForm.willingToCaptain,
           statement: addForm.statement || undefined,
-          cost: Number(addForm.cost),
+          cost: costNum,
         }),
       });
       if (res.status === 201) {
@@ -509,12 +522,14 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               </div>
               <PositionCheckGroup
                 label="主位置"
+                scope="edit"
                 value={editForm.primaryPositions}
                 onChange={(v) => setEditForm({ ...editForm, primaryPositions: v })}
                 exclude={editForm.secondaryPositions}
               />
               <PositionCheckGroup
                 label="副位置"
+                scope="edit"
                 value={editForm.secondaryPositions}
                 onChange={(v) => setEditForm({ ...editForm, secondaryPositions: v })}
                 exclude={editForm.primaryPositions}
@@ -595,12 +610,14 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
             </div>
             <PositionCheckGroup
               label="主位置"
+              scope="add"
               value={addForm.primaryPositions}
               onChange={(v) => setAddForm({ ...addForm, primaryPositions: v })}
               exclude={addForm.secondaryPositions}
             />
             <PositionCheckGroup
               label="副位置"
+              scope="add"
               value={addForm.secondaryPositions}
               onChange={(v) => setAddForm({ ...addForm, secondaryPositions: v })}
               exclude={addForm.primaryPositions}
@@ -718,6 +735,10 @@ function RegRow({
   onCostSave,
 }: RegRowProps) {
   const [costVal, setCostVal] = useState(String(reg.cost));
+
+  useEffect(() => {
+    setCostVal(String(reg.cost));
+  }, [reg.cost]);
 
   return (
     <TableRow>
