@@ -451,6 +451,10 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
       },
     });
 
+    if (finishedDraft) {
+      await tx.season.update({ where: { id: session.seasonId }, data: { status: 'COMPLETED' } });
+    }
+
     void roundStatusFinal;
 
     return { roundId: round.id, roundNo: nextRoundNo, pickOrder: order, finishedDraft };
@@ -547,6 +551,13 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
         ...(finishedDraft && { status: 'FINISHED', finishedAt: new Date() }),
       },
     });
+
+    if (finishedDraft) {
+      const sess = await tx.draftSession.findUnique({ where: { id: lockedSession.id }, select: { seasonId: true } });
+      if (sess) {
+        await tx.season.update({ where: { id: sess.seasonId }, data: { status: 'COMPLETED' } });
+      }
+    }
 
     return { pickId: pickResult.pickId, finishedRound, finishedDraft, newSeq };
   });
@@ -752,6 +763,8 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
       },
     });
 
+    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
+
     await tx.draftEvent.create({
       data: {
         sessionId: session.id,
@@ -825,6 +838,8 @@ export async function rewindRound(seasonId: string, actorUserId: string): Promis
         finishedAt: null,
       },
     });
+
+    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
 
     await tx.draftEvent.create({
       data: {

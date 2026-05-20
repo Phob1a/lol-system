@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { getActiveSeason } from '@/lib/season/season-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,18 @@ function eventColor(type: string): string {
 }
 
 export default async function AuditPage() {
+  const season = await getActiveSeason(prisma);
+
+  if (!season) {
+    return (
+      <div className="tc-board" style={{ minHeight: '100%', padding: 18 }}>
+        <div className="text-muted-foreground">暂无赛季</div>
+      </div>
+    );
+  }
+
   const events = await prisma.draftEvent.findMany({
+    where: { session: { seasonId: season.id } },
     orderBy: { seq: 'desc' },
     take: 200,
   });
