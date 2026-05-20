@@ -43,7 +43,10 @@ function PasswordDialog({
   password: string | null;
 }) {
   function copy(text: string) {
-    navigator.clipboard.writeText(text).then(() => toast.success('已复制'));
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success('已复制'))
+      .catch(() => toast.error('复制失败'));
   }
 
   return (
@@ -163,10 +166,10 @@ export function TeamsManager({ season, initialTeams }: Props) {
         toast.success('密码已重置');
       } else {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? '操作失败');
+        toast.error(data.error ?? '密码重置失败');
       }
-    } catch {
-      toast.error('操作失败');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '密码重置失败');
     } finally {
       setBusy(team.id, false);
     }
@@ -193,10 +196,10 @@ export function TeamsManager({ season, initialTeams }: Props) {
         toast.success('队名已更新');
       } else {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? '操作失败');
+        toast.error(data.error ?? '改名失败');
       }
-    } catch {
-      toast.error('操作失败');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '改名失败');
     } finally {
       setRenameSaving(false);
     }
