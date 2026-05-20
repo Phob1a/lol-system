@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { AdminNav } from '@/components/layout/AdminNav';
+import { AppSidebar } from '@/components/layout/AppSidebar';
 
 export default async function AdminLayout({
   children,
@@ -12,9 +12,18 @@ export default async function AdminLayout({
   if (session.user.role !== 'ADMIN') redirect('/access-denied');
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--tc-bg-0)' }}>
-      <AdminNav username={session.user.username} />
-      <main style={{ maxWidth: 1600, margin: '0 auto' }}>{children}</main>
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar />
+      <div className="flex flex-1 flex-col">
+        <header className="flex h-14 items-center justify-between border-b px-6">
+          <span className="text-sm text-muted-foreground">管理后台</span>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">{session.user.username}</span>
+            <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
+          </div>
+        </header>
+        <main className="flex-1 p-6">{children}</main>
+      </div>
     </div>
   );
 }
