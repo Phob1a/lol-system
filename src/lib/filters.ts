@@ -1,4 +1,4 @@
-import type { Player, Position } from '@prisma/client';
+import type { Position } from '@prisma/client';
 import { POSITIONS, type PositionLiteral } from '@/lib/players/schema';
 
 export type PickedStatus = 'all' | 'picked' | 'unpicked';
@@ -18,12 +18,13 @@ export type SortKey =
   | 'cost-asc'
   | 'cost-desc';
 
-export type PlayerForPool = Pick<
-  Player,
-  'id' | 'gameId' | 'nickname' | 'primaryPositions' | 'secondaryPositions' | 'cost'
-> & {
-  isCaptain?: boolean;
-  isRetired?: boolean;
+export type RegistrationForPool = {
+  id: string;
+  gameId: string;
+  nickname: string;
+  primaryPositions: Position[];
+  secondaryPositions: Position[];
+  cost: number;
   isPicked?: boolean;
 };
 
@@ -42,7 +43,7 @@ function hasIntersection<T extends string>(a: readonly T[], b: readonly T[]): bo
   return false;
 }
 
-export function filterPlayers<P extends PlayerForPool>(
+export function filterPlayers<P extends RegistrationForPool>(
   players: P[],
   filter: PlayerFilter,
 ): P[] {
@@ -78,9 +79,9 @@ export function filterPlayers<P extends PlayerForPool>(
   });
 }
 
-function comparePrimary(a: PlayerForPool, b: PlayerForPool): number {
+function comparePrimary(a: RegistrationForPool, b: RegistrationForPool): number {
   // Sort by the first (lowest-index) primary position each player has.
-  const minIdx = (p: PlayerForPool) =>
+  const minIdx = (p: RegistrationForPool) =>
     p.primaryPositions.length === 0
       ? POSITIONS.length
       : Math.min(
@@ -89,7 +90,7 @@ function comparePrimary(a: PlayerForPool, b: PlayerForPool): number {
   return minIdx(a) - minIdx(b);
 }
 
-export function sortPlayers<P extends PlayerForPool>(
+export function sortPlayers<P extends RegistrationForPool>(
   players: P[],
   sortKey: SortKey,
 ): P[] {
