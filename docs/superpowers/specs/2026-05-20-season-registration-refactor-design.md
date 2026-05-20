@@ -428,3 +428,13 @@ The existing `2026-05-11-tournament-design.md` declares "no multiple seasons" as
 - Redis pub-sub for multi-instance SSE.
 - CAPTCHA or stronger anti-abuse on the public form.
 - Player self-service registration editing.
+- **Per-player statistics.** The `Player` master is the cross-season anchor for
+  career stats; `Registration` anchors per-season stats. Neither needs to change
+  to support this. The gap is the *data source*: stats come from match/game
+  data, which the tournament phase produces. The current tournament design
+  records only the per-game winner (per-game telemetry is a stated non-goal), so
+  rich per-player stats (e.g. KDA) require extending match recording **and** a
+  new `PlayerGameStat(registrationId, matchGameId, …)` table. That table slots
+  in additively against `Registration` and the future `MatchGame` with no
+  refactor of the models in this spec. To be picked up alongside the tournament
+  follow-up spec (§10).
