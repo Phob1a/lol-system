@@ -10,6 +10,7 @@ const items = [
   { href: '/admin/config', label: 'CONFIG' },
   { href: '/admin/draft', label: 'DRAFT' },
   { href: '/admin/audit', label: 'AUDIT' },
+  { href: '/admin/season', label: '赛季管理' },
 ];
 
 export function AdminNav({ gameId }: { gameId?: string }) {
