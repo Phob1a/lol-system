@@ -8,7 +8,8 @@ import {
   patchRegistration,
 } from '@/lib/registration/registration-service';
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
@@ -22,7 +23,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   try {
-    const registration = await patchRegistration(prisma, params.id, parsed.data);
+    const registration = await patchRegistration(prisma, id, parsed.data);
     return NextResponse.json({ registration });
   } catch (e) {
     if (e instanceof RegistrationError) {
@@ -33,11 +34,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
   try {
-    await deleteRegistration(prisma, params.id);
+    await deleteRegistration(prisma, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('DELETE registration failed', e);

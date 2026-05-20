@@ -4,11 +4,12 @@ import { prisma } from '@/lib/db';
 import { CaptainError } from '@/lib/captains/errors';
 import { resetTeamPassword } from '@/lib/teams/team-service';
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
   try {
-    const result = await resetTeamPassword(prisma, params.id);
+    const result = await resetTeamPassword(prisma, id);
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof CaptainError) {

@@ -8,14 +8,15 @@ export const dynamic = 'force-dynamic';
 export default async function LivePage({
   searchParams,
 }: {
-  searchParams: { season?: string };
+  searchParams: Promise<{ season?: string }>;
 }) {
+  const { season } = await searchParams;
   const seasons = await listSeasons(prisma);
   const draftable = seasons.filter((s) =>
     ['DRAFTING', 'COMPLETED', 'ARCHIVED'].includes(s.status),
   );
   const selected =
-    draftable.find((s) => s.id === searchParams.season) ?? draftable[0] ?? null;
+    draftable.find((s) => s.id === season) ?? draftable[0] ?? null;
 
   if (!selected) {
     return <div className="text-center text-muted-foreground">选秀尚未开始</div>;

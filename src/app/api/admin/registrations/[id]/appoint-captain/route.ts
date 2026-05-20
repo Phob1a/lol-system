@@ -4,11 +4,12 @@ import { prisma } from '@/lib/db';
 import { appointCaptain } from '@/lib/captains/captain-service';
 import { CaptainError } from '@/lib/captains/errors';
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
   try {
-    const result = await appointCaptain(prisma, params.id);
+    const result = await appointCaptain(prisma, id);
     return NextResponse.json(result, { status: 201 });
   } catch (e) {
     if (e instanceof CaptainError) {

@@ -9,7 +9,8 @@ const Body = z.object({
   to: z.enum(['REGISTRATION', 'ROSTER_LOCKED']),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
@@ -20,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   try {
-    const season = await transitionSeason(prisma, params.id, parsed.data.to);
+    const season = await transitionSeason(prisma, id, parsed.data.to);
     return NextResponse.json({ season });
   } catch (e) {
     if (e instanceof SeasonError) {

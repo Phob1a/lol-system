@@ -6,7 +6,8 @@ import { renameTeam } from '@/lib/teams/team-service';
 
 const Body = z.object({ name: z.string().trim().min(2, '队名至少 2 字').max(30, '队名过长') });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
@@ -19,7 +20,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     );
   }
 
-  const team = await prisma.team.findUnique({ where: { id: params.id } });
+  const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return NextResponse.json({ error: '队伍不存在' }, { status: 404 });
 
   const isAdmin = session.user.role === 'ADMIN';
@@ -28,6 +29,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: '无权修改该队伍' }, { status: 403 });
   }
 
-  await renameTeam(prisma, params.id, parsed.data.name);
+  await renameTeam(prisma, id, parsed.data.name);
   return NextResponse.json({ ok: true });
 }
