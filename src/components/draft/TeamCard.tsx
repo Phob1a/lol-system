@@ -9,19 +9,18 @@ const POSITION_LABEL: Record<string, string> = {
   SUPPORT: '辅',
 };
 
-const MAX_BUDGET = 100; // approximate max for bar width calculation
-
 type Props = {
   team: DraftTeamSnapshot;
   live: boolean;
+  maxBudget: number;
 };
 
-export function TeamCard({ team, live }: Props) {
+export function TeamCard({ team, live, maxBudget }: Props) {
   const filledSlots = new Set(
     team.slots.filter((s) => s.registration !== null).map((s) => s.position),
   );
 
-  const budgetPct = Math.min(100, Math.max(0, (team.budgetLeft / MAX_BUDGET) * 100));
+  const budgetPct = Math.min(100, Math.max(0, (team.budgetLeft / (maxBudget > 0 ? maxBudget : 1)) * 100));
 
   return (
     <div
