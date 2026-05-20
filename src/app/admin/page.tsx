@@ -24,7 +24,7 @@ export default async function AdminHomePage() {
 
   if (!season) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6">
         <PageHeader title="概览" description="赛事总览" />
         <p className="text-muted-foreground">尚无赛季 · 点击创建</p>
         <Button asChild variant="outline">
@@ -58,7 +58,7 @@ export default async function AdminHomePage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader title="概览" description="赛事总览" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

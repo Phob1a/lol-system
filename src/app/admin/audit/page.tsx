@@ -29,7 +29,7 @@ export default async function AuditPage() {
 
   if (!season) {
     return (
-      <div className="p-6">
+      <div>
         <p className="text-muted-foreground">暂无赛季</p>
       </div>
     );
@@ -49,7 +49,7 @@ export default async function AuditPage() {
   const userById = new Map(users.map((u) => [u.id, u]));
 
   return (
-    <div className="p-6 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <PageHeader title="审计日志" description="当前赛季选秀事件流" />
 
       {events.length === 0 ? (

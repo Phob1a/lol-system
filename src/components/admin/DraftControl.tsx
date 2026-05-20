@@ -181,7 +181,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
           onClick={startDraftAction}
           disabled={acting !== null || activeCaptainCount === 0}
         >
-          ▸ {acting === 'start' ? 'STARTING…' : '开始选秀'}
+          ▸ {acting === 'start' ? '开始中…' : '开始选秀'}
         </Button>
       )}
       {canStartNextRound && (
@@ -300,8 +300,7 @@ function ConfirmModal({
   return (
     <div
       onClick={onCancel}
-      style={{ position: 'fixed', inset: 0, zIndex: 100, backdropFilter: 'blur(6px)' }}
-      className="flex items-center justify-center bg-background/80"
+      className="fixed inset-0 z-[100] backdrop-blur-md flex items-center justify-center bg-background/80"
     >
       <div
         onClick={(e) => e.stopPropagation()}
