@@ -37,3 +37,6 @@ coverage/
 
 # uploads (CSV/XLSX import temp files)
 /tmp-uploads/
+
+# superpowers brainstorm artifacts
+.superpowers/
