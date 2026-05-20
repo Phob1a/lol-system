@@ -4,28 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Singleton Config row
-  await prisma.config.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      teamBudget: 1000,
-      draftLocked: false,
-      extras: {},
-    },
-    update: {},
-  });
-
-  // 2. Default admin account.
-  // Username `admin`. Initial password from env DEFAULT_USER_PASSWORD (fallback: "lol2026").
-  // mustChangePwd=true forces password change on first login.
-  const initialPwd = process.env.DEFAULT_USER_PASSWORD ?? 'lol2026';
+  const initialPwd = process.env.DEFAULT_ADMIN_PASSWORD ?? 'lol2026';
   const passwordHash = await bcrypt.hash(initialPwd, 10);
 
   await prisma.user.upsert({
-    where: { gameId: 'admin' },
+    where: { username: 'admin' },
     create: {
-      gameId: 'admin',
+      username: 'admin',
       passwordHash,
       role: 'ADMIN',
       mustChangePwd: true,
@@ -33,9 +18,19 @@ async function main() {
     update: {},
   });
 
+  // Dev convenience: a sample season open for registration.
+  if (process.env.SEED_SAMPLE_SEASON === '1') {
+    const existing = await prisma.season.findFirst({ where: { status: { not: 'ARCHIVED' } } });
+    if (!existing) {
+      await prisma.season.create({
+        data: { name: 'S1 测试赛季', status: 'REGISTRATION', teamBudget: 1000 },
+      });
+      console.log('  Sample season "S1 测试赛季" created (REGISTRATION).');
+    }
+  }
+
   console.log('Seed complete.');
-  console.log(`  Admin account: gameId="admin" password="${initialPwd}" (must change on first login)`);
-  console.log('  Default team budget: 1000');
+  console.log(`  Admin account: username="admin" password="${initialPwd}" (must change on first login)`);
 }
 
 main()
