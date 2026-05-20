@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -51,74 +54,59 @@ export function ChangePasswordForm() {
   }
 
   const strengthLabel = ['—', 'WEAK', 'OK', 'STRONG', 'HARDENED'][strength];
-  const strengthColor = [
-    'var(--tc-line2)',
-    'var(--tc-red)',
-    'var(--tc-amber)',
-    'var(--tc-cyan)',
-    'var(--tc-green)',
-  ][strength];
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <PwField name="currentPassword" label="CURRENT PASSWORD" autoComplete="current-password" required />
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="currentPassword">当前密码</Label>
+        <Input
+          id="currentPassword"
+          name="currentPassword"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+      </div>
 
-      <div>
-        <PwField
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="newPassword">新密码（至少 6 位）</Label>
+        <Input
+          id="newPassword"
           name="newPassword"
-          label="NEW PASSWORD (≥6)"
+          type="password"
           autoComplete="new-password"
           minLength={6}
           required
           onChange={(e) => evalStrength(e.target.value)}
         />
-        <div style={{ marginTop: 6, display: 'flex', gap: 3 }}>
+        <div className="mt-1.5 flex gap-1">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              style={{
-                flex: 1,
-                height: 3,
-                background: i <= strength ? strengthColor : 'var(--tc-line)',
-              }}
+              className={`h-1 flex-1 rounded-sm ${i <= strength ? 'bg-primary' : 'bg-muted'}`}
             />
           ))}
         </div>
-        <div className="tc-mono" style={{ fontSize: 9, marginTop: 3, color: strengthColor, letterSpacing: 1.5 }}>
-          STRENGTH · {strengthLabel}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          强度：{strengthLabel}
+        </p>
       </div>
 
-      <PwField name="confirm" label="CONFIRM NEW PASSWORD" autoComplete="new-password" minLength={6} required />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="confirm">确认新密码</Label>
+        <Input
+          id="confirm"
+          name="confirm"
+          type="password"
+          autoComplete="new-password"
+          minLength={6}
+          required
+        />
+      </div>
 
-      <button
-        type="submit"
-        className="tc-btn tc-btn-primary"
-        style={{ justifyContent: 'center', marginTop: 6 }}
-        disabled={submitting}
-      >
-        {submitting ? '▸ UPDATING…' : '▸ UPDATE PASSWORD'}
-      </button>
+      <Button type="submit" className="mt-2 w-full" disabled={submitting}>
+        {submitting ? '更新中…' : '更新密码'}
+      </Button>
     </form>
   );
 }
-
-const PwField = ({ label, ...rest }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-    <span className="tc-label">{label}</span>
-    <input
-      type="password"
-      {...rest}
-      className="tc-mono"
-      style={{
-        background: 'var(--tc-bg-0)',
-        color: 'var(--tc-text)',
-        border: '1px solid var(--tc-line2)',
-        padding: '8px 10px',
-        fontSize: 13,
-        letterSpacing: 2,
-        outline: 'none',
-      }}
-    />
-  </label>
-);
