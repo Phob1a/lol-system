@@ -30,13 +30,12 @@ type Props = { initialSeasons: Season[] };
 
 export function SeasonManager({ initialSeasons }: Props) {
   const router = useRouter();
-  const [seasons] = useState<Season[]>(initialSeasons);
   const [name, setName] = useState('');
   const [teamBudget, setTeamBudget] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const activeSeason = seasons.find((s) => s.status !== 'ARCHIVED') ?? null;
+  const activeSeason = initialSeasons.find((s) => s.status !== 'ARCHIVED') ?? null;
 
   async function doCreate() {
     setSubmitting(true);
@@ -173,7 +172,7 @@ export function SeasonManager({ initialSeasons }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {seasons.map((s) => (
+          {initialSeasons.map((s) => (
             <TableRow key={s.id}>
               <TableCell>{s.name}</TableCell>
               <TableCell>
