@@ -22,14 +22,16 @@ type Props = {
   seq: number;
 };
 
-type LocalSlot = { position: Position; player: RegistrationRef | null };
+type LocalSlot = { position: Position; registration: RegistrationRef | null };
 
 export function DraggableTeamBoard({ team, seq }: Props) {
-  const [slots, setSlots] = useState<LocalSlot[]>(team.slots);
+  const [slots, setSlots] = useState<LocalSlot[]>(
+    team.slots.map((s) => ({ position: s.position, registration: s.player })),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setSlots(team.slots);
+    setSlots(team.slots.map((s) => ({ position: s.position, registration: s.player })));
   }, [team.slots, seq]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -40,14 +42,14 @@ export function DraggableTeamBoard({ team, seq }: Props) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        slots: next.map((s) => ({ position: s.position, registrationId: s.player?.id ?? null })),
+        slots: next.map((s) => ({ position: s.position, registrationId: s.registration?.id ?? null })),
       }),
     });
     setSubmitting(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? '调整失败');
-      setSlots(team.slots);
+      setSlots(team.slots.map((s) => ({ position: s.position, registration: s.player })));
       return;
     }
     toast.success('已调整位置');
@@ -63,10 +65,10 @@ export function DraggableTeamBoard({ team, seq }: Props) {
     if (fromIdx === -1 || toIdx === -1) return;
 
     const next = slots.slice();
-    const fromPlayer = next[fromIdx].player;
-    const toPlayer = next[toIdx].player;
-    next[fromIdx] = { ...next[fromIdx], player: toPlayer };
-    next[toIdx] = { ...next[toIdx], player: fromPlayer };
+    const fromRegistration = next[fromIdx].registration;
+    const toRegistration = next[toIdx].registration;
+    next[fromIdx] = { ...next[fromIdx], registration: toRegistration };
+    next[toIdx] = { ...next[toIdx], registration: fromRegistration };
     setSlots(next);
     void persist(next);
   }
@@ -135,7 +137,7 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
         padding: '6px 8px',
         background: isOver
           ? 'rgba(0,229,255,0.14)'
-          : slot.player
+          : slot.registration
           ? 'rgba(255,255,255,0.025)'
           : 'rgba(255,255,255,0.01)',
         border: `1px solid ${isOver ? 'var(--tc-cyan)' : 'var(--tc-line)'}`,
@@ -147,8 +149,8 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
       <span className="tc-label" style={{ fontSize: 9 }}>
         {POSITION_LABEL[slot.position]}
       </span>
-      {slot.player ? (
-        <PlayerHoverCard player={slot.player} disabled={disabled}>
+      {slot.registration ? (
+        <PlayerHoverCard player={slot.registration} disabled={disabled}>
           <DraggablePlayer slot={slot} disabled={disabled} />
         </PlayerHoverCard>
       ) : (
@@ -156,9 +158,9 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
       )}
       <span
         className="tc-num"
-        style={{ fontSize: 11, color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
+        style={{ fontSize: 11, color: slot.registration ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
       >
-        {slot.player ? slot.player.cost : '—'}
+        {slot.registration ? slot.registration.cost : '—'}
       </span>
     </div>
   );
@@ -170,7 +172,7 @@ function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolea
     data: { position: slot.position },
     disabled,
   });
-  if (!slot.player) return null;
+  if (!slot.registration) return null;
   return (
     <span
       ref={setNodeRef}
@@ -197,10 +199,10 @@ function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolea
           whiteSpace: 'nowrap',
         }}
       >
-        {slot.player.nickname}
+        {slot.registration.nickname}
       </span>
       <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)' }}>
-        @{slot.player.gameId}
+        @{slot.registration.gameId}
       </span>
     </span>
   );

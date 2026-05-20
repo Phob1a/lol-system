@@ -73,9 +73,6 @@ export function useDraftStream(
         error: e instanceof Error ? e.message : 'unknown error',
       }));
     }
-  // stateUrl is derived from opts which is stable per render; including it
-  // keeps the callback correct when a caller changes URLs between mounts.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateUrl]);
 
   useEffect(() => {
@@ -96,9 +93,9 @@ export function useDraftStream(
     });
     return () => {
       es.close();
+      setState((s) => ({ ...s, connected: false }));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [streamUrl, fetchSnapshot]);
 
   return { ...state, reload: fetchSnapshot };
 }
