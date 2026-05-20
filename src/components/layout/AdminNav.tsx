@@ -6,16 +6,14 @@ import { signOut } from 'next-auth/react';
 
 const items = [
   { href: '/admin', label: 'OVERVIEW' },
-  { href: '/admin/players', label: 'ROSTER' },
-  { href: '/admin/config', label: 'CONFIG' },
-  { href: '/admin/draft', label: 'DRAFT' },
-  { href: '/admin/audit', label: 'AUDIT' },
   { href: '/admin/season', label: '赛季管理' },
   { href: '/admin/registrations', label: '报名管理' },
   { href: '/admin/teams', label: '队伍账号' },
+  { href: '/admin/draft', label: 'DRAFT' },
+  { href: '/admin/audit', label: 'AUDIT' },
 ];
 
-export function AdminNav({ gameId }: { gameId?: string }) {
+export function AdminNav({ username }: { username?: string }) {
   const pathname = usePathname();
   return (
     <nav
@@ -82,7 +80,7 @@ export function AdminNav({ gameId }: { gameId?: string }) {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
             <span style={{ color: 'var(--tc-green)' }}>●</span> SESSION_OK
-            {gameId && <span style={{ marginLeft: 6, color: 'var(--tc-text-dim)' }}>· @{gameId}</span>}
+            {username && <span style={{ marginLeft: 6, color: 'var(--tc-text-dim)' }}>· @{username}</span>}
           </span>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}

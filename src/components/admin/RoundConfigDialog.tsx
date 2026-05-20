@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Player, Position, RoundMode } from '@prisma/client';
-import type { DraftSnapshot, DraftTeamSnapshot } from '@/lib/draft/types';
+import type { Position, RoundMode } from '@prisma/client';
+import type { DraftSnapshot, RegistrationRef } from '@/lib/draft/types';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onSubmitted: () => void;
   snapshot: DraftSnapshot;
-  /** Pool of unpicked, eligible players for MANUAL mode. */
-  pool: Pick<Player, 'id' | 'gameId' | 'nickname' | 'cost'>[];
+  /** Pool of unpicked, eligible registrations for MANUAL mode. */
+  pool: RegistrationRef[];
   /** Whether REVERSE_LAST is allowed (i.e. there is a previous round). */
   canReverse: boolean;
   nextRoundNo: number;
@@ -72,7 +72,7 @@ export function RoundConfigDialog({
     for (const t of snapshot.teams) {
       m.set(
         t.captainId,
-        t.slots.filter((s) => s.player === null).map((s) => s.position),
+        t.slots.filter((s) => s.registration === null).map((s) => s.position),
       );
     }
     return m;
