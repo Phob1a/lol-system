@@ -3,21 +3,26 @@
 import { useMemo } from 'react';
 import type { Season } from '@prisma/client';
 import type { DraftSnapshot } from '@/lib/draft/types';
+import type { RegistrationForPool } from '@/lib/filters';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import { BroadcastLayout } from '@/components/draft/BroadcastLayout';
 import { OnTheClockHero } from '@/components/draft/OnTheClockHero';
 import { TeamGrid } from '@/components/draft/TeamGrid';
 import { EventStream } from '@/components/draft/EventStream';
+import { PlayerPool } from '@/components/draft/PlayerPool';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { SeasonSelector } from './SeasonSelector';
+
+type PoolEntry = Omit<RegistrationForPool, 'isPicked'>;
 
 type Props = {
   seasons: Season[];
   selectedSeason: Season;
   initialSnapshot: DraftSnapshot;
+  poolRegistrations: PoolEntry[];
 };
 
-export function SpectatorView({ seasons, selectedSeason, initialSnapshot }: Props) {
+export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRegistrations }: Props) {
   const stateUrl = `/api/live/${selectedSeason.id}/state`;
   const streamUrl = `/api/live/${selectedSeason.id}/stream`;
 
@@ -72,18 +77,14 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot }: Prop
     });
   }, [live.picks, teamById, registrationNameById]);
 
-  // Pool slot: DraftSnapshot does not include the full candidate roster — only
-  // teams/slots/picks. Rendering a placeholder panel is the correct choice here
-  // rather than fabricating data.
-  const poolNode = (
-    <div className="tc-card" style={{ padding: 12 }}>
-      <span className="corner tl" /><span className="corner tr" />
-      <span className="corner bl" /><span className="corner br" />
-      <div className="tc-label" style={{ fontSize: 10, marginBottom: 8 }}>选手池</div>
-      <div className="tc-mono" style={{ fontSize: 11, color: 'var(--tc-text-dim)' }}>
-        {live.pickedRegistrationIds.length} 人已选
-      </div>
-    </div>
+  // Decorate the pool: mark each entry isPicked when its id is in the live snapshot.
+  const pickedSet = useMemo(
+    () => new Set(live.pickedRegistrationIds),
+    [live.pickedRegistrationIds],
+  );
+  const decoratedPool = useMemo(
+    () => poolRegistrations.map((p) => ({ ...p, isPicked: pickedSet.has(p.id) })),
+    [poolRegistrations, pickedSet],
   );
 
   return (
@@ -111,7 +112,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot }: Prop
             maxBudget={selectedSeason.teamBudget}
           />
         }
-        pool={poolNode}
+        pool={<PlayerPool players={decoratedPool} />}
         events={<EventStream events={streamEvents} />}
       />
     </div>
