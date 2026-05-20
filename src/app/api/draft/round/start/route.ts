@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { requireAdmin } from '@/lib/api-guards';
 import { startRound, getDraftSnapshot, DraftStateError } from '@/lib/draft/engine';
+import { getActiveSeason } from '@/lib/season/season-service';
+import { prisma } from '@/lib/db';
 import { POSITIONS } from '@/lib/players/schema';
 import { publish } from '@/server/draft-bus';
 
@@ -15,7 +17,7 @@ const Body = z.object({
     .array(
       z.object({
         captainId: z.string().min(1),
-        playerId: z.string().min(1),
+        registrationId: z.string().min(1),
         position: z.enum(POSITIONS),
       }),
     )
@@ -26,6 +28,9 @@ export async function POST(req: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
   const session = await getSession();
+
+  const season = await getActiveSeason(prisma);
+  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
 
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
@@ -38,12 +43,13 @@ export async function POST(req: Request) {
 
   try {
     const result = await startRound({
+      seasonId: season.id,
       mode: parsed.data.mode,
       adminProvidedOrder: parsed.data.adminProvidedOrder,
       manualAssignments: parsed.data.manualAssignments,
       actorUserId: session!.user.id,
     });
-    const snapshot = await getDraftSnapshot();
+    const snapshot = await getDraftSnapshot(season.id);
     publish({ type: 'state.invalidated', seq: snapshot.seq });
     return NextResponse.json({ ...result, snapshot });
   } catch (e) {

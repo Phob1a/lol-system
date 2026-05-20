@@ -1,30 +1,39 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
+import { getActiveSeason } from '@/lib/season/season-service';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminHomePage() {
-  const [playerCount, captainCount, retiredCount, config, draftSession] = await Promise.all([
-    prisma.player.count(),
-    prisma.player.count({ where: { isCaptain: true, isRetired: false } }),
-    prisma.player.count({ where: { isRetired: true } }),
-    prisma.config.findUnique({ where: { id: 1 } }),
-    prisma.draftSession.findFirst({ orderBy: { createdAt: 'desc' } }).catch(() => null),
-  ]);
+  const season = await getActiveSeason(prisma);
+
+  const [registrationCount, captainCount, draftSession] = season
+    ? await Promise.all([
+        prisma.registration.count({ where: { seasonId: season.id, status: 'ACTIVE' } }),
+        prisma.registration.count({
+          where: { seasonId: season.id, status: 'ACTIVE', isCaptain: true },
+        }),
+        prisma.draftSession.findUnique({ where: { seasonId: season.id } }),
+      ])
+    : [0, 0, null];
 
   const draftStatus = draftSession?.status ?? 'NOT_STARTED';
 
   const cards = [
     {
-      href: '/admin/config',
-      title: 'CONFIG',
-      desc: `每队预算 ${config?.teamBudget ?? '—'} CR · ${config?.draftLocked ? 'LOCKED' : 'EDITABLE'}`,
+      href: '/admin/season',
+      title: 'SEASON',
+      desc: season
+        ? `${season.name} · ${season.status} · 预算 ${season.teamBudget} CR`
+        : '尚无赛季 · 点击创建',
       accent: 'var(--tc-amber)',
     },
     {
-      href: '/admin/players',
-      title: 'ROSTER',
-      desc: `${playerCount} 选手 · ${captainCount} 现役队长 · ${retiredCount} 退役`,
+      href: '/admin/registrations',
+      title: 'REGISTRATIONS',
+      desc: season
+        ? `${registrationCount} 报名 · ${captainCount} 意向队长`
+        : '需要先创建赛季',
       accent: 'var(--tc-cyan)',
     },
     {

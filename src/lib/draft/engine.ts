@@ -2,44 +2,81 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { POSITIONS } from '@/lib/players/schema';
 import { pickCaptainSlot } from '@/lib/teams/preview';
-import type { DraftSnapshot, DraftTeamSnapshot } from './types';
+import type { DraftSnapshot, DraftTeamSnapshot, RegistrationRef } from './types';
 
 export class DraftStateError extends Error {
-  constructor(public readonly code: string, message: string) {
+  constructor(public readonly code: DraftStateErrorCode, message: string) {
     super(message);
     this.name = 'DraftStateError';
   }
 }
 
+/** All error codes the draft engine can raise. */
+export type DraftStateErrorCode =
+  | 'WRONG_SEASON_STATE'
+  | 'NO_SEASON'
+  | 'ALREADY_RUNNING'
+  | 'NO_CAPTAINS'
+  | 'NO_SESSION'
+  | 'NO_MORE_ROUNDS'
+  | 'ROUND_ACTIVE'
+  | 'NO_PREV_ROUND'
+  | 'MISSING_ASSIGNMENT'
+  | 'EXTRA_ASSIGNMENT'
+  | 'STALE_SEQ'
+  | 'NOT_ON_CLOCK'
+  | 'NO_ACTIVE_ROUND'
+  | 'NO_REGISTRATION'
+  | 'REGISTRATION_EXCLUDED'
+  | 'PLAYER_IS_CAPTAIN'
+  | 'NO_TEAM'
+  | 'INSUFFICIENT_BUDGET'
+  | 'NO_SLOT'
+  | 'SLOT_OCCUPIED'
+  | 'ALREADY_PICKED'
+  | 'NO_PICK'
+  | 'ALREADY_REVOKED'
+  | 'NO_ROUND_TO_REWIND'
+  | 'NO_ROUND'
+  | 'INVALID_POSITIONS'
+  | 'PLAYER_SET_MISMATCH';
+
 /**
- * Start the draft.
+ * Start the draft for a season.
  *
  * Transactional contract:
+ *   - Refuses unless the season is ROSTER_LOCKED.
  *   - Refuses if a session is already IN_PROGRESS (idempotent guard).
  *   - Creates one DraftSession (status=IN_PROGRESS, currentRound=0, seq=1).
- *   - For every active captain (isCaptain && !isRetired), creates a Team with
- *     budgetLeft = teamBudget - captain.cost and 5 TeamSlots; captain is auto-placed
- *     in the slot matching the first of their primaryPositions in enum order.
- *   - Sets Config.draftLocked=true (UI gates roster/config edits off this).
+ *   - Teams already exist (created at captain appointment). For each team,
+ *     sets budgetLeft = season.teamBudget - captain.cost, creates 5 TeamSlots,
+ *     and auto-places the captain in the slot matching the first of their
+ *     primaryPositions in enum order.
+ *   - Transitions the season to DRAFTING.
  *   - Appends DRAFT_STARTED event with seq=1.
  *
  * @returns the freshly-created session id
  */
-export async function startDraft(actorUserId: string): Promise<{ sessionId: string }> {
+export async function startDraft(
+  seasonId: string,
+  actorUserId: string,
+): Promise<{ sessionId: string }> {
   return prisma.$transaction(async (tx) => {
-    const config = await tx.config.findUnique({ where: { id: 1 } });
-    if (!config) throw new DraftStateError('NO_CONFIG', '未初始化配置');
+    const season = await tx.season.findUnique({ where: { id: seasonId } });
+    if (!season) throw new DraftStateError('NO_SEASON', '赛季不存在');
+    if (season.status !== 'ROSTER_LOCKED') {
+      throw new DraftStateError('WRONG_SEASON_STATE', '赛季未处于名册锁定阶段');
+    }
 
     const existing = await tx.draftSession.findFirst({
-      where: { status: 'IN_PROGRESS' },
+      where: { seasonId, status: 'IN_PROGRESS' },
     });
     if (existing) {
       throw new DraftStateError('ALREADY_RUNNING', '已有进行中的选秀');
     }
 
-    const captains = await tx.player.findMany({
-      where: { isCaptain: true, isRetired: false },
-      orderBy: { gameId: 'asc' },
+    const captains = await tx.registration.findMany({
+      where: { seasonId, isCaptain: true, status: 'ACTIVE' },
     });
     if (captains.length === 0) {
       throw new DraftStateError('NO_CAPTAINS', '至少需要一名现役队长才能开启选秀');
@@ -47,6 +84,7 @@ export async function startDraft(actorUserId: string): Promise<{ sessionId: stri
 
     const session = await tx.draftSession.create({
       data: {
+        seasonId,
         status: 'IN_PROGRESS',
         currentRound: 0,
         seq: 1,
@@ -54,21 +92,24 @@ export async function startDraft(actorUserId: string): Promise<{ sessionId: stri
       },
     });
 
-    for (const captain of captains) {
-      const captainSlot = pickCaptainSlot(captain);
-      const team = await tx.team.create({
-        data: {
-          name: `${captain.nickname} 队`,
-          captainId: captain.id,
-          budgetLeft: config.teamBudget - captain.cost,
-        },
+    // Teams already exist (created at captain appointment). Initialize each:
+    // set budget, create slots, place the captain.
+    const teams = await tx.team.findMany({
+      where: { seasonId },
+      include: { captain: true },
+    });
+    for (const team of teams) {
+      const captainSlot = pickCaptainSlot(team.captain);
+      await tx.team.update({
+        where: { id: team.id },
+        data: { budgetLeft: season.teamBudget - team.captain.cost },
       });
       // Create 5 slots; captain occupies the matching one.
       await tx.teamSlot.createMany({
         data: POSITIONS.map((pos) => ({
           teamId: team.id,
           position: pos,
-          playerId: pos === captainSlot ? captain.id : null,
+          registrationId: pos === captainSlot ? team.captainId : null,
         })),
       });
     }
@@ -81,14 +122,14 @@ export async function startDraft(actorUserId: string): Promise<{ sessionId: stri
         seq: 1,
         payload: {
           captainCount: captains.length,
-          teamBudget: config.teamBudget,
+          teamBudget: season.teamBudget,
         },
       },
     });
 
-    await tx.config.update({
-      where: { id: 1 },
-      data: { draftLocked: true },
+    await tx.season.update({
+      where: { id: seasonId },
+      data: { status: 'DRAFTING' },
     });
 
     return { sessionId: session.id };
@@ -96,25 +137,36 @@ export async function startDraft(actorUserId: string): Promise<{ sessionId: stri
 }
 
 /**
- * Reset the draft.
+ * Reset the draft for a season.
  *
- * Wipes all DraftSession / DraftRound / DraftPick / DraftEvent records (cascade)
- * and all Team / TeamSlot rows. Players and Users are preserved. Config is
- * unlocked so the admin can edit budget / roster again.
+ * Wipes the season's DraftSession / DraftRound / DraftPick / DraftEvent records
+ * (cascade), clears every TeamSlot.registrationId for the season, and resets each
+ * Team.budgetLeft to 0. Teams themselves, Registrations, Players and Users are
+ * preserved. The season is moved back to ROSTER_LOCKED so the admin can restart.
  *
  * Note: this is destructive by design. The audit trail of the just-deleted
  * draft is not preserved. Per the planner R1 discussion, reset is the "nuke
  * everything" operation; revoke/rewind are the surgical alternatives.
  */
-export async function resetDraft(): Promise<void> {
+export async function resetDraft(seasonId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // DraftSession cascades to rounds/picks/events via Prisma onDelete: Cascade.
-    await tx.draftSession.deleteMany({});
-    // Team cascades to slots.
-    await tx.team.deleteMany({});
-    await tx.config.update({
-      where: { id: 1 },
-      data: { draftLocked: false },
+    // Scoped to this season's single session (seasonId is @unique on DraftSession).
+    await tx.draftSession.deleteMany({ where: { seasonId } });
+
+    // Clear slot occupancy and reset budgets for the season's teams.
+    await tx.teamSlot.updateMany({
+      where: { team: { seasonId } },
+      data: { registrationId: null },
+    });
+    await tx.team.updateMany({
+      where: { seasonId },
+      data: { budgetLeft: 0 },
+    });
+
+    await tx.season.update({
+      where: { id: seasonId },
+      data: { status: 'ROSTER_LOCKED' },
     });
   });
 }
@@ -123,18 +175,34 @@ export async function resetDraft(): Promise<void> {
 // Read snapshot
 // ──────────────────────────────────────────────────────────────────────
 
-const playerRefSelect = {
+const registrationRefSelect = {
   id: true,
-  gameId: true,
   nickname: true,
   primaryPositions: true,
   secondaryPositions: true,
   cost: true,
-} satisfies Prisma.PlayerSelect;
+  player: { select: { gameId: true } },
+} satisfies Prisma.RegistrationSelect;
 
-export async function getDraftSnapshot(): Promise<DraftSnapshot> {
+type RegistrationRow = Prisma.RegistrationGetPayload<{
+  select: typeof registrationRefSelect;
+}>;
+
+/** Flatten the nested player.gameId into the snapshot's RegistrationRef shape. */
+function toRegistrationRef(r: RegistrationRow): RegistrationRef {
+  return {
+    id: r.id,
+    nickname: r.nickname,
+    gameId: r.player.gameId,
+    primaryPositions: r.primaryPositions,
+    secondaryPositions: r.secondaryPositions,
+    cost: r.cost,
+  };
+}
+
+export async function getDraftSnapshot(seasonId: string): Promise<DraftSnapshot> {
   const session = await prisma.draftSession.findFirst({
-    where: { status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+    where: { seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -142,23 +210,24 @@ export async function getDraftSnapshot(): Promise<DraftSnapshot> {
     return {
       session: null,
       teams: [],
-      pickedPlayerIds: [],
+      pickedRegistrationIds: [],
       picks: [],
       seq: 0,
     };
   }
 
   const teams = await prisma.team.findMany({
+    where: { seasonId },
     include: {
-      captain: { select: playerRefSelect },
-      slots: { include: { player: { select: playerRefSelect } } },
+      captain: { select: registrationRefSelect },
+      slots: { include: { registration: { select: registrationRefSelect } } },
     },
   });
 
   const teamSnapshots: DraftTeamSnapshot[] = teams.map((team) => ({
     id: team.id,
     captainId: team.captainId,
-    captainGameId: team.captain.gameId,
+    captainGameId: team.captain.player.gameId,
     captainNickname: team.captain.nickname,
     budgetLeft: team.budgetLeft,
     slots: team.slots
@@ -171,17 +240,17 @@ export async function getDraftSnapshot(): Promise<DraftSnapshot> {
       .map((s) => ({
         id: s.id,
         position: s.position,
-        player: s.player,
+        registration: s.registration ? toRegistrationRef(s.registration) : null,
       })),
   }));
 
-  // Picked = any player currently occupying any slot, excluding captains
+  // Picked = any registration currently occupying any slot, excluding captains
   // (captains are pre-placed; "picked" in the captain-UX sense means draft picks).
   const picked = new Set<string>();
   for (const t of teamSnapshots) {
     for (const slot of t.slots) {
-      if (slot.player && slot.player.id !== t.captainId) {
-        picked.add(slot.player.id);
+      if (slot.registration && slot.registration.id !== t.captainId) {
+        picked.add(slot.registration.id);
       }
     }
   }
@@ -203,14 +272,14 @@ export async function getDraftSnapshot(): Promise<DraftSnapshot> {
       startedAt: session.startedAt ? session.startedAt.toISOString() : null,
     },
     teams: teamSnapshots,
-    pickedPlayerIds: Array.from(picked),
+    pickedRegistrationIds: Array.from(picked),
     picks: pickRows.map((p) => ({
       id: p.id,
       roundNo: p.round.roundNo,
       pickIndex: p.pickIndex,
       byCaptainId: p.byCaptainId,
       teamId: p.teamId,
-      playerId: p.playerId,
+      registrationId: p.registrationId,
       position: p.position,
       costPaid: p.costPaid,
       pickedAt: p.pickedAt.toISOString(),
@@ -230,11 +299,12 @@ export const TOTAL_ROUNDS = 4;
 
 export type ManualAssignment = {
   captainId: string;
-  playerId: string;
+  registrationId: string;
   position: Position;
 };
 
 export type StartRoundInput = {
+  seasonId: string;
   mode: RoundMode;
   adminProvidedOrder?: string[];
   manualAssignments?: ManualAssignment[];
@@ -265,7 +335,7 @@ export type StartRoundResult = {
  */
 export async function startRound(input: StartRoundInput): Promise<StartRoundResult> {
   return prisma.$transaction(async (tx) => {
-    const session = await tx.draftSession.findFirst({ where: { status: 'IN_PROGRESS' } });
+    const session = await tx.draftSession.findFirst({ where: { seasonId: input.seasonId, status: 'IN_PROGRESS' } });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
 
     const nextRoundNo = session.currentRound + 1;
@@ -281,6 +351,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
     }
 
     const teams = await tx.team.findMany({
+      where: { seasonId: session.seasonId },
       select: { id: true, captainId: true, budgetLeft: true },
     });
     const captains: CaptainSnapshot[] = teams.map((t) => ({
@@ -354,7 +425,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
           round,
           pickIndex: i,
           captainId: a.captainId,
-          playerId: a.playerId,
+          registrationId: a.registrationId,
           position: a.position,
           actorUserId: input.actorUserId,
           seq: ++currentSeq,
@@ -380,6 +451,10 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
       },
     });
 
+    if (finishedDraft) {
+      await tx.season.update({ where: { id: session.seasonId }, data: { status: 'COMPLETED' } });
+    }
+
     void roundStatusFinal;
 
     return { roundId: round.id, roundNo: nextRoundNo, pickOrder: order, finishedDraft };
@@ -388,7 +463,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
 
 export type SubmitPickInput = {
   byCaptainId: string;
-  playerId: string;
+  registrationId: string;
   position: Position;
   expectedSeq: number;
   actorUserId: string;
@@ -443,7 +518,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       round,
       pickIndex,
       captainId: input.byCaptainId,
-      playerId: input.playerId,
+      registrationId: input.registrationId,
       position: input.position,
       actorUserId: input.actorUserId,
       seq: newSeq,
@@ -477,6 +552,13 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       },
     });
 
+    if (finishedDraft) {
+      const sess = await tx.draftSession.findUnique({ where: { id: lockedSession.id }, select: { seasonId: true } });
+      if (sess) {
+        await tx.season.update({ where: { id: sess.seasonId }, data: { status: 'COMPLETED' } });
+      }
+    }
+
     return { pickId: pickResult.pickId, finishedRound, finishedDraft, newSeq };
   });
 }
@@ -492,7 +574,7 @@ type ApplyPickArgs = {
   round: { id: string; pickOrder: Prisma.JsonValue };
   pickIndex: number;
   captainId: string;
-  playerId: string;
+  registrationId: string;
   position: Position;
   actorUserId: string;
   seq: number;
@@ -502,18 +584,24 @@ async function applyPick(
   tx: Prisma.TransactionClient,
   args: ApplyPickArgs,
 ): Promise<{ pickId: string }> {
-  const player = await tx.player.findUnique({ where: { id: args.playerId } });
-  if (!player) throw new DraftStateError('NO_PLAYER', `选手不存在: ${args.playerId}`);
-  if (player.isRetired) throw new DraftStateError('PLAYER_RETIRED', `选手已退役: ${args.playerId}`);
-  if (player.isCaptain) throw new DraftStateError('PLAYER_IS_CAPTAIN', `队长不可被选: ${args.playerId}`);
+  const registration = await tx.registration.findUnique({ where: { id: args.registrationId } });
+  if (!registration) {
+    throw new DraftStateError('NO_REGISTRATION', `报名不存在: ${args.registrationId}`);
+  }
+  if (registration.status === 'EXCLUDED') {
+    throw new DraftStateError('REGISTRATION_EXCLUDED', `选手已被排除: ${args.registrationId}`);
+  }
+  if (registration.isCaptain) {
+    throw new DraftStateError('PLAYER_IS_CAPTAIN', `队长不可被选: ${args.registrationId}`);
+  }
 
   const team = await tx.team.findUnique({ where: { captainId: args.captainId } });
   if (!team) throw new DraftStateError('NO_TEAM', `队长无对应战队: ${args.captainId}`);
 
-  if (team.budgetLeft < player.cost) {
+  if (team.budgetLeft < registration.cost) {
     throw new DraftStateError(
       'INSUFFICIENT_BUDGET',
-      `预算不足: 剩余 ${team.budgetLeft} < 需要 ${player.cost}`,
+      `预算不足: 剩余 ${team.budgetLeft} < 需要 ${registration.cost}`,
     );
   }
 
@@ -521,17 +609,17 @@ async function applyPick(
     where: { teamId_position: { teamId: team.id, position: args.position } },
   });
   if (!slot) throw new DraftStateError('NO_SLOT', `位置不存在: ${args.position}`);
-  if (slot.playerId) throw new DraftStateError('SLOT_OCCUPIED', `位置 ${args.position} 已被占用`);
+  if (slot.registrationId) throw new DraftStateError('SLOT_OCCUPIED', `位置 ${args.position} 已被占用`);
 
-  // Player must not already be picked elsewhere in this draft.
+  // Registration must not already be picked elsewhere in this draft.
   const already = await tx.draftPick.findFirst({
     where: {
       round: { sessionId: args.sessionId },
-      playerId: args.playerId,
+      registrationId: args.registrationId,
       revoked: false,
     },
   });
-  if (already) throw new DraftStateError('ALREADY_PICKED', `选手已被选: ${args.playerId}`);
+  if (already) throw new DraftStateError('ALREADY_PICKED', `选手已被选: ${args.registrationId}`);
 
   const pick = await tx.draftPick.create({
     data: {
@@ -539,20 +627,20 @@ async function applyPick(
       pickIndex: args.pickIndex,
       byCaptainId: args.captainId,
       teamId: team.id,
-      playerId: args.playerId,
+      registrationId: args.registrationId,
       position: args.position,
-      costPaid: player.cost,
+      costPaid: registration.cost,
     },
   });
 
   await tx.teamSlot.update({
     where: { id: slot.id },
-    data: { playerId: args.playerId },
+    data: { registrationId: args.registrationId },
   });
 
   await tx.team.update({
     where: { id: team.id },
-    data: { budgetLeft: team.budgetLeft - player.cost },
+    data: { budgetLeft: team.budgetLeft - registration.cost },
   });
 
   await tx.draftEvent.create({
@@ -565,9 +653,9 @@ async function applyPick(
         roundId: args.round.id,
         pickIndex: args.pickIndex,
         byCaptainId: args.captainId,
-        playerId: args.playerId,
+        registrationId: args.registrationId,
         position: args.position,
-        costPaid: player.cost,
+        costPaid: registration.cost,
       },
     },
   });
@@ -624,7 +712,7 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
     for (const p of sameRound) {
       await tx.teamSlot.updateMany({
         where: { teamId: p.teamId, position: p.position },
-        data: { playerId: null },
+        data: { registrationId: null },
       });
       await tx.team.update({
         where: { id: p.teamId },
@@ -646,7 +734,7 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
       for (const p of lr.picks) {
         await tx.teamSlot.updateMany({
           where: { teamId: p.teamId, position: p.position },
-          data: { playerId: null },
+          data: { registrationId: null },
         });
         await tx.team.update({
           where: { id: p.teamId },
@@ -674,6 +762,8 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
         finishedAt: null,
       },
     });
+
+    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
 
     await tx.draftEvent.create({
       data: {
@@ -707,10 +797,10 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
  * Hard-deletes the entire current round (cascades its picks), refunds budgets,
  * frees slots, decrements currentRound, clears onTheClock, returns to IN_PROGRESS.
  */
-export async function rewindRound(actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
+export async function rewindRound(seasonId: string, actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
   return prisma.$transaction(async (tx) => {
     const session = await tx.draftSession.findFirst({
-      where: { status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      where: { seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
       orderBy: { createdAt: 'desc' },
     });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
@@ -727,7 +817,7 @@ export async function rewindRound(actorUserId: string): Promise<{ newSeq: number
     for (const p of round.picks) {
       await tx.teamSlot.updateMany({
         where: { teamId: p.teamId, position: p.position },
-        data: { playerId: null },
+        data: { registrationId: null },
       });
       await tx.team.update({
         where: { id: p.teamId },
@@ -748,6 +838,8 @@ export async function rewindRound(actorUserId: string): Promise<{ newSeq: number
         finishedAt: null,
       },
     });
+
+    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
 
     await tx.draftEvent.create({
       data: {
@@ -771,14 +863,14 @@ export async function rewindRound(actorUserId: string): Promise<{ newSeq: number
  * Rearrange a team's slots (captain drag-and-drop or admin assist).
  *
  * Validation:
- *   - The set of (player ids placed in non-null slots) in `desired` must equal
- *     the set of (player ids currently placed in this team's slots).
+ *   - The set of (registration ids placed in non-null slots) in `desired` must
+ *     equal the set of (registration ids currently placed in this team's slots).
  *     I.e. no adding, removing, or swapping with another team.
  *   - Every Position must appear exactly once.
  *
  * The captain itself can be moved between slots; nothing prevents it.
  */
-export type SlotDesiredEntry = { position: Position; playerId: string | null };
+export type SlotDesiredEntry = { position: Position; registrationId: string | null };
 
 export async function rearrangeSlots(
   teamId: string,
@@ -786,17 +878,17 @@ export async function rearrangeSlots(
   actorUserId: string,
 ): Promise<{ newSeq: number }> {
   return prisma.$transaction(async (tx) => {
-    const session = await tx.draftSession.findFirst({
-      where: { status: { in: ['IN_PROGRESS', 'FINISHED'] } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
-
     const team = await tx.team.findUnique({
       where: { id: teamId },
       include: { slots: true },
     });
     if (!team) throw new DraftStateError('NO_TEAM', '战队不存在');
+
+    const session = await tx.draftSession.findFirst({
+      where: { seasonId: team.seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
 
     // Validate position set
     const desiredPositions = desired.map((d) => d.position);
@@ -809,33 +901,34 @@ export async function rearrangeSlots(
       }
     }
 
-    // Validate player set is a permutation of the current slot players (nulls included)
-    const currentPlayerIds = team.slots
-      .map((s) => s.playerId)
+    // Validate registration set is a permutation of the current slot
+    // registrations (nulls included)
+    const currentRegistrationIds = team.slots
+      .map((s) => s.registrationId)
       .filter((x): x is string => x != null)
       .sort();
-    const desiredPlayerIds = desired
-      .map((d) => d.playerId)
+    const desiredRegistrationIds = desired
+      .map((d) => d.registrationId)
       .filter((x): x is string => x != null)
       .sort();
     if (
-      currentPlayerIds.length !== desiredPlayerIds.length ||
-      currentPlayerIds.some((id, i) => id !== desiredPlayerIds[i])
+      currentRegistrationIds.length !== desiredRegistrationIds.length ||
+      currentRegistrationIds.some((id, i) => id !== desiredRegistrationIds[i])
     ) {
-      throw new DraftStateError('PLAYER_SET_MISMATCH', '只能在本队内调整位置');
+      throw new DraftStateError('PLAYER_SET_MISMATCH', '调整后的选手集合必须与当前队伍一致');
     }
 
     // Apply: clear all slots first (avoid unique-violations on intermediate
-    // states), then set new playerIds. Postgres lets us update in any order
-    // because there's no uniqueness constraint on (team, player), only the
-    // (teamId, position) pair which we're respecting.
+    // states), then set new registrationIds. Postgres lets us update in any
+    // order because there's no uniqueness constraint on (team, registration),
+    // only the (teamId, position) pair which we're respecting.
     for (const slot of team.slots) {
-      await tx.teamSlot.update({ where: { id: slot.id }, data: { playerId: null } });
+      await tx.teamSlot.update({ where: { id: slot.id }, data: { registrationId: null } });
     }
     for (const d of desired) {
       await tx.teamSlot.update({
         where: { teamId_position: { teamId, position: d.position } },
-        data: { playerId: d.playerId },
+        data: { registrationId: d.registrationId },
       });
     }
 
@@ -853,7 +946,7 @@ export async function rearrangeSlots(
         seq: newSeq,
         payload: {
           teamId,
-          desired: desired.map((d) => ({ position: d.position, playerId: d.playerId })),
+          desired: desired.map((d) => ({ position: d.position, registrationId: d.registrationId })),
         },
       },
     });

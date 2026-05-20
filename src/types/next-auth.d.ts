@@ -1,38 +1,33 @@
-import 'next-auth';
-import 'next-auth/jwt';
+import type { Role } from '@prisma/client';
 
 declare module 'next-auth' {
-  interface User {
-    id: string;
-    gameId: string;
-    role: 'ADMIN' | 'CAPTAIN';
-    mustChangePwd: boolean;
-    isCaptain: boolean;
-    isRetired: boolean;
-    nickname: string;
-  }
-
   interface Session {
     user: {
       id: string;
-      gameId: string;
-      role: 'ADMIN' | 'CAPTAIN';
+      username: string;
+      role: Role;
       mustChangePwd: boolean;
-      isCaptain: boolean;
-      isRetired: boolean;
-      nickname: string;
+      teamId: string | null;
+      seasonId: string | null;
     };
+  }
+  interface User {
+    id: string;
+    username: string;
+    role: Role;
+    mustChangePwd: boolean;
+    teamId: string | null;
+    seasonId: string | null;
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
-    gameId: string;
-    role: 'ADMIN' | 'CAPTAIN';
+    username: string;
+    role: Role;
     mustChangePwd: boolean;
-    isCaptain: boolean;
-    isRetired: boolean;
-    nickname: string;
+    teamId: string | null;
+    seasonId: string | null;
   }
 }

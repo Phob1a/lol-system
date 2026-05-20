@@ -34,9 +34,9 @@ export default function AccessDeniedPage() {
             lineHeight: 1.6,
           }}
         >
-          您当前的账户不是现役队长，暂时无法进入选人系统。
+          您的账户无权访问该页面。请使用具备相应权限的账户登录（管理员或队伍账号）。
           <br />
-          <span style={{ color: 'var(--tc-text-faint)' }}>err_code · ROLE_NOT_ELIGIBLE</span>
+          <span style={{ color: 'var(--tc-text-faint)' }}>err_code · ACCESS_DENIED · 如刚切换过系统版本，请先登出再重新登录</span>
         </div>
 
         <div className="tc-divider" style={{ margin: '0 0 14px' }} />

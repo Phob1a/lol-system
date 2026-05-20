@@ -1,9 +1,9 @@
 'use client';
 
-import type { PlayerRef } from '@/lib/teams/preview';
+import type { RegistrationRef } from '@/lib/teams/preview';
 import { TcPos } from '@/components/tactical/TcPos';
 
-export function PlayerInfoCard({ player }: { player: PlayerRef }) {
+export function PlayerInfoCard({ player }: { player: RegistrationRef }) {
   return (
     <div
       className="tc-card"

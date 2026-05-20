@@ -1,14 +1,18 @@
-import type { Player, Position } from '@prisma/client';
+import type { Position } from '@prisma/client';
 import { POSITIONS } from '@/lib/players/schema';
 
-export type PlayerRef = Pick<
-  Player,
-  'id' | 'gameId' | 'nickname' | 'primaryPositions' | 'secondaryPositions' | 'cost'
->;
+export type RegistrationRef = {
+  id: string;
+  gameId: string;
+  nickname: string;
+  primaryPositions: Position[];
+  secondaryPositions: Position[];
+  cost: number;
+};
 
 export type TeamSlotPreview = {
   position: Position;
-  player: PlayerRef | null;
+  player: RegistrationRef | null;
 };
 
 export type TeamPreview = {
@@ -24,7 +28,7 @@ export type TeamPreview = {
  * Picks the first matching position in POSITIONS enum order from the captain's
  * primaryPositions list. Falls back to TOP if (somehow) primaryPositions is empty.
  */
-export function pickCaptainSlot(captain: Pick<Player, 'primaryPositions'>): Position {
+export function pickCaptainSlot(captain: { primaryPositions: Position[] }): Position {
   for (const pos of POSITIONS) {
     if (captain.primaryPositions.includes(pos)) return pos as Position;
   }
@@ -37,7 +41,7 @@ export function pickCaptainSlot(captain: Pick<Player, 'primaryPositions'>): Posi
  * team budget debited by the captain's cost. All other slots are empty.
  */
 export function computeTeamPreviews(
-  captains: PlayerRef[],
+  captains: RegistrationRef[],
   teamBudget: number,
 ): TeamPreview[] {
   return captains.map((captain): TeamPreview => {

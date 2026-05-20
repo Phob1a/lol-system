@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { getActiveSeason } from '@/lib/season/season-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,18 @@ function eventColor(type: string): string {
 }
 
 export default async function AuditPage() {
+  const season = await getActiveSeason(prisma);
+
+  if (!season) {
+    return (
+      <div className="tc-board" style={{ minHeight: '100%', padding: 18 }}>
+        <div className="text-muted-foreground">暂无赛季</div>
+      </div>
+    );
+  }
+
   const events = await prisma.draftEvent.findMany({
+    where: { session: { seasonId: season.id } },
     orderBy: { seq: 'desc' },
     take: 200,
   });
@@ -30,7 +42,7 @@ export default async function AuditPage() {
   const userIds = Array.from(new Set(events.map((e) => e.actorId)));
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
-    select: { id: true, gameId: true, role: true },
+    select: { id: true, username: true, role: true },
   });
   const userById = new Map(users.map((u) => [u.id, u]));
 
@@ -116,7 +128,7 @@ export default async function AuditPage() {
                       {EVENT_LABEL[e.type] ?? e.type}
                     </span>
                     <span style={{ color: 'var(--tc-cyan)' }}>
-                      {actor?.gameId ?? e.actorId.slice(0, 6)}
+                      {actor?.username ?? e.actorId.slice(0, 6)}
                       {actor && <span style={{ marginLeft: 4, color: 'var(--tc-text-faint)' }}>· {actor.role}</span>}
                     </span>
                     <span style={{ color: 'var(--tc-text-dim)', overflowX: 'auto' }}>

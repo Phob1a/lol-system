@@ -1,6 +1,7 @@
-// LoL Draft System — Prisma schema
+// LoL Season & Draft System — Prisma schema
 // Provider: PostgreSQL 16
-// Approach: event-sourced draft (DraftEvent) with materialized state for fast reads.
+// Multi-season: each Season owns registrations, teams, and exactly one draft.
+// Event-sourced draft (DraftEvent) with materialized state for fast reads.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,10 +11,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// Enums
-// ──────────────────────────────────────────────────────────────────────
 
 enum Position {
   TOP
@@ -26,6 +23,20 @@ enum Position {
 enum Role {
   ADMIN
   CAPTAIN
+}
+
+enum SeasonStatus {
+  SETUP
+  REGISTRATION
+  ROSTER_LOCKED
+  DRAFTING
+  COMPLETED
+  ARCHIVED
+}
+
+enum RegistrationStatus {
+  ACTIVE
+  EXCLUDED
 }
 
 enum DraftStatus {
@@ -58,103 +69,111 @@ enum EventType {
   ORDER_SET
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Auth & Roster
-// ──────────────────────────────────────────────────────────────────────
+model Season {
+  id         String       @id @default(cuid())
+  name       String
+  status     SeasonStatus @default(SETUP)
+  teamBudget Float        @default(1000)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  archivedAt DateTime?
 
-model User {
-  id            String   @id @default(cuid())
-  gameId        String   @unique
-  passwordHash  String
-  mustChangePwd Boolean  @default(true)
-  role          Role     @default(CAPTAIN)
-  player        Player?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  registrations Registration[]
+  teams         Team[]
+  draftSession  DraftSession?
 
-  @@map("users")
+  @@map("seasons")
 }
 
 model Player {
-  id                 String     @id @default(cuid())
-  gameId             String     @unique
-  nickname           String
-  primaryPositions   Position[]
-  secondaryPositions Position[]
-  cost               Float
-  isCaptain          Boolean    @default(false)
-  isRetired          Boolean    @default(false)
-
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // If this player is a captain, they own one team.
-  team Team? @relation("TeamCaptain")
-
-  // All draft picks where THIS player was selected.
-  picksAsTarget DraftPick[] @relation("PickedPlayer")
-
-  // Slots that currently hold this player.
-  slots TeamSlot[]
-
+  id        String   @id @default(cuid())
+  gameId    String   @unique
+  nickname  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  registrations Registration[]
 
   @@map("players")
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Config (singleton row, id = 1)
-// ──────────────────────────────────────────────────────────────────────
+model Registration {
+  id                 String             @id @default(cuid())
+  seasonId           String
+  playerId           String
+  nickname           String
+  primaryPositions   Position[]
+  secondaryPositions Position[]
+  currentRank        String
+  peakRank           String
+  willingToCaptain   Boolean            @default(false)
+  statement          String?
+  cost               Float              @default(0)
+  isCaptain          Boolean            @default(false)
+  status             RegistrationStatus @default(ACTIVE)
+  registeredAt       DateTime           @default(now())
 
-model Config {
-  id          Int      @id @default(1)
-  teamBudget  Float    @default(1000)
-  draftLocked Boolean  @default(false)
-  extras      Json     @default("{}")
-  updatedAt   DateTime @updatedAt
+  season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  player        Player      @relation(fields: [playerId], references: [id])
+  teamAsCaptain Team?       @relation("TeamCaptain")
+  slots         TeamSlot[]
+  picksAsTarget DraftPick[] @relation("PickedRegistration")
 
-  @@map("config")
+  @@unique([seasonId, playerId])
+  @@index([seasonId])
+  @@map("registrations")
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Teams (created when draft is started; one per active captain)
-// ──────────────────────────────────────────────────────────────────────
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  passwordHash  String
+  mustChangePwd Boolean  @default(true)
+  role          Role     @default(CAPTAIN)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  team Team?
+
+  @@map("users")
+}
 
 model Team {
   id         String @id @default(cuid())
+  seasonId   String
   name       String
   captainId  String @unique
-  captain    Player @relation("TeamCaptain", fields: [captainId], references: [id])
-  budgetLeft Float
+  userId     String @unique
+  budgetLeft Float  @default(0)
 
-  slots TeamSlot[]
-  picks DraftPick[] @relation("PickingTeam")
+  season  Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  captain Registration @relation("TeamCaptain", fields: [captainId], references: [id])
+  account User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots   TeamSlot[]
+  picks   DraftPick[]  @relation("PickingTeam")
 
   createdAt DateTime @default(now())
 
+  @@index([seasonId])
   @@map("teams")
 }
 
 model TeamSlot {
-  id       String   @id @default(cuid())
-  teamId   String
-  position Position
-  playerId String?
+  id             String   @id @default(cuid())
+  teamId         String
+  position       Position
+  registrationId String?
 
-  team   Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  player Player? @relation(fields: [playerId], references: [id])
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id])
 
   @@unique([teamId, position])
   @@map("team_slots")
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Draft session (singleton in practice; only one active session at a time)
-// ──────────────────────────────────────────────────────────────────────
-
 model DraftSession {
   id           String      @id @default(cuid())
+  seasonId     String      @unique
   status       DraftStatus @default(NOT_STARTED)
   currentRound Int         @default(0)
   onTheClock   String?
@@ -162,6 +181,7 @@ model DraftSession {
   startedAt    DateTime?
   finishedAt   DateTime?
 
+  season Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   rounds DraftRound[]
   events DraftEvent[]
 
@@ -189,28 +209,24 @@ model DraftRound {
 }
 
 model DraftPick {
-  id          String    @id @default(cuid())
-  roundId     String
-  pickIndex   Int
-  byCaptainId String
-  teamId      String
-  playerId    String
-  position    Position
-  costPaid    Float
-  revoked     Boolean   @default(false)
-  revokedAt   DateTime?
-  pickedAt    DateTime  @default(now())
+  id             String    @id @default(cuid())
+  roundId        String
+  pickIndex      Int
+  byCaptainId    String
+  teamId         String
+  registrationId String
+  position       Position
+  costPaid       Float
+  revoked        Boolean   @default(false)
+  revokedAt      DateTime?
+  pickedAt       DateTime  @default(now())
 
-  round  DraftRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  team   Team       @relation("PickingTeam", fields: [teamId], references: [id])
-  player Player     @relation("PickedPlayer", fields: [playerId], references: [id])
+  round        DraftRound   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  team         Team         @relation("PickingTeam", fields: [teamId], references: [id])
+  registration Registration @relation("PickedRegistration", fields: [registrationId], references: [id])
 
   @@map("draft_picks")
 }
-
-// ──────────────────────────────────────────────────────────────────────
-// Event log (append-only audit trail for the draft)
-// ──────────────────────────────────────────────────────────────────────
 
 model DraftEvent {
   id        String    @id @default(cuid())

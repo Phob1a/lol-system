@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { Player, Position } from '@prisma/client';
+import type { Position } from '@prisma/client';
+import type { RegistrationRef } from '@/lib/teams/preview';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { TcPos } from '@/components/tactical/TcPos';
@@ -11,7 +12,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPicked: () => void;
-  player: Pick<Player, 'id' | 'gameId' | 'nickname' | 'cost' | 'primaryPositions' | 'secondaryPositions'>;
+  player: RegistrationRef;
   emptySlots: Position[];
   budgetLeft: number;
   expectedSeq: number;
@@ -44,7 +45,7 @@ export function PickAction({
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        playerId: player.id,
+        registrationId: player.id,
         position,
         expectedSeq,
         ...(onBehalfOf && { onBehalfOf }),

@@ -8,7 +8,7 @@ export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get('callbackUrl') ?? '/';
-  const [gameId, setGameId] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -18,13 +18,13 @@ export function LoginForm() {
     setLoading(true);
     setErr(null);
     const res = await signIn('credentials', {
-      gameId: gameId.trim(),
+      username: username.trim(),
       password,
       redirect: false,
     });
     setLoading(false);
     if (!res || res.error) {
-      setErr('登录失败：游戏 ID 或密码错误');
+      setErr('登录失败：账号或密码错误');
       return;
     }
     router.push(callbackUrl);
@@ -50,7 +50,7 @@ export function LoginForm() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Field label="GAME ID" value={gameId} onChange={setGameId} placeholder="例：admin / faker#KR1" autoFocus autoComplete="username" />
+          <Field label="账号" value={username} onChange={setUsername} placeholder="例：admin" autoFocus autoComplete="username" />
           <Field label="PASSWORD" value={password} onChange={setPassword} type="password" hint="default: lol2026 · forced rotation on first login" autoComplete="current-password" />
         </div>
 

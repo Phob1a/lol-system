@@ -13,7 +13,7 @@ export default async function AdminLayout({
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--tc-bg-0)' }}>
-      <AdminNav gameId={session.user.gameId} />
+      <AdminNav username={session.user.username} />
       <main style={{ maxWidth: 1600, margin: '0 auto' }}>{children}</main>
     </div>
   );
