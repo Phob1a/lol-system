@@ -88,9 +88,10 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
   );
 
   return (
-    <div>
+    <div className="min-h-screen bg-background p-4">
       {/* Season selector header row */}
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-lg font-semibold text-foreground">Live Draft</span>
         <SeasonSelector seasons={seasons} selectedId={selectedSeason.id} />
       </div>
 
