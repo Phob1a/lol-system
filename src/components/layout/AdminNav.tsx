@@ -11,6 +11,7 @@ const items = [
   { href: '/admin/draft', label: 'DRAFT' },
   { href: '/admin/audit', label: 'AUDIT' },
   { href: '/admin/season', label: '赛季管理' },
+  { href: '/admin/registrations', label: '报名管理' },
 ];
 
 export function AdminNav({ gameId }: { gameId?: string }) {
