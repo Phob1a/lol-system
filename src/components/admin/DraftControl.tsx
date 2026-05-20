@@ -13,6 +13,8 @@ import { OnTheClockHero } from '@/components/draft/OnTheClockHero';
 import { TeamGrid } from '@/components/draft/TeamGrid';
 import { EventStream } from '@/components/draft/EventStream';
 import { RoundConfigDialog } from './RoundConfigDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 type PoolPlayer = {
   id: string;
@@ -163,67 +165,58 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
 
   // Controls slot — all existing draft operation controls
   const controlsNode = (
-    <div
-      className="tc-card"
-      style={{ padding: 14, position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}
-    >
-      <span className="corner tl" /><span className="corner tr" />
-      <span className="corner bl" /><span className="corner br" />
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 4 }}>
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-          <span style={{ color: connected ? 'var(--tc-green)' : 'var(--tc-amber)' }}>●</span>{' '}
+    <div className="rounded-lg border bg-card p-4 flex flex-wrap gap-2 items-center">
+      <div className="flex items-center gap-2 mr-1">
+        <span className={`h-2 w-2 rounded-full ${connected ? 'bg-primary' : 'bg-muted'}`} />
+        <span className="text-xs font-mono text-muted-foreground">
           {connected ? 'LIVE' : 'RECONNECTING'}
         </span>
-        <span className="tc-label" style={{ fontSize: 10 }}>
+        <Badge variant="outline" className="text-xs font-mono">
           R{currentRound}/{TOTAL_ROUNDS}
-        </span>
+        </Badge>
       </div>
 
       {!running && !finished && (
-        <button
+        <Button
           onClick={startDraftAction}
           disabled={acting !== null || activeCaptainCount === 0}
-          className="tc-btn tc-btn-primary"
         >
-          ▸ {acting === 'start' ? 'STARTING…' : 'START DRAFT'}
-        </button>
+          ▸ {acting === 'start' ? 'STARTING…' : '开始选秀'}
+        </Button>
       )}
       {canStartNextRound && (
-        <button onClick={() => setRoundDialogOpen(true)} className="tc-btn tc-btn-primary">
-          ▸ START ROUND {nextRoundNo}
-        </button>
+        <Button onClick={() => setRoundDialogOpen(true)}>
+          ▸ 开始第 {nextRoundNo} 轮
+        </Button>
       )}
       {canRewind && (
-        <button onClick={() => setRewindConfirm(true)} disabled={acting !== null} className="tc-btn">
-          {acting === 'rewind' ? '⟲ REWINDING…' : '⟲ REWIND ROUND'}
-        </button>
+        <Button variant="outline" onClick={() => setRewindConfirm(true)} disabled={acting !== null}>
+          {acting === 'rewind' ? '⟲ 回退中…' : '⟲ 回退轮次'}
+        </Button>
       )}
       {(running || finished) && (
         <>
-          <a href="/api/draft/export?format=csv" download className="tc-btn">↓ CSV</a>
-          <a href="/api/draft/export?format=json" download className="tc-btn">↓ JSON</a>
-          <button onClick={() => setResetConfirm(true)} disabled={acting !== null} className="tc-btn tc-btn-danger">
-            ⨯ RESET
-          </button>
+          <Button variant="secondary" asChild>
+            <a href="/api/draft/export?format=csv" download>↓ CSV</a>
+          </Button>
+          <Button variant="secondary" asChild>
+            <a href="/api/draft/export?format=json" download>↓ JSON</a>
+          </Button>
+          <Button variant="destructive" onClick={() => setResetConfirm(true)} disabled={acting !== null}>
+            ⨯ 重置
+          </Button>
         </>
       )}
 
-      <span style={{ marginLeft: 'auto' }} className="tc-mono">
+      <span className="ml-auto text-xs font-mono text-muted-foreground">
         {!running && !finished && (
-          <span style={{ color: 'var(--tc-text-dim)', fontSize: 11 }}>
-            {activeCaptainCount} captains · {teamBudget} CR
-          </span>
+          <span>{activeCaptainCount} captains · {teamBudget} CR</span>
         )}
         {running && (
-          <span style={{ color: 'var(--tc-text-dim)', fontSize: 11 }}>
-            {snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams
-          </span>
+          <span>{snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams</span>
         )}
         {finished && (
-          <span style={{ color: 'var(--tc-green)', fontSize: 11 }}>
-            ✓ COMPLETE · {snapshot?.pickedRegistrationIds.length ?? 0} picks
-          </span>
+          <span className="text-primary">✓ COMPLETE · {snapshot?.pickedRegistrationIds.length ?? 0} picks</span>
         )}
       </span>
     </div>
@@ -268,10 +261,9 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
 
       {resetConfirm && (
         <ConfirmModal
-          accent="var(--tc-red)"
-          title="⨯ RESET DRAFT"
+          title="⨯ 重置选秀"
           message="将清空所有战队、已选记录与事件日志，并解锁名册与配置。该操作无法撤销。"
-          confirmLabel="⨯ CONFIRM RESET"
+          confirmLabel="⨯ 确认重置"
           danger
           onConfirm={resetDraftAction}
           onCancel={() => setResetConfirm(false)}
@@ -279,10 +271,9 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
       )}
       {rewindConfirm && (
         <ConfirmModal
-          accent="var(--tc-amber)"
-          title="⟲ REWIND ROUND"
+          title="⟲ 回退轮次"
           message={`将撤销第 ${currentRound} 轮的所有 pick，恢复预算与位置，并将 currentRound 设为 ${currentRound - 1}。`}
-          confirmLabel="⟲ CONFIRM REWIND"
+          confirmLabel="⟲ 确认回退"
           onConfirm={rewindRoundAction}
           onCancel={() => setRewindConfirm(false)}
         />
@@ -292,7 +283,6 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
 }
 
 function ConfirmModal({
-  accent,
   title,
   message,
   confirmLabel,
@@ -300,7 +290,6 @@ function ConfirmModal({
   onCancel,
   danger,
 }: {
-  accent: string;
   title: string;
   message: string;
   confirmLabel: string;
@@ -311,35 +300,21 @@ function ConfirmModal({
   return (
     <div
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(7,8,12,0.78)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, backdropFilter: 'blur(6px)' }}
+      className="flex items-center justify-center bg-background/80"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="tc-card"
-        style={{ width: 440, padding: 24, background: 'var(--tc-bg-1)', position: 'relative' }}
+        className="rounded-lg border bg-card p-6 shadow-lg"
+        style={{ width: 440 }}
       >
-        <span className="corner tl" style={{ borderColor: accent }} />
-        <span className="corner tr" style={{ borderColor: accent }} />
-        <span className="corner bl" style={{ borderColor: accent }} />
-        <span className="corner br" style={{ borderColor: accent }} />
-        <div className="tc-h2" style={{ color: accent, marginBottom: 8 }}>{title}</div>
-        <div className="tc-mono" style={{ fontSize: 12, color: 'var(--tc-text-dim)', marginBottom: 16 }}>
-          {message}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="tc-btn" onClick={onCancel}>CANCEL</button>
-          <button className={`tc-btn ${danger ? 'tc-btn-danger' : 'tc-btn-primary'}`} onClick={onConfirm}>
+        <div className="text-lg font-semibold mb-2">{title}</div>
+        <div className="text-sm text-muted-foreground mb-4">{message}</div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>取消</Button>
+          <Button variant={danger ? 'destructive' : 'default'} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
