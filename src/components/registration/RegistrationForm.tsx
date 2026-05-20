@@ -9,10 +9,6 @@ import {
   PublicRegistrationInput,
   POSITIONS,
 } from '@/lib/registration/registration-schema';
-
-// Use the input type (with optional fields from .default()) as the form generic,
-// so react-hook-form and zodResolver agree on the same type shape.
-type FormValues = z.input<typeof PublicRegistrationInput>;
 import {
   Form,
   FormControl,
@@ -26,6 +22,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
+// Use the input type (with optional fields from .default()) as the form generic,
+// so react-hook-form and zodResolver agree on the same type shape.
+type FormValues = z.input<typeof PublicRegistrationInput>;
+
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单',
   JUNGLE: '打野',
@@ -33,6 +33,46 @@ const POSITION_LABELS: Record<string, string> = {
   ADC: '射手',
   SUPPORT: '辅助',
 };
+
+type PositionCheckboxGroupProps = {
+  label: string;
+  fieldName: 'primaryPositions' | 'secondaryPositions';
+  idPrefix: string;
+  form: ReturnType<typeof useForm<FormValues>>;
+};
+
+function PositionCheckboxGroup({ label, fieldName, idPrefix, form }: PositionCheckboxGroupProps) {
+  return (
+    <FormField
+      control={form.control}
+      name={fieldName}
+      render={() => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <div className="flex flex-wrap gap-3 pt-1">
+            {POSITIONS.map((pos) => (
+              <div key={pos} className="flex items-center gap-1.5">
+                <Checkbox
+                  id={`${idPrefix}-${pos}`}
+                  checked={(form.watch(fieldName) ?? []).includes(pos)}
+                  onCheckedChange={(checked) => {
+                    const cur = form.getValues(fieldName) ?? [];
+                    const next = checked ? [...cur, pos] : cur.filter((p) => p !== pos);
+                    form.setValue(fieldName, next, { shouldValidate: true, shouldDirty: true });
+                  }}
+                />
+                <Label htmlFor={`${idPrefix}-${pos}`} className="cursor-pointer text-sm font-normal">
+                  {POSITION_LABELS[pos]}
+                </Label>
+              </div>
+            ))}
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
 
 type Props = { seasonName: string };
 
@@ -67,11 +107,8 @@ export function RegistrationForm({ seasonName }: Props) {
         return;
       }
       const body = await res.json().catch(() => ({ error: '请求失败' }));
-      if (res.status === 409 || res.status === 400) {
-        toast.error(body.error ?? '提交失败，请重试');
-      } else {
-        toast.error(body.error ?? '提交失败，请重试');
-      }
+      // 409 = 重复 gameId / 报名未开放；400 = 校验失败
+      toast.error(body.error ?? '提交失败，请重试');
     } finally {
       setSubmitting(false);
     }
@@ -122,74 +159,10 @@ export function RegistrationForm({ seasonName }: Props) {
         />
 
         {/* Primary Positions */}
-        <FormField
-          control={form.control}
-          name="primaryPositions"
-          render={() => (
-            <FormItem>
-              <FormLabel>主要位置（至少选一个）</FormLabel>
-              <div className="flex flex-wrap gap-3 pt-1">
-                {POSITIONS.map((pos) => (
-                  <div key={pos} className="flex items-center gap-1.5">
-                    <Checkbox
-                      id={`primary-${pos}`}
-                      checked={form.watch('primaryPositions').includes(pos)}
-                      onCheckedChange={(checked) => {
-                        const cur = form.getValues('primaryPositions');
-                        const next = checked
-                          ? [...cur, pos]
-                          : cur.filter((p) => p !== pos);
-                        form.setValue('primaryPositions', next, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                    />
-                    <Label htmlFor={`primary-${pos}`} className="cursor-pointer text-sm font-normal">
-                      {POSITION_LABELS[pos]}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <PositionCheckboxGroup label="主要位置（至少选一个）" fieldName="primaryPositions" idPrefix="primary" form={form} />
 
         {/* Secondary Positions */}
-        <FormField
-          control={form.control}
-          name="secondaryPositions"
-          render={() => (
-            <FormItem>
-              <FormLabel>副要位置（可不选）</FormLabel>
-              <div className="flex flex-wrap gap-3 pt-1">
-                {POSITIONS.map((pos) => (
-                  <div key={pos} className="flex items-center gap-1.5">
-                    <Checkbox
-                      id={`secondary-${pos}`}
-                      checked={(form.watch('secondaryPositions') ?? []).includes(pos)}
-                      onCheckedChange={(checked) => {
-                        const cur = form.getValues('secondaryPositions') ?? [];
-                        const next = checked
-                          ? [...cur, pos]
-                          : cur.filter((p) => p !== pos);
-                        form.setValue('secondaryPositions', next, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
-                    />
-                    <Label htmlFor={`secondary-${pos}`} className="cursor-pointer text-sm font-normal">
-                      {POSITION_LABELS[pos]}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <PositionCheckboxGroup label="副位置（可不选）" fieldName="secondaryPositions" idPrefix="secondary" form={form} />
 
         {/* Current Rank */}
         <FormField
