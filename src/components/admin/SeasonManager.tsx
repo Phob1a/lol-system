@@ -34,6 +34,7 @@ export function SeasonManager({ initialSeasons }: Props) {
   const [teamBudget, setTeamBudget] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [transitioningId, setTransitioningId] = useState<string | null>(null);
 
   const activeSeason = initialSeasons.find((s) => s.status !== 'ARCHIVED') ?? null;
 
@@ -66,38 +67,46 @@ export function SeasonManager({ initialSeasons }: Props) {
   }
 
   async function handleTransition(id: string, to: string) {
-    const res = await fetch(`/api/seasons/${id}/transition`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ to }),
-    });
-    if (res.ok) {
-      router.refresh();
-      toast.success('状态已更新');
-    } else {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? '操作失败');
+    setTransitioningId(id);
+    try {
+      const res = await fetch(`/api/seasons/${id}/transition`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to }),
+      });
+      if (res.ok) {
+        router.refresh();
+        toast.success('状态已更新');
+      } else {
+        const body = await res.json().catch(() => ({}));
+        if (res.status >= 500) {
+          console.error('season transition failed', body);
+        }
+        toast.error(body.error ?? '操作失败');
+      }
+    } finally {
+      setTransitioningId(null);
     }
   }
 
   function transitionButton(season: Season) {
     if (season.status === 'SETUP') {
       return (
-        <Button size="sm" onClick={() => handleTransition(season.id, 'REGISTRATION')}>
+        <Button size="sm" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'REGISTRATION')}>
           开启报名
         </Button>
       );
     }
     if (season.status === 'REGISTRATION') {
       return (
-        <Button size="sm" onClick={() => handleTransition(season.id, 'ROSTER_LOCKED')}>
+        <Button size="sm" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'ROSTER_LOCKED')}>
           截止报名
         </Button>
       );
     }
     if (season.status === 'ROSTER_LOCKED') {
       return (
-        <Button size="sm" variant="outline" onClick={() => handleTransition(season.id, 'REGISTRATION')}>
+        <Button size="sm" variant="outline" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'REGISTRATION')}>
           重新开启报名
         </Button>
       );
