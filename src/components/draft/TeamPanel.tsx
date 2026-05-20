@@ -1,9 +1,47 @@
 'use client';
 
 import type { TeamPreview } from '@/lib/teams/preview';
-import { TcPos } from '@/components/tactical/TcPos';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+/** Abbreviation letter for a position value */
+const POS_LETTER: Record<string, string> = {
+  TOP: 'T',
+  JG: 'J',
+  JUNGLE: 'J',
+  MID: 'M',
+  ADC: 'A',
+  SUP: 'S',
+  SUPPORT: 'S',
+};
+
+function PosChip({
+  pos,
+  filled,
+  dim,
+}: {
+  pos: string;
+  filled?: boolean;
+  dim?: boolean;
+}) {
+  const letter = POS_LETTER[pos] ?? pos[0];
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center justify-center w-5 h-5 shrink-0 rounded-sm border text-[10px] font-bold',
+        filled
+          ? 'bg-primary border-primary text-primary-foreground'
+          : dim
+            ? 'bg-transparent border-muted-foreground/40 text-muted-foreground/40'
+            : 'bg-transparent border-border text-muted-foreground',
+      )}
+    >
+      {letter}
+    </span>
+  );
+}
 
 type Props = {
   team: TeamPreview;
@@ -12,99 +50,77 @@ type Props = {
 
 export function TeamPanel({ team, isOwn }: Props) {
   const filledPositions = team.slots.filter((s) => s.player).map((s) => s.position);
-  const accent = isOwn ? 'var(--tc-cyan)' : 'var(--tc-line2)';
 
   return (
     <div
-      className="tc-card"
-      style={{
-        padding: 12,
-        position: 'relative',
-        border: `1px solid ${accent}`,
-        background: isOwn ? 'rgba(0,229,255,0.04)' : 'rgba(255,255,255,0.02)',
-      }}
+      className={cn(
+        'rounded-lg border bg-card p-3 space-y-2',
+        isOwn ? 'border-primary/60 bg-primary/5' : '',
+      )}
     >
-      <span className="corner tl" style={{ borderColor: accent }} />
-      <span className="corner tr" style={{ borderColor: accent }} />
-      <span className="corner bl" style={{ borderColor: accent }} />
-      <span className="corner br" style={{ borderColor: accent }} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="tc-display" style={{ fontSize: 14, color: isOwn ? 'var(--tc-cyan)' : 'var(--tc-text)' }}>
-            {team.captainNickname}
+      {/* Header: captain name + budget */}
+      <div className="flex justify-between items-baseline gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'text-sm font-semibold truncate',
+                isOwn ? 'text-primary' : 'text-foreground',
+              )}
+            >
+              {team.captainNickname}
+            </span>
             {isOwn && (
-              <span className="tc-chip tc-chip-on" style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px' }}>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-auto">
                 MINE
-              </span>
+              </Badge>
             )}
           </div>
-          <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-            @{team.captainGameId}
-          </div>
+          <p className="text-[10px] text-muted-foreground">@{team.captainGameId}</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="tc-label" style={{ fontSize: 9 }}>BUDGET</div>
-          <div className="tc-num" style={{ fontSize: 15, color: 'var(--tc-amber)' }}>
+        <div className="text-right shrink-0">
+          <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">BUDGET</p>
+          <p className="text-sm font-semibold text-foreground leading-tight">
             {team.budgetLeft}
-            <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-dim)', marginLeft: 2 }}>CR</span>
-          </div>
+            <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
+          </p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 3, marginTop: 8 }}>
+      {/* Position summary row */}
+      <div className="flex gap-1">
         {(['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const).map((p) => (
-          <TcPos
+          <PosChip
             key={p}
             pos={p}
-            size={18}
-            on={filledPositions.includes(p)}
+            filled={filledPositions.includes(p)}
             dim={!filledPositions.includes(p)}
           />
         ))}
       </div>
 
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Roster slots */}
+      <div className="flex flex-col gap-0.5">
         {team.slots.map((slot) => {
           const row = (
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '46px 1fr auto',
-                gap: 8,
-                alignItems: 'center',
-                padding: '4px 6px',
-                background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
-                border: '1px solid var(--tc-line)',
-                fontSize: 11,
-              }}
+              className="grid items-center gap-2 px-1.5 py-1 rounded border border-border text-xs"
+              style={{ gridTemplateColumns: '46px 1fr auto' }}
             >
-              <span className="tc-label" style={{ fontSize: 9 }}>
+              <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">
                 {POSITION_LABEL[slot.position]}
               </span>
               {slot.player ? (
-                <span
-                  style={{
-                    minWidth: 0,
-                    fontFamily: 'var(--tc-font-display)',
-                    color: 'var(--tc-text)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+                <span className="min-w-0 text-foreground truncate">
                   {slot.player.nickname}
-                  <span className="tc-mono" style={{ marginLeft: 6, fontSize: 9, color: 'var(--tc-text-faint)' }}>
+                  <span className="ml-1.5 text-[9px] text-muted-foreground">
                     @{slot.player.gameId}
                   </span>
                 </span>
               ) : (
-                <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
+                <span className="text-[10px] text-muted-foreground/50">— empty —</span>
               )}
-              <span
-                className="tc-num"
-                style={{ fontSize: 11, color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
-              >
+              <span className={cn('text-xs font-medium', slot.player ? 'text-foreground' : 'text-muted-foreground/50')}>
                 {slot.player ? slot.player.cost : '—'}
               </span>
             </div>
