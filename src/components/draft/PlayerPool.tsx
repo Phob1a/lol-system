@@ -90,6 +90,10 @@ export function PlayerPool({ players, renderActions }: Props) {
   const [filter, setFilter] = useState<PlayerFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Raw strings for the cost-range inputs, kept separate from the parsed
+  // numbers in `filter` so a partially-typed decimal (e.g. "12.") survives.
+  const [costMinInput, setCostMinInput] = useState('');
+  const [costMaxInput, setCostMaxInput] = useState('');
 
   const visible = useMemo(
     () => sortPlayers(filterPlayers(players, filter), sort),
@@ -120,6 +124,8 @@ export function PlayerPool({ players, renderActions }: Props) {
     setFilter(DEFAULT_FILTER);
     setSort(DEFAULT_SORT);
     setFiltersOpen(false);
+    setCostMinInput('');
+    setCostMaxInput('');
   }
 
   return (
@@ -228,32 +234,36 @@ export function PlayerPool({ players, renderActions }: Props) {
               <p className="mb-1.5 text-xs text-muted-foreground">费用区间</p>
               <div className="flex items-center gap-2">
                 <Input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="最低"
-                  value={filter.costMin ?? ''}
-                  onChange={(e) =>
+                  value={costMinInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCostMinInput(raw);
+                    const n = Number(raw);
                     setFilter((f) => ({
                       ...f,
-                      costMin: e.target.value === '' ? undefined : Number(e.target.value),
-                    }))
-                  }
+                      costMin: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
+                    }));
+                  }}
                   className="h-8 text-xs"
                 />
                 <span className="text-muted-foreground">–</span>
                 <Input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="最高"
-                  value={filter.costMax ?? ''}
-                  onChange={(e) =>
+                  value={costMaxInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCostMaxInput(raw);
+                    const n = Number(raw);
                     setFilter((f) => ({
                       ...f,
-                      costMax: e.target.value === '' ? undefined : Number(e.target.value),
-                    }))
-                  }
+                      costMax: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
+                    }));
+                  }}
                   className="h-8 text-xs"
                 />
               </div>
