@@ -19,8 +19,8 @@ describe('UpdateTeamProfileInput', () => {
     expect(UpdateTeamProfileInput.safeParse({ name: '   ' }).success).toBe(false);
   });
 
-  it('rejects a name longer than 20 chars', () => {
-    expect(UpdateTeamProfileInput.safeParse({ name: 'x'.repeat(21) }).success).toBe(false);
+  it('rejects a name longer than 30 chars', () => {
+    expect(UpdateTeamProfileInput.safeParse({ name: 'x'.repeat(31) }).success).toBe(false);
   });
 
   it('rejects a slogan longer than 50 chars', () => {

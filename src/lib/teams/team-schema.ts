@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /** Captain-editable team profile fields. */
 export const UpdateTeamProfileInput = z.object({
-  name: z.string().trim().min(1, '队名必填').max(20, '队名过长'),
+  name: z.string().trim().min(2, '队名至少 2 字').max(30, '队名过长'),
   slogan: z
     .string()
     .trim()
