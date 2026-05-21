@@ -140,6 +140,7 @@ export function SeasonManager({ initialSeasons }: Props) {
           <Input
             type="number"
             min="0"
+            step="any"
             value={teamBudget}
             onChange={(e) => setTeamBudget(e.target.value)}
             placeholder="预算"

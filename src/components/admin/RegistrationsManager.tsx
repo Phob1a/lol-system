@@ -658,6 +658,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
                 <Input
                   type="number"
                   min="0"
+                  step="any"
                   value={addForm.cost}
                   onChange={(e) => setAddForm({ ...addForm, cost: e.target.value })}
                 />
@@ -753,6 +754,7 @@ function RegRow({
         <Input
           type="number"
           min="0"
+          step="any"
           className="w-20 h-7 text-sm"
           value={costVal}
           onChange={(e) => setCostVal(e.target.value)}
