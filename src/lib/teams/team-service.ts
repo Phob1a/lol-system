@@ -47,3 +47,15 @@ export async function renameTeam(
 ): Promise<void> {
   await db.team.update({ where: { id: teamId }, data: { name } });
 }
+
+/** Update a team's captain-editable profile (name + slogan). Authorization is enforced by the route. */
+export async function updateTeamProfile(
+  db: PrismaClient,
+  teamId: string,
+  input: { name: string; slogan: string | null },
+): Promise<void> {
+  await db.team.update({
+    where: { id: teamId },
+    data: { name: input.name, slogan: input.slogan },
+  });
+}

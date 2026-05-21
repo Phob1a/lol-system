@@ -4,7 +4,7 @@ import { testDb } from '@/lib/test/db';
 import { createSeason, transitionSeason } from '@/lib/season/season-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { appointCaptain } from '@/lib/captains/captain-service';
-import { listSeasonTeams, resetTeamPassword } from './team-service';
+import { listSeasonTeams, resetTeamPassword, updateTeamProfile } from './team-service';
 
 async function appointed() {
   const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
@@ -35,5 +35,20 @@ describe('team-service', () => {
     const after = await testDb.user.findUniqueOrThrow({ where: { id: team.userId } });
     expect(after.passwordHash).not.toBe(before.passwordHash);
     expect(await bcrypt.compare(password, after.passwordHash)).toBe(true);
+  });
+
+  it('updateTeamProfile updates name and slogan', async () => {
+    const { teamId } = await appointed();
+    await updateTeamProfile(testDb, teamId, { name: '新队名', slogan: '新口号' });
+    const team = await testDb.team.findUniqueOrThrow({ where: { id: teamId } });
+    expect(team.name).toBe('新队名');
+    expect(team.slogan).toBe('新口号');
+  });
+
+  it('updateTeamProfile accepts a null slogan', async () => {
+    const { teamId } = await appointed();
+    await updateTeamProfile(testDb, teamId, { name: '队名', slogan: null });
+    const team = await testDb.team.findUniqueOrThrow({ where: { id: teamId } });
+    expect(team.slogan).toBeNull();
   });
 });
