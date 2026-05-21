@@ -60,6 +60,7 @@ model Team {
 - `getSession()` 取 `session.user.teamId`(captain 布局已保证角色为 CAPTAIN)。
 - `getActiveSeason(prisma)` —— 若无赛季或 `status !== 'COMPLETED'`,`redirect('/captain')`。
 - 查队伍:`prisma.team.findUnique({ where: { id: teamId }, include: { slots: { include: { registration: { include: { player: true } } } } } })`。若查不到队伍(异常情况),渲染友好提示「未找到你的队伍」。
+- **当前赛季校验:** 队伍账号(`User`)每赛季新建,旧赛季的队伍账号若仍能登录,其 `session.user.teamId` 指向的是已归档赛季的 `Team`。因此须校验 `team.seasonId === activeSeason.id` —— 不相等(即该账号是往届队长)则 `redirect('/captain')`。无需单独的「队长表」:`Registration.isCaptain` 本身按 `seasonId` 作用域,`Team`(`seasonId` + `captainId` + `userId`)即 captain × season 的实体。
 - 把队伍数据(`name`、`slogan`、按位置排序的阵容行)传给 `TeamManager`。每行的「是否队长」直接取 `slot.registration.isCaptain`(`Registration` 自带该字段),无需额外查 `captain` 关系。
 
 ### 4.2 `TeamManager` 组件
@@ -75,6 +76,7 @@ Props:`teamId`、`name`、`slogan`、`roster`(每行:`position`、`nickname`、`
 - 请求体经 `UpdateTeamProfileInput` 校验,失败 400。
 - 复核 `getActiveSeason`:`status !== 'COMPLETED'` → 409(防止绕过页面门槛直接调用)。
 - 用 `session.user.teamId` 作为目标队伍 id —— 队长只能改自己的队,不接受请求体里传入的 teamId。
+- 复核该队伍属于当前赛季:`team.seasonId === activeSeason.id`,不相等(往届队长账号)→ 403。
 - 调 `updateTeamProfile(prisma, teamId, { name, slogan })`,返回更新后的队伍。
 
 ### 4.4 service `updateTeamProfile`
@@ -111,6 +113,7 @@ export const UpdateTeamProfileInput = z.object({
 | 情况 | 处理 |
 |---|---|
 | 选秀未结束访问 `/captain/team` | 页面 `redirect('/captain')` |
+| 往届队长账号访问(`team.seasonId` 非当前赛季) | 页面 `redirect('/captain')`;API 返回 403 |
 | 队长无队伍(异常) | 页面渲染「未找到你的队伍」提示 |
 | API 未登录 / 非队长 | 401 / 403(`requireCaptain`) |
 | API 请求体校验失败 | 400,返回首条错误信息 |
