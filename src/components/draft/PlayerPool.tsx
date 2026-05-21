@@ -23,57 +23,92 @@ type Props = {
 };
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'gameId-asc', label: 'BY ID' },
-  { value: 'primary-asc', label: 'BY POS' },
-  { value: 'cost-asc', label: 'COST ↑' },
-  { value: 'cost-desc', label: 'COST ↓' },
+  { value: 'gameId-asc', label: '默认' },
+  { value: 'primary-asc', label: '按位置' },
+  { value: 'cost-asc', label: '费用 ↑' },
+  { value: 'cost-desc', label: '费用 ↓' },
 ];
 
-/** Abbreviation letter for a position value */
-const POS_LETTER: Record<string, string> = {
-  TOP: 'T',
-  JG: 'J',
-  JUNGLE: 'J',
-  MID: 'M',
-  ADC: 'A',
-  SUP: 'S',
-  SUPPORT: 'S',
+const PICKED_OPTIONS: { value: NonNullable<PlayerFilter['pickedStatus']>; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'unpicked', label: '未选' },
+  { value: 'picked', label: '已选' },
+];
+
+/** Chinese single-character marker for a position value. */
+const POS_CHAR: Record<string, string> = {
+  TOP: '上',
+  JG: '野',
+  JUNGLE: '野',
+  MID: '中',
+  ADC: '射',
+  SUP: '辅',
+  SUPPORT: '辅',
 };
 
-function PosChip({
-  pos,
-  filled,
-  dim,
-}: {
-  pos: string;
-  filled?: boolean;
-  dim?: boolean;
-}) {
-  const letter = POS_LETTER[pos] ?? pos[0];
+function PosChip({ pos, filled }: { pos: string; filled?: boolean }) {
+  const char = POS_CHAR[pos] ?? pos[0];
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center w-5 h-5 shrink-0 rounded-sm border text-[10px] font-bold',
+        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-xs font-medium',
         filled
-          ? 'bg-primary border-primary text-primary-foreground'
-          : dim
-            ? 'bg-transparent border-muted-foreground text-muted-foreground'
-            : 'bg-transparent border-border text-muted-foreground',
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-transparent text-muted-foreground',
       )}
     >
-      {letter}
+      {char}
     </span>
+  );
+}
+
+/** Segmented toggle button used across the filter panel. */
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded border px-2.5 py-1 text-xs transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-transparent text-muted-foreground hover:border-foreground hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
 export function PlayerPool({ players, renderActions }: Props) {
   const [filter, setFilter] = useState<PlayerFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const visible = useMemo(
     () => sortPlayers(filterPlayers(players, filter), sort),
     [players, filter, sort],
   );
+
+  // Count of active conditions inside the collapsible panel. Search is excluded
+  // (it stays visible above); sort is not a "filter" and is not counted.
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if ((filter.primaryPositions?.length ?? 0) > 0) n++;
+    if ((filter.secondaryPositions?.length ?? 0) > 0) n++;
+    if (filter.costMin != null) n++;
+    if (filter.costMax != null) n++;
+    if ((filter.pickedStatus ?? 'all') !== 'all') n++;
+    return n;
+  }, [filter]);
 
   function togglePos(field: 'primaryPositions' | 'secondaryPositions', pos: PositionLiteral) {
     setFilter((f) => {
@@ -89,156 +124,182 @@ export function PlayerPool({ players, renderActions }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-2.5">
-      {/* Filter / sort panel */}
-      <div className="rounded-lg border bg-card p-3 space-y-2.5">
-        {/* Row 1: search + sort + reset */}
-        <div className="grid grid-cols-[1fr_auto_auto] gap-2.5 items-center">
-          <Input
-            placeholder="search nickname or gameId…"
-            value={filter.search ?? ''}
-            onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
-            className="h-8 text-xs"
-          />
-          <div className="flex gap-1">
-            {SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSort(opt.value)}
+    <div className="flex flex-col gap-2.5 p-2.5">
+      {/* ── Filter region ── */}
+      <div className="space-y-3 rounded-lg border bg-card p-3">
+        {/* Search — always visible */}
+        <Input
+          placeholder="搜索昵称 / 游戏 ID"
+          value={filter.search ?? ''}
+          onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
+          className="h-9 text-sm"
+        />
+
+        {/* Status bar: count · 筛选 toggle · 重置 */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">
+            <span className="font-semibold text-foreground">未选 {visible.length}</span> / {players.length} 人
+          </span>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className={cn(
+              'ml-auto inline-flex items-center gap-1 rounded border px-2.5 py-1 transition-colors',
+              filtersOpen
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
+            )}
+          >
+            筛选 {filtersOpen ? '▴' : '▾'}
+            {activeFilterCount > 0 && (
+              <span
                 className={cn(
-                  'px-2 py-1 text-[10px] rounded border transition-colors',
-                  sort === opt.value
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground',
+                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium',
+                  filtersOpen
+                    ? 'bg-primary-foreground text-primary'
+                    : 'bg-primary text-primary-foreground',
                 )}
               >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           <button
+            type="button"
             onClick={reset}
-            className="px-3 py-1 text-[10px] rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+            className="rounded border border-border px-2.5 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
           >
-            ⟲ RESET
+            重置
           </button>
         </div>
 
-        {/* Row 2: position filters */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <div>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              PRIMARY (OR)
-            </span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {POSITION_OPTIONS.map((p) => {
-                const on = filter.primaryPositions?.includes(p.value);
-                return (
-                  <button
+        {/* Collapsible filter panel */}
+        {filtersOpen && (
+          <div className="space-y-3 border-t pt-3">
+            {/* Sort */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">排序</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SORT_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    active={sort === opt.value}
+                    onClick={() => setSort(opt.value)}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </div>
+
+            {/* Primary positions */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">主位置</p>
+              <div className="flex flex-wrap gap-1.5">
+                {POSITION_OPTIONS.map((p) => (
+                  <FilterChip
                     key={p.value}
+                    active={!!filter.primaryPositions?.includes(p.value)}
                     onClick={() => togglePos('primaryPositions', p.value)}
-                    className={cn(
-                      'px-1.5 py-0.5 text-[10px] rounded border transition-colors',
-                      on
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-transparent text-muted-foreground border-border hover:border-foreground',
-                    )}
                   >
-                    {p.value}
-                  </button>
-                );
-              })}
+                    {p.label}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              SECONDARY (OR)
-            </span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {POSITION_OPTIONS.map((p) => {
-                const on = filter.secondaryPositions?.includes(p.value);
-                return (
-                  <button
+
+            {/* Secondary positions */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">副位置</p>
+              <div className="flex flex-wrap gap-1.5">
+                {POSITION_OPTIONS.map((p) => (
+                  <FilterChip
                     key={p.value}
+                    active={!!filter.secondaryPositions?.includes(p.value)}
                     onClick={() => togglePos('secondaryPositions', p.value)}
-                    className={cn(
-                      'px-1.5 py-0.5 text-[10px] rounded border transition-colors',
-                      on
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-transparent text-muted-foreground border-border hover:border-foreground',
-                    )}
                   >
-                    {p.value}
-                  </button>
-                );
-              })}
+                    {p.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </div>
+
+            {/* Cost range */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">费用区间</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="最低"
+                  value={filter.costMin ?? ''}
+                  onChange={(e) =>
+                    setFilter((f) => ({
+                      ...f,
+                      costMin: e.target.value === '' ? undefined : Number(e.target.value),
+                    }))
+                  }
+                  className="h-8 text-xs"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="最高"
+                  value={filter.costMax ?? ''}
+                  onChange={(e) =>
+                    setFilter((f) => ({
+                      ...f,
+                      costMax: e.target.value === '' ? undefined : Number(e.target.value),
+                    }))
+                  }
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Picked status */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">选取状态</p>
+              <div className="flex flex-wrap gap-1.5">
+                {PICKED_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    active={(filter.pickedStatus ?? 'all') === opt.value}
+                    onClick={() => setFilter((f) => ({ ...f, pickedStatus: opt.value }))}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Row 3: cost range + picked status */}
-        <div className="grid grid-cols-3 gap-2.5">
-          <NumField
-            label="COST ≥"
-            value={filter.costMin}
-            onChange={(v) => setFilter((f) => ({ ...f, costMin: v }))}
-          />
-          <NumField
-            label="COST ≤"
-            value={filter.costMax}
-            onChange={(v) => setFilter((f) => ({ ...f, costMax: v }))}
-          />
-          <div>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              PICKED
-            </span>
-            <div className="flex gap-1 mt-1">
-              {(['all', 'unpicked', 'picked'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilter((f) => ({ ...f, pickedStatus: s }))}
-                  className={cn(
-                    'px-1.5 py-0.5 text-[10px] rounded border transition-colors',
-                    (filter.pickedStatus ?? 'all') === s
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-transparent text-muted-foreground border-border hover:border-foreground',
-                  )}
-                >
-                  {s.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Row 4: count */}
-        <p className="text-[10px] text-muted-foreground">
-          showing {visible.length} of {players.length}
-        </p>
+        )}
       </div>
 
-      {/* Player grid */}
-      <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+      {/* ── Player card list ── */}
+      <div className="flex flex-col gap-1.5">
         {visible.map((p) => (
           <div
             key={p.id}
             className={cn(
-              'grid gap-1.5 px-2.5 py-2 rounded border',
-              p.isPicked ? 'opacity-50' : '',
+              'flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5',
+              p.isPicked && 'opacity-50',
             )}
-            style={{ gridTemplateColumns: '1fr auto' }}
           >
-            <div className="min-w-0 flex flex-col gap-0.5">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-medium text-foreground truncate">{p.nickname}</span>
+                <span className="truncate text-sm font-medium text-foreground">{p.nickname}</span>
                 {p.isPicked && (
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-auto">
-                    PICKED
+                  <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
+                    已选
                   </Badge>
                 )}
               </div>
               <span className="text-xs text-muted-foreground">@{p.gameId}</span>
-              <div className="flex gap-1 mt-0.5">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {p.primaryPositions.map((pos) => (
                   <PosChip key={`p-${pos}`} pos={pos} filled />
                 ))}
@@ -247,47 +308,21 @@ export function PlayerPool({ players, renderActions }: Props) {
                 ))}
               </div>
             </div>
-            <div className="flex flex-col items-end justify-between gap-1.5">
-              <div className="text-right">
-                <span className="text-base font-semibold text-foreground">{p.cost}</span>
-                <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="text-right leading-tight">
+                <div className="text-base font-semibold text-foreground">{p.cost}</div>
+                <div className="text-[10px] text-muted-foreground">费用</div>
               </div>
               {renderActions && <div>{renderActions(p)}</div>}
             </div>
           </div>
         ))}
         {visible.length === 0 && (
-          <div className="col-span-full py-6 text-center text-xs text-muted-foreground border border-dashed rounded">
+          <div className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
             没有匹配的选手
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function NumField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | undefined;
-  onChange: (v: number | undefined) => void;
-}) {
-  return (
-    <div>
-      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-        {label}
-      </span>
-      <Input
-        type="number"
-        step="any"
-        min="0"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-        className="mt-1 h-7 text-xs"
-      />
     </div>
   );
 }
