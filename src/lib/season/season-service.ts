@@ -39,6 +39,38 @@ export async function createSeason(
   });
 }
 
+/**
+ * Statuses in which the team budget may still be edited — i.e. before the
+ * draft starts. Once DRAFTING begins, per-team `budgetLeft` is derived from
+ * `teamBudget`, so the budget is locked.
+ */
+export const BUDGET_EDITABLE_STATUSES: SeasonStatus[] = [
+  'SETUP',
+  'REGISTRATION',
+  'ROSTER_LOCKED',
+];
+
+/**
+ * Update a season's team budget. Allowed only before the draft starts
+ * (see {@link BUDGET_EDITABLE_STATUSES}); rejected once DRAFTING/COMPLETED/
+ * ARCHIVED, because per-team `budgetLeft` is already derived from it.
+ */
+export async function updateSeasonBudget(
+  db: Db,
+  seasonId: string,
+  teamBudget: number,
+): Promise<Season> {
+  const season = await db.season.findUnique({ where: { id: seasonId } });
+  if (!season) throw new SeasonError('PRECONDITION_FAILED', '赛季不存在');
+  if (!BUDGET_EDITABLE_STATUSES.includes(season.status)) {
+    throw new SeasonError(
+      'PRECONDITION_FAILED',
+      '选秀已开始，队伍预算已锁定，无法修改',
+    );
+  }
+  return db.season.update({ where: { id: seasonId }, data: { teamBudget } });
+}
+
 // Allowed status edges. ARCHIVED is reached only via createSeason / archiveActiveSeason.
 const ALLOWED: Record<SeasonStatus, SeasonStatus[]> = {
   SETUP: ['REGISTRATION'],

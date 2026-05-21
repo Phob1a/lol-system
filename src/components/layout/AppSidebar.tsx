@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/teams', label: '队伍账号' },
   { href: '/admin/draft', label: '选秀控制台' },
   { href: '/admin/audit', label: '审计日志' },
+  { href: '/admin/config', label: '系统配置' },
 ];
 
 export function AppSidebar() {

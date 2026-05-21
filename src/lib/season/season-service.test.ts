@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { testDb } from '@/lib/test/db';
-import { archiveActiveSeason, createSeason, getActiveSeason, listSeasons, transitionSeason } from './season-service';
+import { archiveActiveSeason, createSeason, getActiveSeason, listSeasons, transitionSeason, updateSeasonBudget } from './season-service';
 import { SeasonError } from './errors';
 
 describe('season-service: create / get / list', () => {
@@ -47,5 +47,26 @@ describe('season-service: transitions', () => {
     await transitionSeason(testDb, s.id, 'REGISTRATION');
     await transitionSeason(testDb, s.id, 'ROSTER_LOCKED');
     expect((await transitionSeason(testDb, s.id, 'REGISTRATION')).status).toBe('REGISTRATION');
+  });
+});
+
+describe('season-service: updateSeasonBudget', () => {
+  it('updates the budget before the draft starts (REGISTRATION)', async () => {
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    await transitionSeason(testDb, s.id, 'REGISTRATION');
+    expect((await updateSeasonBudget(testDb, s.id, 1234.5)).teamBudget).toBe(1234.5);
+  });
+
+  it('rejects updates once the draft has started (DRAFTING)', async () => {
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    await transitionSeason(testDb, s.id, 'REGISTRATION');
+    await transitionSeason(testDb, s.id, 'ROSTER_LOCKED');
+    await transitionSeason(testDb, s.id, 'DRAFTING');
+    await expect(updateSeasonBudget(testDb, s.id, 2000)).rejects.toBeInstanceOf(SeasonError);
+    expect((await getActiveSeason(testDb))?.teamBudget).toBe(1000);
+  });
+
+  it('rejects an unknown season', async () => {
+    await expect(updateSeasonBudget(testDb, 'nope', 500)).rejects.toBeInstanceOf(SeasonError);
   });
 });

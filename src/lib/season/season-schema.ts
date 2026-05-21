@@ -5,3 +5,8 @@ export const CreateSeasonInput = z.object({
   teamBudget: z.number().positive('预算必须大于 0'),
 });
 export type CreateSeasonInput = z.infer<typeof CreateSeasonInput>;
+
+export const UpdateSeasonInput = z.object({
+  teamBudget: z.number().positive('预算必须大于 0'),
+});
+export type UpdateSeasonInput = z.infer<typeof UpdateSeasonInput>;
