@@ -138,9 +138,8 @@ export function SeasonManager({ initialSeasons }: Props) {
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">队伍预算</label>
           <Input
-            type="number"
-            min="0"
-            step="any"
+            type="text"
+            inputMode="decimal"
             value={teamBudget}
             onChange={(e) => setTeamBudget(e.target.value)}
             placeholder="预算"

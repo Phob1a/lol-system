@@ -656,9 +656,8 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               <div className="space-y-1">
                 <Label className="text-xs">费用</Label>
                 <Input
-                  type="number"
-                  min="0"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   value={addForm.cost}
                   onChange={(e) => setAddForm({ ...addForm, cost: e.target.value })}
                 />
@@ -752,9 +751,8 @@ function RegRow({
       <TableCell>{reg.willingToCaptain ? '✓' : '—'}</TableCell>
       <TableCell>
         <Input
-          type="number"
-          min="0"
-          step="any"
+          type="text"
+          inputMode="decimal"
           className="w-20 h-7 text-sm"
           value={costVal}
           onChange={(e) => setCostVal(e.target.value)}

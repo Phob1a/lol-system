@@ -84,9 +84,8 @@ export function SeasonConfig({ season }: Props) {
             <label className="text-xs text-muted-foreground">队伍总费用</label>
             <div className="flex items-end gap-3">
               <Input
-                type="number"
-                min="0"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 className="w-48"
                 value={teamBudget}
                 onChange={(e) => setTeamBudget(e.target.value)}
