@@ -38,11 +38,9 @@ const PICKED_OPTIONS: { value: NonNullable<PlayerFilter['pickedStatus']>; label:
 /** Chinese single-character marker for a position value. */
 const POS_CHAR: Record<string, string> = {
   TOP: '上',
-  JG: '野',
   JUNGLE: '野',
   MID: '中',
   ADC: '射',
-  SUP: '辅',
   SUPPORT: '辅',
 };
 
@@ -121,6 +119,7 @@ export function PlayerPool({ players, renderActions }: Props) {
   function reset() {
     setFilter(DEFAULT_FILTER);
     setSort(DEFAULT_SORT);
+    setFiltersOpen(false);
   }
 
   return (
@@ -138,7 +137,7 @@ export function PlayerPool({ players, renderActions }: Props) {
         {/* Status bar: count · 筛选 toggle · 重置 */}
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">
-            <span className="font-semibold text-foreground">未选 {visible.length}</span> / {players.length} 人
+            <span className="font-semibold text-foreground">显示 {visible.length}</span> / {players.length} 人
           </span>
           <button
             type="button"
