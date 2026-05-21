@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
+import { prisma } from '@/lib/db';
+import { getActiveSeason } from '@/lib/season/season-service';
+import { CaptainNav } from '@/components/layout/CaptainNav';
 
 export default async function CaptainLayout({
   children,
@@ -12,11 +15,15 @@ export default async function CaptainLayout({
     redirect('/access-denied');
   }
 
+  const season = await getActiveSeason(prisma);
+  const showTeamManagement = season?.status === 'COMPLETED';
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-14 items-center justify-between border-b px-6">
+      <header className="flex h-14 items-center gap-4 border-b px-6">
         <span className="text-sm font-semibold text-foreground">LoL 选人系统</span>
-        <div className="flex items-center gap-3 text-sm">
+        <CaptainNav showTeamManagement={showTeamManagement} />
+        <div className="ml-auto flex items-center gap-3 text-sm">
           <span className="text-muted-foreground">{session.user.username}</span>
           <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
         </div>
