@@ -145,6 +145,7 @@ model Team {
   captainId  String @unique
   userId     String @unique
   budgetLeft Float  @default(0)
+  slogan     String?
 
   season  Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   captain Registration @relation("TeamCaptain", fields: [captainId], references: [id])
