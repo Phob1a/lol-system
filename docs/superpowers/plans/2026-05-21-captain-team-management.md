@@ -390,7 +390,7 @@ export function TeamManager({ name, slogan, roster }: Props) {
             <Input
               value={nameVal}
               onChange={(e) => setNameVal(e.target.value)}
-              maxLength={20}
+              maxLength={30}
             />
           </div>
           <div className="flex flex-col gap-1">
