@@ -50,18 +50,23 @@ export function TeamManager({ name, slogan, roster }: Props) {
       return;
     }
     setSaving(true);
-    const res = await fetch('/api/captain/team', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: nameVal, slogan: sloganVal }),
-    });
-    setSaving(false);
-    if (res.ok) {
-      router.refresh();
-      toast.success('队伍信息已保存');
-    } else {
-      const body = await res.json().catch(() => ({}));
-      toast.error(body.error ?? '保存失败');
+    try {
+      const res = await fetch('/api/captain/team', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: nameVal, slogan: sloganVal }),
+      });
+      if (res.ok) {
+        router.refresh();
+        toast.success('队伍信息已保存');
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error ?? '保存失败');
+      }
+    } catch {
+      toast.error('网络错误，请重试');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -75,16 +80,18 @@ export function TeamManager({ name, slogan, roster }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">队名</label>
+            <label htmlFor="team-name" className="text-xs text-muted-foreground">队名</label>
             <Input
+              id="team-name"
               value={nameVal}
               onChange={(e) => setNameVal(e.target.value)}
               maxLength={30}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">参赛口号</label>
+            <label htmlFor="team-slogan" className="text-xs text-muted-foreground">参赛口号</label>
             <Input
+              id="team-slogan"
               value={sloganVal}
               onChange={(e) => setSloganVal(e.target.value)}
               maxLength={50}
