@@ -219,7 +219,7 @@ export function RoundConfigDialog({
                     const budget = budgetByCaptain.get(t.captainId) ?? 0;
                     const eligiblePool = pool.filter((p) => p.cost <= budget);
                     return (
-                      <div key={t.captainId} className="grid grid-cols-[1fr_2fr_1fr] gap-2 px-3 py-2 text-sm">
+                      <div key={t.captainId} className="grid grid-cols-1 gap-2 px-3 py-2 text-sm sm:grid-cols-[1fr_2fr_1fr]">
                         <div className="flex flex-col">
                           <span className="font-medium">{t.captainNickname}</span>
                           <span className="text-[10px] text-muted-foreground">预算 {budget}</span>

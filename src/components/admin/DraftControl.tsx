@@ -326,8 +326,7 @@ function ConfirmModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="rounded-lg border bg-card p-6 shadow-lg"
-        style={{ width: 440 }}
+        className="w-[calc(100vw_-_2rem)] max-w-[440px] rounded-lg border bg-card p-4 shadow-lg sm:p-6"
       >
         <div className="text-lg font-semibold mb-2">{title}</div>
         <div className="text-sm text-muted-foreground mb-4">{message}</div>

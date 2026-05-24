@@ -587,7 +587,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
                 onChange={(v) => setEditForm({ ...editForm, secondaryPositions: v })}
                 exclude={editForm.primaryPositions}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs">当前段位</Label>
                   <Input
@@ -645,7 +645,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
             <DialogTitle>手动新增报名</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">游戏ID</Label>
                 <Input
@@ -677,7 +677,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               onChange={(v) => setAddForm({ ...addForm, secondaryPositions: v })}
               exclude={addForm.primaryPositions}
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">当前段位</Label>
                 <Input
@@ -695,7 +695,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="add-willing"
