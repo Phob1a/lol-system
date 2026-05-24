@@ -7,6 +7,7 @@ import type { Season } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Card,
   CardContent,
@@ -95,7 +96,9 @@ export function SeasonConfig({ season }: Props) {
                 onClick={handleSave}
                 disabled={!editable || saving || !dirty}
               >
-                {saving ? '保存中…' : '保存'}
+                <LoadingButtonContent loading={saving} loadingText="保存中…">
+                  保存
+                </LoadingButtonContent>
               </Button>
             </div>
           </div>

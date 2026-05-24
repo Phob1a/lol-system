@@ -15,6 +15,7 @@ import { EventStream } from '@/components/draft/EventStream';
 import { RoundConfigDialog } from './RoundConfigDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 
 type PoolPlayer = {
   id: string;
@@ -181,7 +182,9 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
           onClick={startDraftAction}
           disabled={acting !== null || activeCaptainCount === 0}
         >
-          ▸ {acting === 'start' ? '开始中…' : '开始选秀'}
+          <LoadingButtonContent loading={acting === 'start'} loadingText="开始中…">
+            开始选秀
+          </LoadingButtonContent>
         </Button>
       )}
       {canStartNextRound && (
@@ -191,7 +194,9 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
       )}
       {canRewind && (
         <Button variant="outline" onClick={() => setRewindConfirm(true)} disabled={acting !== null}>
-          {acting === 'rewind' ? '⟲ 回退中…' : '⟲ 回退轮次'}
+          <LoadingButtonContent loading={acting === 'rewind'} loadingText="回退中…">
+            回退轮次
+          </LoadingButtonContent>
         </Button>
       )}
       {(running || finished) && (
@@ -203,7 +208,9 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
             <a href="/api/draft/export?format=json" download>↓ JSON</a>
           </Button>
           <Button variant="destructive" onClick={() => setResetConfirm(true)} disabled={acting !== null}>
-            ⨯ 重置
+            <LoadingButtonContent loading={acting === 'reset'} loadingText="重置中…">
+              重置
+            </LoadingButtonContent>
           </Button>
         </>
       )}

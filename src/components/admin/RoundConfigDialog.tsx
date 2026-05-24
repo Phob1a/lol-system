@@ -9,6 +9,7 @@ import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Dialog,
   DialogContent,
@@ -264,7 +265,9 @@ export function RoundConfigDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
           <Button onClick={submit} disabled={submitting}>
-            {submitting ? '启动中…' : '启动'}
+            <LoadingButtonContent loading={submitting} loadingText="启动中…">
+              启动
+            </LoadingButtonContent>
           </Button>
         </DialogFooter>
       </DialogContent>

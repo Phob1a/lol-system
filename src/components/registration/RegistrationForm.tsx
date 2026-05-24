@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 
 // Use the input type (with optional fields from .default()) as the form generic,
 // so react-hook-form and zodResolver agree on the same type shape.
@@ -239,7 +240,9 @@ export function RegistrationForm({ seasonName }: Props) {
         />
 
         <Button type="submit" disabled={submitting} className="w-full">
-          {submitting ? '提交中…' : '提交报名'}
+          <LoadingButtonContent loading={submitting} loadingText="提交中…">
+            提交报名
+          </LoadingButtonContent>
         </Button>
       </form>
     </Form>

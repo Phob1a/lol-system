@@ -8,6 +8,7 @@ import type { TeamWithRefs } from '@/lib/teams/team-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Table,
   TableBody,
@@ -117,7 +118,9 @@ function RenameDialog({
             取消
           </Button>
           <Button onClick={() => onSave(name)} disabled={saving || !name.trim()}>
-            {saving ? '保存中…' : '保存'}
+            <LoadingButtonContent loading={saving} loadingText="保存中…">
+              保存
+            </LoadingButtonContent>
           </Button>
         </DialogFooter>
       </DialogContent>

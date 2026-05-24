@@ -9,6 +9,7 @@ import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { cn } from '@/lib/utils';
 
 /** Short letter label for a position — rendered inline, no tactical import needed. */
@@ -226,7 +227,9 @@ export function PickAction({
             disabled={submitting || !position || insufficientBudget || noSlots}
             className="min-w-[160px]"
           >
-            {submitting ? '▸ SUBMITTING…' : '▸ CONFIRM PICK'}
+            <LoadingButtonContent loading={submitting} loadingText="CONFIRMING...">
+              CONFIRM PICK
+            </LoadingButtonContent>
           </Button>
         </footer>
       </DialogContent>

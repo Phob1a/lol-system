@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Table,
   TableBody,
@@ -629,7 +630,9 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               取消
             </Button>
             <Button onClick={handleEditSave} disabled={editSaving}>
-              {editSaving ? '保存中…' : '保存'}
+              <LoadingButtonContent loading={editSaving} loadingText="保存中…">
+                保存
+              </LoadingButtonContent>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -729,7 +732,9 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               取消
             </Button>
             <Button onClick={handleAddSave} disabled={addSaving}>
-              {addSaving ? '新增中…' : '新增'}
+              <LoadingButtonContent loading={addSaving} loadingText="新增中…">
+                新增
+              </LoadingButtonContent>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -747,7 +752,9 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteBusy}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleteBusy}>
-              {deleteBusy ? '删除中…' : '确认删除'}
+              <LoadingButtonContent loading={deleteBusy} loadingText="删除中…">
+                确认删除
+              </LoadingButtonContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 
 export function LoginForm() {
   const router = useRouter();
@@ -73,7 +74,9 @@ export function LoginForm() {
       )}
 
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? '登录中…' : '登录'}
+        <LoadingButtonContent loading={loading} loadingText="登录中…">
+          登录
+        </LoadingButtonContent>
       </Button>
     </form>
   );

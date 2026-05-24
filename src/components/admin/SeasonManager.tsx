@@ -7,6 +7,7 @@ import type { Season } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Table,
   TableBody,
@@ -90,24 +91,44 @@ export function SeasonManager({ initialSeasons }: Props) {
   }
 
   function transitionButton(season: Season) {
+    const transitioning = transitioningId === season.id;
     if (season.status === 'SETUP') {
       return (
-        <Button size="sm" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'REGISTRATION')}>
-          开启报名
+        <Button
+          size="sm"
+          disabled={transitioning}
+          onClick={() => handleTransition(season.id, 'REGISTRATION')}
+        >
+          <LoadingButtonContent loading={transitioning} loadingText="开启中…">
+            开启报名
+          </LoadingButtonContent>
         </Button>
       );
     }
     if (season.status === 'REGISTRATION') {
       return (
-        <Button size="sm" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'ROSTER_LOCKED')}>
-          截止报名
+        <Button
+          size="sm"
+          disabled={transitioning}
+          onClick={() => handleTransition(season.id, 'ROSTER_LOCKED')}
+        >
+          <LoadingButtonContent loading={transitioning} loadingText="截止中…">
+            截止报名
+          </LoadingButtonContent>
         </Button>
       );
     }
     if (season.status === 'ROSTER_LOCKED') {
       return (
-        <Button size="sm" variant="outline" disabled={transitioningId === season.id} onClick={() => handleTransition(season.id, 'REGISTRATION')}>
-          重新开启报名
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={transitioning}
+          onClick={() => handleTransition(season.id, 'REGISTRATION')}
+        >
+          <LoadingButtonContent loading={transitioning} loadingText="重开中…">
+            重新开启报名
+          </LoadingButtonContent>
         </Button>
       );
     }
@@ -147,7 +168,9 @@ export function SeasonManager({ initialSeasons }: Props) {
           />
         </div>
         <Button type="submit" disabled={submitting}>
-          {submitting ? '创建中…' : '新建赛季'}
+          <LoadingButtonContent loading={submitting} loadingText="创建中…">
+            新建赛季
+          </LoadingButtonContent>
         </Button>
       </form>
 

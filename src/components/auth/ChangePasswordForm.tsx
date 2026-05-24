@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -105,7 +106,9 @@ export function ChangePasswordForm() {
       </div>
 
       <Button type="submit" className="mt-2 w-full" disabled={submitting}>
-        {submitting ? '更新中…' : '更新密码'}
+        <LoadingButtonContent loading={submitting} loadingText="更新中…">
+          更新密码
+        </LoadingButtonContent>
       </Button>
     </form>
   );
