@@ -8,6 +8,7 @@ import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 /** Short letter label for a position — rendered inline, no tactical import needed. */
@@ -76,22 +77,18 @@ export function PickAction({
     onOpenChange(false);
   }
 
-  if (!open) return null;
-
   return (
-    <div
-      onClick={() => onOpenChange(false)}
-      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl border bg-card shadow-lg p-6 relative"
-      >
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg bg-card rounded-xl">
+        <DialogTitle className="sr-only">出手确认 — {player.nickname}</DialogTitle>
+        <DialogDescription className="sr-only">
+          为 {player.nickname} 选择位置并确认出手；按 Esc 或点击右上角关闭。
+        </DialogDescription>
         <header className="flex items-center gap-3 mb-4">
           <div className="w-1 h-7 rounded-sm bg-primary shrink-0" />
           <div>
             <div className="text-base font-bold tracking-wide text-foreground">
-              PICK <span className="text-muted-foreground">//</span> {player.nickname.toUpperCase()}
+              PICK <span className="text-muted-foreground">//</span> {player.nickname}
             </div>
             <div className="text-xs text-muted-foreground font-mono mt-0.5">
               @{player.gameId} · cost {player.cost} CR · budget {budgetLeft} CR
@@ -185,7 +182,7 @@ export function PickAction({
             {submitting ? '▸ SUBMITTING…' : '▸ CONFIRM PICK'}
           </Button>
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
