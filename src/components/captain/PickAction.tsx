@@ -1,6 +1,6 @@
 'use client';
 
-import React, { type KeyboardEvent, useId, useState } from 'react';
+import { type KeyboardEvent, useId, useState } from 'react';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
