@@ -418,6 +418,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
       for (let i = 0; i < assignments.length; i++) {
         const a = assignments[i];
         await applyPick(tx, {
+          seasonId: session.seasonId,
           sessionId: session.id,
           round,
           pickIndex: i,
@@ -512,6 +513,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 
     const newSeq = lockedSession.seq + 1;
     const pickResult = await applyPick(tx, {
+      seasonId: input.seasonId,
       sessionId: lockedSession.id,
       round,
       pickIndex,
@@ -568,6 +570,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 // ──────────────────────────────────────────────────────────────────────
 
 type ApplyPickArgs = {
+  seasonId: string;
   sessionId: string;
   round: { id: string; pickOrder: Prisma.JsonValue };
   pickIndex: number;
@@ -582,7 +585,9 @@ async function applyPick(
   tx: Prisma.TransactionClient,
   args: ApplyPickArgs,
 ): Promise<{ pickId: string }> {
-  const registration = await tx.registration.findUnique({ where: { id: args.registrationId } });
+  const registration = await tx.registration.findFirst({
+    where: { id: args.registrationId, seasonId: args.seasonId },
+  });
   if (!registration) {
     throw new DraftStateError('NO_REGISTRATION', `报名不存在: ${args.registrationId}`);
   }
@@ -593,7 +598,9 @@ async function applyPick(
     throw new DraftStateError('PLAYER_IS_CAPTAIN', `队长不可被选: ${args.registrationId}`);
   }
 
-  const team = await tx.team.findUnique({ where: { captainId: args.captainId } });
+  const team = await tx.team.findFirst({
+    where: { seasonId: args.seasonId, captainId: args.captainId },
+  });
   if (!team) throw new DraftStateError('NO_TEAM', `队长无对应战队: ${args.captainId}`);
 
   if (team.budgetLeft < registration.cost) {
