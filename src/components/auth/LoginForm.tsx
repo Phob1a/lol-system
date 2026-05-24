@@ -20,18 +20,24 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setErr(null);
-    const res = await signIn('credentials', {
-      username: username.trim(),
-      password,
-      redirect: false,
-    });
-    setLoading(false);
-    if (!res || res.error) {
-      setErr('登录失败：账号或密码错误');
-      return;
+    try {
+      const res = await signIn('credentials', {
+        username: username.trim(),
+        password,
+        redirect: false,
+      });
+      if (!res || res.error) {
+        setErr('登录失败：账号或密码错误');
+        return;
+      }
+      router.push(callbackUrl);
+      router.refresh();
+    } finally {
+      // Keep the submit button disabled until after setErr lands, so a
+      // failed attempt can't be re-submitted in the gap between the
+      // network return and the error render.
+      setLoading(false);
     }
-    router.push(callbackUrl);
-    router.refresh();
   }
 
   return (
@@ -63,7 +69,7 @@ export function LoginForm() {
       </div>
 
       {err && (
-        <p className="text-sm text-destructive">{err}</p>
+        <p role="alert" aria-live="polite" className="text-sm text-destructive">{err}</p>
       )}
 
       <Button type="submit" className="w-full" disabled={loading}>
