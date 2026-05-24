@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Eye, EyeOff } from 'lucide-react';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -125,31 +126,61 @@ function CredentialsDialog({
   onClose: () => void;
   creds: { teamId: string; username: string; password: string } | null;
 }) {
-  function copy(text: string) {
-    navigator.clipboard.writeText(text).then(() => toast.success('已复制'));
+  // Default: password visible. One-time credentials need to be copied or
+  // verified by the admin, and forcing a mask up-front adds friction during
+  // hand-off. The Eye/EyeOff toggle exists for shared-screen scenarios.
+  const [reveal, setReveal] = useState(true);
+
+  // Reset to revealed each time the dialog (re)opens so the previous state
+  // doesn't leak across captain appointments.
+  useEffect(() => {
+    if (open) setReveal(true);
+  }, [open]);
+
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label}已复制`);
+    } catch {
+      toast.error(`${label}复制失败，请手动复制`);
+    }
   }
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>队长账号已创建</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            队长账号已创建
+            <Badge variant="secondary" className="text-[10px]">敏感信息</Badge>
+          </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          请立即转交队长，关闭后无法再次查看密码。
+          请立即转交队长，关闭后无法再次查看密码。投屏 / 录屏场景请先点 <EyeOff className="inline h-3 w-3" /> 隐藏。
         </p>
         {creds && (
           <div className="space-y-3 mt-2">
             <div className="flex items-center gap-2">
               <Label className="w-16 shrink-0 text-xs">用户名</Label>
               <code className="flex-1 text-sm bg-muted px-2 py-1 rounded">{creds.username}</code>
-              <Button size="sm" variant="outline" onClick={() => copy(creds.username)}>
+              <Button size="sm" variant="outline" onClick={() => copy(creds.username, '用户名')}>
                 复制
               </Button>
             </div>
             <div className="flex items-center gap-2">
               <Label className="w-16 shrink-0 text-xs">密码</Label>
-              <code className="flex-1 text-sm bg-muted px-2 py-1 rounded">{creds.password}</code>
-              <Button size="sm" variant="outline" onClick={() => copy(creds.password)}>
+              <code className="flex-1 text-sm bg-muted px-2 py-1 rounded font-mono">
+                {reveal ? creds.password : '••••••••'}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReveal((r) => !r)}
+                aria-label={reveal ? '隐藏密码' : '显示密码'}
+                aria-pressed={!reveal}
+              >
+                {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => copy(creds.password, '密码')}>
                 复制
               </Button>
             </div>
