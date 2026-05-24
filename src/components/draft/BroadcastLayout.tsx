@@ -3,15 +3,25 @@
 import type { ReactNode } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
+type MobileTab = 'pool' | 'grid' | 'events';
+
 type Props = {
   pool: ReactNode;
   hero: ReactNode;
   grid: ReactNode;
   events: ReactNode;
   controls?: ReactNode;
+  defaultMobileTab?: MobileTab;
 };
 
-export function BroadcastLayout({ pool, hero, grid, events, controls }: Props) {
+export function BroadcastLayout({
+  pool,
+  hero,
+  grid,
+  events,
+  controls,
+  defaultMobileTab = 'pool',
+}: Props) {
   return (
     <>
       {/*
@@ -42,7 +52,7 @@ export function BroadcastLayout({ pool, hero, grid, events, controls }: Props) {
         <div className="sticky top-0 z-10 bg-background">{hero}</div>
 
         {/* Tabs for pool / grid / events */}
-        <Tabs defaultValue="pool">
+        <Tabs defaultValue={defaultMobileTab}>
           <TabsList className="w-full">
             <TabsTrigger value="pool" className="flex-1">
               选手

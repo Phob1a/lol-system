@@ -96,6 +96,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
       </div>
 
       <BroadcastLayout
+        defaultMobileTab="grid"
         hero={
           <OnTheClockHero
             teamName={heroTeamName}

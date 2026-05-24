@@ -232,6 +232,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
   return (
     <>
       <BroadcastLayout
+        defaultMobileTab="grid"
         controls={controlsNode}
         hero={
           <OnTheClockHero
