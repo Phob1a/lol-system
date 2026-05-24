@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/lib/auth';
+import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { renameTeam } from '@/lib/teams/team-service';
 
 const Body = z.object({ name: z.string().trim().min(2, '队名至少 2 字').max(30, '队名过长') });
 
+// Admin-only escape hatch for renaming a team in any season stage.
+// Captains must use PATCH /api/captain/team, which enforces the
+// season.status === 'COMPLETED' product rule.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
+  const guard = await requireAdmin();
+  if (guard.error) return guard.error;
 
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
@@ -22,12 +25,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return NextResponse.json({ error: '队伍不存在' }, { status: 404 });
-
-  const isAdmin = session.user.role === 'ADMIN';
-  const isOwnTeam = session.user.role === 'CAPTAIN' && session.user.teamId === team.id;
-  if (!isAdmin && !isOwnTeam) {
-    return NextResponse.json({ error: '无权修改该队伍' }, { status: 403 });
-  }
 
   await renameTeam(prisma, id, parsed.data.name);
   return NextResponse.json({ ok: true });
