@@ -9,7 +9,7 @@ import { PlayerPool } from '@/components/draft/PlayerPool';
 import { TOTAL_ROUNDS } from '@/lib/draft/engine';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { BroadcastLayout } from '@/components/draft/BroadcastLayout';
-import { OnTheClockHero } from '@/components/draft/OnTheClockHero';
+import { OnTheClockHero, type HeroStatus } from '@/components/draft/OnTheClockHero';
 import { TeamGrid } from '@/components/draft/TeamGrid';
 import { EventStream } from '@/components/draft/EventStream';
 import { RoundConfigDialog } from './RoundConfigDialog';
@@ -144,14 +144,37 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
   const onTheClockTeam = onTheClockId
     ? (snapshot?.teams.find((t) => t.captainId === onTheClockId) ?? null)
     : null;
-  const heroTeamName = onTheClockTeam?.captainNickname ?? null;
-  const heroBudgetLeft = onTheClockTeam?.budgetLeft ?? null;
-  const heroMissingPositions = onTheClockTeam
-    ? onTheClockTeam.slots.filter((s) => s.registration === null).map((s) => s.position)
-    : [];
-  const heroPickedCount = onTheClockTeam
-    ? onTheClockTeam.slots.filter((s) => s.registration !== null).length - 1 // exclude captain slot
-    : 0;
+
+  const heroProps: HeroStatus = useMemo(() => {
+    if (!session || status === 'NOT_STARTED') return { status: 'pending' };
+    if (finished) {
+      return {
+        status: 'completed',
+        teamCount: snapshot?.teams.length ?? 0,
+        totalPicks: snapshot?.picks.length ?? 0,
+      };
+    }
+    if (running && onTheClockTeam) {
+      const missing = onTheClockTeam.slots
+        .filter((s) => s.registration === null)
+        .map((s) => s.position);
+      const picked = Math.max(
+        0,
+        onTheClockTeam.slots.filter((s) => s.registration !== null).length - 1,
+      );
+      return {
+        status: 'on-the-clock',
+        teamName: onTheClockTeam.captainNickname,
+        round: currentRound,
+        budgetLeft: onTheClockTeam.budgetLeft,
+        missingPositions: missing,
+        pickedCount: picked,
+        slotCount: 5,
+      };
+    }
+    // IN_PROGRESS but nobody on the clock = between rounds.
+    return { status: 'waiting', round: currentRound, totalRounds: TOTAL_ROUNDS };
+  }, [session, status, finished, running, onTheClockTeam, currentRound, snapshot?.teams.length, snapshot?.picks.length]);
 
   // Build EventStream events from non-revoked picks (most recent first)
   const streamEvents = useMemo(() => {
@@ -234,16 +257,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
       <BroadcastLayout
         defaultMobileTab="grid"
         controls={controlsNode}
-        hero={
-          <OnTheClockHero
-            teamName={heroTeamName}
-            round={currentRound}
-            budgetLeft={heroBudgetLeft}
-            missingPositions={heroMissingPositions}
-            pickedCount={Math.max(0, heroPickedCount)}
-            slotCount={5}
-          />
-        }
+        hero={<OnTheClockHero {...heroProps} />}
         grid={
           <TeamGrid
             teams={snapshot?.teams ?? []}

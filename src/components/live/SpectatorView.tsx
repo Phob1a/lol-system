@@ -6,7 +6,11 @@ import type { DraftSnapshot } from '@/lib/draft/types';
 import type { RegistrationForPool } from '@/lib/filters';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import { BroadcastLayout } from '@/components/draft/BroadcastLayout';
-import { OnTheClockHero } from '@/components/draft/OnTheClockHero';
+import { OnTheClockHero, type HeroStatus } from '@/components/draft/OnTheClockHero';
+
+// Mirrors engine.ts TOTAL_ROUNDS — kept inline so this client component
+// doesn't transitively pull the Prisma-laden engine module into the bundle.
+const TOTAL_ROUNDS = 4;
 import { TeamGrid } from '@/components/draft/TeamGrid';
 import { EventStream } from '@/components/draft/EventStream';
 import { PlayerPool } from '@/components/draft/PlayerPool';
@@ -40,14 +44,36 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
   const onTheClockTeam = onTheClockId
     ? (live.teams.find((t) => t.captainId === onTheClockId) ?? null)
     : null;
-  const heroTeamName = onTheClockTeam?.captainNickname ?? null;
-  const heroBudgetLeft = onTheClockTeam?.budgetLeft ?? null;
-  const heroMissingPositions = onTheClockTeam
-    ? onTheClockTeam.slots.filter((s) => s.registration === null).map((s) => s.position)
-    : [];
-  const heroPickedCount = onTheClockTeam
-    ? Math.max(0, onTheClockTeam.slots.filter((s) => s.registration !== null).length - 1)
-    : 0;
+
+  const heroProps: HeroStatus = useMemo(() => {
+    if (!session || session.status === 'NOT_STARTED') return { status: 'pending' };
+    if (session.status === 'FINISHED') {
+      return {
+        status: 'completed',
+        teamCount: live.teams.length,
+        totalPicks: live.picks.length,
+      };
+    }
+    if (onTheClockTeam) {
+      const missing = onTheClockTeam.slots
+        .filter((s) => s.registration === null)
+        .map((s) => s.position);
+      const picked = Math.max(
+        0,
+        onTheClockTeam.slots.filter((s) => s.registration !== null).length - 1,
+      );
+      return {
+        status: 'on-the-clock',
+        teamName: onTheClockTeam.captainNickname,
+        round: currentRound,
+        budgetLeft: onTheClockTeam.budgetLeft,
+        missingPositions: missing,
+        pickedCount: picked,
+        slotCount: 5,
+      };
+    }
+    return { status: 'waiting', round: currentRound, totalRounds: TOTAL_ROUNDS };
+  }, [session, onTheClockTeam, currentRound, live.teams.length, live.picks.length]);
 
   // Build lookup maps for EventStream
   const teamById = useMemo(() => {
@@ -97,16 +123,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
 
       <BroadcastLayout
         defaultMobileTab="grid"
-        hero={
-          <OnTheClockHero
-            teamName={heroTeamName}
-            round={currentRound}
-            budgetLeft={heroBudgetLeft}
-            missingPositions={heroMissingPositions}
-            pickedCount={heroPickedCount}
-            slotCount={5}
-          />
-        }
+        hero={<OnTheClockHero {...heroProps} />}
         grid={
           <TeamGrid
             teams={live.teams}
