@@ -211,7 +211,7 @@ export function TeamsManager({ season, initialTeams }: Props) {
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold">队伍账号</h1>
