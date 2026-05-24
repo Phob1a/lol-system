@@ -8,10 +8,6 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') },
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    globals: true,
-    setupFiles: ['./vitest.setup.ts'],
     fileParallelism: false,
   },
 });
