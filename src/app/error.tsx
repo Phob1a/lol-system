@@ -11,6 +11,8 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const showDetails = process.env.NODE_ENV !== 'production';
+
   useEffect(() => {
     console.error('App error boundary caught:', error);
   }, [error]);
@@ -21,9 +23,11 @@ export default function GlobalError({
         <CardHeader>
           <CardTitle>页面出错了</CardTitle>
           <CardDescription>
-            {error.message || '未知错误'}
+            {showDetails
+              ? error.message || '未知错误'
+              : '系统遇到异常，请稍后重试；如问题持续，请联系管理员。'}
             {error.digest && (
-              <span className="ml-2 font-mono text-xs">(digest: {error.digest})</span>
+              <span className="ml-2 font-mono text-xs">digest: {error.digest}</span>
             )}
           </CardDescription>
         </CardHeader>
