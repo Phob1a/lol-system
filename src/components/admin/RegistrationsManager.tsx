@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Season } from '@prisma/client';
+import type { Season, SeasonStatus } from '@prisma/client';
 import type { RegistrationWithPlayer } from '@/lib/registration/registration-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,15 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // ─── constants ────────────────────────────────────────────────────────────────
+
+// Mirror of registration-service `ROSTER_EDITABLE_STATUSES`. Once a season
+// reaches DRAFTING, the backend rejects roster mutations with SEASON_LOCKED;
+// disabling the controls here keeps the UI honest.
+const ROSTER_EDITABLE: ReadonlySet<SeasonStatus> = new Set([
+  'SETUP',
+  'REGISTRATION',
+  'ROSTER_LOCKED',
+]);
 
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单',
@@ -226,6 +235,7 @@ type Props = {
 
 export function RegistrationsManager({ season, initialRegistrations }: Props) {
   const router = useRouter();
+  const rosterEditable = ROSTER_EDITABLE.has(season.status);
 
   // ── dialog/modal state ────────────────────────────────────────────────────
   const [editingReg, setEditingReg] = useState<RegistrationWithPlayer | null>(null);
@@ -457,10 +467,20 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
             {season.name} · <Badge variant="outline">{season.status}</Badge>
           </p>
         </div>
-        <Button onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddOpen(true); }}>
+        <Button
+          onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddOpen(true); }}
+          disabled={!rosterEditable}
+          title={rosterEditable ? undefined : '选秀启动后名册已锁定'}
+        >
           手动新增报名
         </Button>
       </div>
+
+      {!rosterEditable && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          当前赛季状态为 <span className="font-mono">{season.status}</span>，名册已锁定；如需调整请先回退赛季阶段。
+        </div>
+      )}
 
       {/* Registrations table */}
       <Table>
@@ -491,6 +511,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
               key={reg.id}
               reg={reg}
               busy={busyIds.has(reg.id)}
+              rosterEditable={rosterEditable}
               onEdit={() => openEdit(reg)}
               onToggleStatus={() => handleToggleStatus(reg)}
               onDelete={() => setDeleteTarget(reg)}
@@ -716,6 +737,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
 type RegRowProps = {
   reg: RegistrationWithPlayer;
   busy: boolean;
+  rosterEditable: boolean;
   onEdit: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
@@ -727,6 +749,7 @@ type RegRowProps = {
 function RegRow({
   reg,
   busy,
+  rosterEditable,
   onEdit,
   onToggleStatus,
   onDelete,
@@ -739,6 +762,9 @@ function RegRow({
   useEffect(() => {
     setCostVal(String(reg.cost));
   }, [reg.cost]);
+
+  const disabled = busy || !rosterEditable;
+  const lockedTitle = rosterEditable ? undefined : '选秀启动后名册已锁定';
 
   return (
     <TableRow>
@@ -757,7 +783,8 @@ function RegRow({
           value={costVal}
           onChange={(e) => setCostVal(e.target.value)}
           onBlur={() => onCostSave(costVal)}
-          disabled={busy}
+          disabled={disabled}
+          title={lockedTitle}
         />
       </TableCell>
       <TableCell>
@@ -765,26 +792,51 @@ function RegRow({
       </TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" disabled={busy} onClick={onEdit}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            title={lockedTitle}
+            onClick={onEdit}
+          >
             编辑
           </Button>
           <Button
             size="sm"
             variant={reg.status === 'EXCLUDED' ? 'default' : 'secondary'}
-            disabled={busy}
+            disabled={disabled}
+            title={lockedTitle}
             onClick={onToggleStatus}
           >
             {reg.status === 'EXCLUDED' ? '恢复' : '排除'}
           </Button>
-          <Button size="sm" variant="destructive" disabled={busy} onClick={onDelete}>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={disabled}
+            title={lockedTitle}
+            onClick={onDelete}
+          >
             删除
           </Button>
           {reg.isCaptain ? (
-            <Button size="sm" variant="outline" disabled={busy} onClick={onRevokeCaptain}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              title={lockedTitle}
+              onClick={onRevokeCaptain}
+            >
               撤销队长
             </Button>
           ) : (
-            <Button size="sm" variant="outline" disabled={busy} onClick={onAppointCaptain}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              title={lockedTitle}
+              onClick={onAppointCaptain}
+            >
               任命队长
             </Button>
           )}

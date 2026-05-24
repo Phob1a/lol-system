@@ -1,7 +1,22 @@
-import { Prisma, type PrismaClient, type Registration } from '@prisma/client';
+import { Prisma, type PrismaClient, type Registration, type SeasonStatus } from '@prisma/client';
 import { getActiveSeason } from '@/lib/season/season-service';
 import type { PublicRegistrationInput, AdminRegistrationCreate, AdminRegistrationPatch } from './registration-schema';
 import { RegistrationError } from './errors';
+
+// Roster mutations (add/edit/delete) are allowed only before the draft starts.
+// Once DRAFTING begins, DraftPick.costPaid and TeamSlot snapshots have frozen
+// the names/costs admins might change, so silent edits would create drift.
+export const ROSTER_EDITABLE_STATUSES: SeasonStatus[] = ['SETUP', 'REGISTRATION', 'ROSTER_LOCKED'];
+
+export function isRosterEditable(status: SeasonStatus): boolean {
+  return ROSTER_EDITABLE_STATUSES.includes(status);
+}
+
+function assertRosterEditable(status: SeasonStatus): void {
+  if (!isRosterEditable(status)) {
+    throw new RegistrationError('SEASON_LOCKED', '选秀启动后名册已锁定，不可改动报名');
+  }
+}
 
 /**
  * Public, anonymous registration. Find-or-create the Player master by gameId,
@@ -67,8 +82,12 @@ export async function patchRegistration(
   registrationId: string,
   patch: AdminRegistrationPatch,
 ): Promise<Registration> {
-  const existing = await db.registration.findUnique({ where: { id: registrationId } });
+  const existing = await db.registration.findUnique({
+    where: { id: registrationId },
+    include: { season: { select: { status: true } } },
+  });
   if (!existing) throw new RegistrationError('NOT_FOUND', '报名记录不存在');
+  assertRosterEditable(existing.season.status);
   return db.registration.update({ where: { id: registrationId }, data: patch });
 }
 
@@ -76,6 +95,12 @@ export async function deleteRegistration(
   db: PrismaClient,
   registrationId: string,
 ): Promise<void> {
+  const existing = await db.registration.findUnique({
+    where: { id: registrationId },
+    include: { season: { select: { status: true } } },
+  });
+  if (!existing) throw new RegistrationError('NOT_FOUND', '报名记录不存在');
+  assertRosterEditable(existing.season.status);
   await db.registration.delete({ where: { id: registrationId } });
 }
 
@@ -85,6 +110,12 @@ export async function adminCreateRegistration(
   input: AdminRegistrationCreate,
 ): Promise<Registration> {
   return db.$transaction(async (tx) => {
+    const season = await tx.season.findUnique({
+      where: { id: seasonId },
+      select: { status: true },
+    });
+    if (!season) throw new RegistrationError('NOT_FOUND', '赛季不存在');
+    assertRosterEditable(season.status);
     const player = await tx.player.upsert({
       where: { gameId: input.gameId },
       create: { gameId: input.gameId, nickname: input.nickname },

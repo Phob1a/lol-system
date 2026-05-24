@@ -27,7 +27,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ registration });
   } catch (e) {
     if (e instanceof RegistrationError) {
-      return NextResponse.json({ error: e.message, code: e.code }, { status: 404 });
+      const status = e.code === 'NOT_FOUND' ? 404 : 409;
+      return NextResponse.json({ error: e.message, code: e.code }, { status });
     }
     console.error('PATCH registration failed', e);
     return NextResponse.json({ error: '更新失败' }, { status: 500 });
@@ -42,6 +43,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await deleteRegistration(prisma, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (e instanceof RegistrationError) {
+      const status = e.code === 'NOT_FOUND' ? 404 : 409;
+      return NextResponse.json({ error: e.message, code: e.code }, { status });
+    }
     console.error('DELETE registration failed', e);
     return NextResponse.json({ error: '删除失败' }, { status: 500 });
   }

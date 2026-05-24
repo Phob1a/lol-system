@@ -1,7 +1,8 @@
 export type RegistrationErrorCode =
   | 'REGISTRATION_CLOSED'
   | 'DUPLICATE_GAME_ID'
-  | 'NOT_FOUND';
+  | 'NOT_FOUND'
+  | 'SEASON_LOCKED';
 
 export class RegistrationError extends Error {
   constructor(
