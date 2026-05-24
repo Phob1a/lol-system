@@ -14,20 +14,24 @@ type Props = {
 export function BroadcastLayout({ pool, hero, grid, events, controls }: Props) {
   return (
     <>
-      {/* ── Desktop layout (lg and up) ── */}
-      <div className="hidden lg:flex lg:flex-row lg:h-full bg-background">
-        {/* Left column — player pool */}
-        <div className="lg:w-1/5 shrink-0 overflow-y-auto border-r">{pool}</div>
+      {/*
+        Desktop layout (lg+). CSS grid replaces the previous 20/60/20 flex,
+        giving the side rails sensible min/max widths and the center column
+        a flexible track. `min-h-0` on the wrapper and inner panels lets each
+        column scroll independently inside a fixed-height parent (the
+        consuming page is expected to bound the height — see live/admin
+        draft/captain layout chains).
+      */}
+      <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)_minmax(260px,320px)] bg-background">
+        <div className="min-h-0 overflow-y-auto border-r">{pool}</div>
 
-        {/* Center column — controls + hero + grid */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3 px-3">
+        <div className="flex min-w-0 min-h-0 flex-col gap-3 px-3">
           {controls && <div>{controls}</div>}
           <div>{hero}</div>
-          <div className="flex-1 overflow-y-auto">{grid}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{grid}</div>
         </div>
 
-        {/* Right column — event stream */}
-        <div className="lg:w-1/5 shrink-0 overflow-y-auto border-l">{events}</div>
+        <div className="min-h-0 overflow-y-auto border-l">{events}</div>
       </div>
 
       {/* ── Mobile layout (below lg) ── */}

@@ -97,7 +97,7 @@ export function CaptainDashboard({
     : null;
 
   return (
-    <div className="min-h-full p-4 flex flex-col gap-3 bg-background">
+    <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div

@@ -28,7 +28,7 @@ export default async function CaptainLayout({
           <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
         </div>
       </header>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col p-6">{children}</main>
     </div>
   );
 }
