@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { type KeyboardEvent, useId, useState } from 'react';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
@@ -45,9 +45,39 @@ export function PickAction({
 }: Props) {
   const [position, setPosition] = useState<Position | ''>('');
   const [submitting, setSubmitting] = useState(false);
+  const positionGroupId = useId();
 
   const insufficientBudget = budgetLeft < player.cost;
   const noSlots = emptySlots.length === 0;
+  const availablePositions = POSITIONS.filter(
+    (pos): pos is Position => emptySlots.includes(pos) && !insufficientBudget,
+  );
+
+  function handlePositionKeyDown(event: KeyboardEvent<HTMLFieldSetElement>) {
+    const direction =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+        ? -1
+        : 0;
+    if (!direction || availablePositions.length === 0) return;
+
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.name !== `${positionGroupId}-position`) {
+      return;
+    }
+
+    event.preventDefault();
+    const focusedPosition = target.value as Position;
+    const focusedIndex = availablePositions.indexOf(focusedPosition);
+    const selectedIndex = position ? availablePositions.indexOf(position) : -1;
+    const baseIndex = focusedIndex >= 0 ? focusedIndex : Math.max(selectedIndex, 0);
+    const nextIndex = (baseIndex + direction + availablePositions.length) % availablePositions.length;
+    const nextPosition = availablePositions[nextIndex];
+
+    setPosition(nextPosition);
+    document.getElementById(`${positionGroupId}-${nextPosition}`)?.focus();
+  }
 
   async function submit() {
     if (!position) {
@@ -120,23 +150,30 @@ export function PickAction({
           </div>
         )}
 
-        <div className="mb-4">
-          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+        <fieldset
+          role="radiogroup"
+          aria-labelledby={`${positionGroupId}-legend`}
+          className="mb-4"
+          onKeyDown={handlePositionKeyDown}
+        >
+          <legend
+            id={`${positionGroupId}-legend`}
+            className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground"
+          >
             ASSIGN POSITION（不校验熟练位）
-          </span>
+          </legend>
           <div className="grid grid-cols-5 gap-1.5 mt-2">
             {POSITIONS.map((pos) => {
               const empty = emptySlots.includes(pos);
               const active = position === pos;
               const letter = POS_LETTER[pos] ?? pos[0];
+              const disabled = !empty || insufficientBudget;
               return (
-                <button
+                <label
                   key={pos}
-                  type="button"
-                  disabled={!empty || insufficientBudget}
-                  onClick={() => setPosition(pos)}
+                  htmlFor={`${positionGroupId}-${pos}`}
                   className={cn(
-                    'flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-md border text-xs transition-colors',
+                    'flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-md border text-xs transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
                     active
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
@@ -144,6 +181,16 @@ export function PickAction({
                     empty && !insufficientBudget && 'cursor-pointer',
                   )}
                 >
+                  <input
+                    id={`${positionGroupId}-${pos}`}
+                    type="radio"
+                    name={`${positionGroupId}-position`}
+                    value={pos}
+                    checked={active}
+                    disabled={disabled}
+                    onChange={() => setPosition(pos)}
+                    className="sr-only"
+                  />
                   <span
                     className={cn(
                       'inline-flex items-center justify-center w-5 h-5 rounded-sm border text-[10px] font-bold',
@@ -160,11 +207,11 @@ export function PickAction({
                   {!empty && (
                     <span className="text-[9px] text-muted-foreground font-mono">OCCUPIED</span>
                   )}
-                </button>
+                </label>
               );
             })}
           </div>
-        </div>
+        </fieldset>
 
         <div className="border-t" />
 
