@@ -15,6 +15,7 @@ import type { Position } from '@prisma/client';
 import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -75,26 +76,38 @@ export function DraggableTeamBoard({ team, seq }: Props) {
     void persist(next);
   }
 
+  const hoverTeam: TeamHoverSummary = {
+    captainNickname: team.captainNickname,
+    captainGameId: team.captainGameId,
+    budgetLeft: team.budgetLeft,
+    slots: slots.map((slot) => ({
+      position: slot.position,
+      player: slot.registration,
+    })),
+  };
+
   return (
     <div className="rounded-xl border-2 border-primary bg-primary/5 shadow p-3 relative">
-      <div className="flex justify-between items-baseline gap-2 mb-2.5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-primary truncate">
-            {team.captainNickname}
-            <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
-              MINE · DRAG TO SWAP
-            </Badge>
+      <TeamHoverCard team={hoverTeam} disabled={submitting}>
+        <div className="flex justify-between items-baseline gap-2 mb-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-primary truncate">
+              {team.captainNickname}
+              <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                MINE · DRAG TO SWAP
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">@{team.captainGameId}</div>
           </div>
-          <div className="text-xs text-muted-foreground font-mono">@{team.captainGameId}</div>
-        </div>
-        <div className="text-right shrink-0">
-          <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
-          <div className="text-base font-bold text-amber-600 tabular-nums">
-            {team.budgetLeft}
-            <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
+          <div className="text-right shrink-0">
+            <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
+            <div className="text-base font-bold text-amber-600 tabular-nums">
+              {team.budgetLeft}
+              <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
+            </div>
           </div>
         </div>
-      </div>
+      </TeamHoverCard>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className="flex flex-col gap-1">
