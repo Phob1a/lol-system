@@ -25,6 +25,7 @@ export default async function CaptainLayout({
         <CaptainNav showTeamManagement={showTeamManagement} />
         <div className="ml-auto flex items-center gap-3 text-sm">
           <span className="text-muted-foreground">{session.user.username}</span>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
           <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
         </div>
       </header>

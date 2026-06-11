@@ -119,7 +119,7 @@ export function PickAction({
           <div className="w-1 h-7 rounded-sm bg-primary shrink-0" />
           <div>
             <div className="text-base font-bold tracking-wide text-foreground">
-              PICK <span className="text-muted-foreground">//</span> {player.nickname}
+              PICK <span className="text-muted-foreground">{'//'}</span> {player.nickname}
             </div>
             <div className="text-xs text-muted-foreground font-mono mt-0.5">
               @{player.gameId} · cost {player.cost} CR · budget {budgetLeft} CR
