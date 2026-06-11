@@ -5,6 +5,7 @@ import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
 import { Badge } from '@/components/ui/badge';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 /** Abbreviation letter for a position value */
@@ -90,7 +91,7 @@ export function TeamPanel({ team, isOwn }: Props) {
             <div className="text-right shrink-0">
               <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">BUDGET</p>
               <p className="text-sm font-semibold text-foreground leading-tight">
-                {team.budgetLeft}
+                {formatCost(team.budgetLeft)}
                 <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
               </p>
             </div>
@@ -132,7 +133,7 @@ export function TeamPanel({ team, isOwn }: Props) {
                 <span className="text-[10px] text-muted-foreground/50">— empty —</span>
               )}
               <span className={cn('text-xs font-medium', slot.player ? 'text-foreground' : 'text-muted-foreground/50')}>
-                {slot.player ? slot.player.cost : '—'}
+                {slot.player ? formatCost(slot.player.cost) : '—'}
               </span>
             </div>
           );

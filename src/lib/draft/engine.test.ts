@@ -58,6 +58,23 @@ async function prepareDraftWithArchivedSeasonRegistration() {
 }
 
 describe('draft engine season boundaries', () => {
+  it('normalizes budget after debiting a decimal captain cost', async () => {
+    const season = await createSeason(testDb, { name: 'decimal-budget', teamBudget: 33.5 });
+    await transitionSeason(testDb, season.id, 'REGISTRATION');
+    const captain = await adminCreateRegistration(testDb, season.id, {
+      ...registrationInput('decimal-captain', '小数队长', 33.4),
+      primaryPositions: ['MID'],
+      willingToCaptain: true,
+    });
+    await transitionSeason(testDb, season.id, 'ROSTER_LOCKED');
+    const { teamId } = await appointCaptain(testDb, captain.id);
+
+    await startDraft(season.id, actorUserId);
+
+    const team = await testDb.team.findUniqueOrThrow({ where: { id: teamId } });
+    expect(team.budgetLeft).toBe(0.1);
+  });
+
   it('rejects submitPick when registration belongs to another season', async () => {
     const { currentSeason, captain, oldRegistration } =
       await prepareDraftWithArchivedSeasonRegistration();

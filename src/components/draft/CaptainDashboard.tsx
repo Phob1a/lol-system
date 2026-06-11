@@ -13,6 +13,7 @@ import {
   type CaptainNoticeKind,
 } from '@/components/captain/CaptainNotificationDialog';
 import { Button } from '@/components/ui/button';
+import { formatCost, normalizeCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -118,7 +119,7 @@ export function CaptainDashboard({
             </div>
             <div className="text-xs text-muted-foreground">
               {!running && !finished && (
-                <>STATUS NOT_STARTED · BUDGET {teamBudget} CR · {teamsToRender.length} TEAMS</>
+                <>STATUS NOT_STARTED · BUDGET {formatCost(teamBudget)} CR · {teamsToRender.length} TEAMS</>
               )}
               {running && (
                 <>
@@ -150,7 +151,7 @@ export function CaptainDashboard({
         >
           {isMyTurn ? (
             <>
-              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {myBudget} CR · {myEmptySlots.length} 个空位
+              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {formatCost(myBudget)} CR · {myEmptySlots.length} 个空位
             </>
           ) : (
             <>
@@ -217,7 +218,7 @@ export function CaptainDashboard({
                     size="sm"
                     variant="default"
                     onClick={() => setPickTarget(p as RegistrationRef)}
-                    disabled={p.isPicked || p.cost > myBudget || myEmptySlots.length === 0}
+                    disabled={p.isPicked || normalizeCost(p.cost) > normalizeCost(myBudget) || myEmptySlots.length === 0}
                     className="text-xs px-2.5 py-1 h-auto"
                   >
                     ▸ PICK

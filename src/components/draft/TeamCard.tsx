@@ -1,5 +1,6 @@
 import type { DraftTeamSnapshot } from '@/lib/draft/types';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
+import { formatCost } from '@/lib/costs';
 
 const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const;
 const POSITION_LABEL: Record<string, string> = {
@@ -81,7 +82,9 @@ export function TeamCard({ team, live, maxBudget }: Props) {
               style={{ width: `${budgetPct}%` }}
             />
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground shrink-0">{team.budgetLeft}</span>
+          <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+            {formatCost(team.budgetLeft)}
+          </span>
         </div>
       </div>
     </TeamHoverCard>

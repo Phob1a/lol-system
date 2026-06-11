@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 const OPEN_DELAY_MS = 150;
@@ -150,7 +151,7 @@ function TeamInfoCard({ team }: { team: TeamHoverSummary }) {
             剩余预算
           </p>
           <p className="text-base font-semibold leading-tight text-foreground">
-            {team.budgetLeft} CR
+            {formatCost(team.budgetLeft)} CR
           </p>
           <p className="text-[10px] text-muted-foreground">{filledCount}/5 已成型</p>
         </div>
@@ -185,7 +186,7 @@ function TeamInfoCard({ team }: { team: TeamHoverSummary }) {
                 slot.player ? 'font-medium text-amber-600' : 'text-muted-foreground',
               )}
             >
-              {slot.player ? `${slot.player.cost} CR` : '—'}
+              {slot.player ? `${formatCost(slot.player.cost)} CR` : '—'}
             </span>
           </div>
         ))}

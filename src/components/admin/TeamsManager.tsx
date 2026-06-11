@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { formatCost } from '@/lib/costs';
 import {
   Dialog,
   DialogContent,
@@ -246,7 +247,7 @@ export function TeamsManager({ season, initialTeams }: Props) {
               <TableCell className="font-mono text-sm">
                 {team.account?.username ?? '—'}
               </TableCell>
-              <TableCell>{team.budgetLeft}</TableCell>
+              <TableCell>{formatCost(team.budgetLeft)}</TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">
                   <Button

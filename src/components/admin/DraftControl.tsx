@@ -16,6 +16,7 @@ import { RoundConfigDialog } from './RoundConfigDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { formatCost } from '@/lib/costs';
 
 type PoolPlayer = {
   id: string;
@@ -182,7 +183,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
     return [...picks].reverse().map((pick) => {
       const team = teamById.get(pick.teamId);
       const regName = registrationNameById.get(pick.registrationId) ?? pick.registrationId;
-      const label = `「${team?.captainNickname ?? '—'}」选中 ${regName} · ${POSITION_LABEL[pick.position]} · ${pick.costPaid}`;
+      const label = `「${team?.captainNickname ?? '—'}」选中 ${regName} · ${POSITION_LABEL[pick.position]} · ${formatCost(pick.costPaid)}`;
       return { id: pick.id, label };
     });
   }, [snapshot?.picks, teamById, registrationNameById]);
@@ -240,7 +241,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
 
       <span className="ml-auto text-xs font-mono text-muted-foreground">
         {!running && !finished && (
-          <span>{activeCaptainCount} captains · {teamBudget} CR</span>
+          <span>{activeCaptainCount} captains · {formatCost(teamBudget)} CR</span>
         )}
         {running && (
           <span>{snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams</span>

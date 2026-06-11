@@ -1,5 +1,6 @@
 import type { Position } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
+import { formatCost } from '@/lib/costs';
 
 const POSITION_LABEL: Record<Position, string> = {
   TOP: '上单',
@@ -85,7 +86,7 @@ export function OnTheClockHero(props: HeroStatus) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">预算&nbsp;{props.budgetLeft}</Badge>
+        <Badge variant="secondary">预算&nbsp;{formatCost(props.budgetLeft)}</Badge>
 
         {props.missingPositions.length > 0 && (
           <Badge variant="secondary">

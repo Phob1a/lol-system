@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { formatCost } from '@/lib/costs';
 
 export type RosterRow = {
   position: string;
@@ -135,7 +136,9 @@ export function TeamManager({ name, slogan, roster }: Props) {
                     <span className="text-xs text-muted-foreground">@{row.gameId}</span>
                   </div>
                   <div className="text-right leading-tight">
-                    <div className="text-sm font-semibold text-foreground">{row.cost}</div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {row.cost == null ? '—' : formatCost(row.cost)}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">费用</div>
                   </div>
                 </>

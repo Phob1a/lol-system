@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Position, RoundMode } from '@prisma/client';
 import type { DraftSnapshot, RegistrationRef } from '@/lib/draft/types';
+import { formatCost, normalizeCost } from '@/lib/costs';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
@@ -217,12 +218,12 @@ export function RoundConfigDialog({
                     const a = assignments[t.captainId] ?? { registrationId: '', position: '' };
                     const empties = emptySlotsByCaptain.get(t.captainId) ?? [];
                     const budget = budgetByCaptain.get(t.captainId) ?? 0;
-                    const eligiblePool = pool.filter((p) => p.cost <= budget);
+                    const eligiblePool = pool.filter((p) => normalizeCost(p.cost) <= normalizeCost(budget));
                     return (
                       <div key={t.captainId} className="grid grid-cols-1 gap-2 px-3 py-2 text-sm sm:grid-cols-[1fr_2fr_1fr]">
                         <div className="flex flex-col">
                           <span className="font-medium">{t.captainNickname}</span>
-                          <span className="text-[10px] text-muted-foreground">预算 {budget}</span>
+                          <span className="text-[10px] text-muted-foreground">预算 {formatCost(budget)}</span>
                         </div>
                         <Select
                           value={a.registrationId}
@@ -235,7 +236,7 @@ export function RoundConfigDialog({
                             )}
                             {eligiblePool.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
-                                {p.nickname} <span className="ml-2 font-mono text-xs text-muted-foreground">{p.gameId} · {p.cost}</span>
+                                {p.nickname} <span className="ml-2 font-mono text-xs text-muted-foreground">{p.gameId} · {formatCost(p.cost)}</span>
                               </SelectItem>
                             ))}
                           </SelectContent>

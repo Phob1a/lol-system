@@ -16,6 +16,7 @@ import { EventStream } from '@/components/draft/EventStream';
 import { PlayerPool } from '@/components/draft/PlayerPool';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { SeasonSelector } from './SeasonSelector';
+import { formatCost } from '@/lib/costs';
 
 type PoolEntry = Omit<RegistrationForPool, 'isPicked'>;
 
@@ -98,7 +99,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
     return [...picks].reverse().map((pick) => {
       const team = teamById.get(pick.teamId);
       const regName = registrationNameById.get(pick.registrationId) ?? pick.registrationId;
-      const label = `「${team?.captainNickname ?? '—'}」选中 ${regName} · ${POSITION_LABEL[pick.position]} · ${pick.costPaid}`;
+      const label = `「${team?.captainNickname ?? '—'}」选中 ${regName} · ${POSITION_LABEL[pick.position]} · ${formatCost(pick.costPaid)}`;
       return { id: pick.id, label };
     });
   }, [live.picks, teamById, registrationNameById]);

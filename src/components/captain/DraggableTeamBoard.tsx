@@ -17,6 +17,7 @@ import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
 import { Badge } from '@/components/ui/badge';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -102,7 +103,7 @@ export function DraggableTeamBoard({ team, seq }: Props) {
           <div className="text-right shrink-0">
             <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
             <div className="text-base font-bold text-amber-600 tabular-nums">
-              {team.budgetLeft}
+              {formatCost(team.budgetLeft)}
               <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
             </div>
           </div>
@@ -151,7 +152,7 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
           slot.registration ? 'text-amber-600' : 'text-muted-foreground',
         )}
       >
-        {slot.registration ? slot.registration.cost : '—'}
+        {slot.registration ? formatCost(slot.registration.cost) : '—'}
       </span>
     </div>
   );

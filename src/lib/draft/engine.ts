@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { creditCost, debitCost, formatCost, normalizeCost } from '@/lib/costs';
 import { POSITIONS } from '@/lib/players/schema';
 import { pickCaptainSlot } from '@/lib/teams/preview';
 import type { DraftSnapshot, DraftTeamSnapshot, RegistrationRef } from './types';
@@ -102,7 +103,7 @@ export async function startDraft(
       const captainSlot = pickCaptainSlot(team.captain);
       await tx.team.update({
         where: { id: team.id },
-        data: { budgetLeft: season.teamBudget - team.captain.cost },
+        data: { budgetLeft: debitCost(season.teamBudget, team.captain.cost) },
       });
       // Create 5 slots; captain occupies the matching one.
       await tx.teamSlot.createMany({
@@ -581,6 +582,22 @@ type ApplyPickArgs = {
   seq: number;
 };
 
+async function refundTeamBudget(
+  tx: Prisma.TransactionClient,
+  teamId: string,
+  costPaid: number,
+) {
+  const team = await tx.team.findUnique({
+    where: { id: teamId },
+    select: { budgetLeft: true },
+  });
+  if (!team) throw new DraftStateError('NO_TEAM', `战队不存在: ${teamId}`);
+  await tx.team.update({
+    where: { id: teamId },
+    data: { budgetLeft: creditCost(team.budgetLeft, costPaid) },
+  });
+}
+
 async function applyPick(
   tx: Prisma.TransactionClient,
   args: ApplyPickArgs,
@@ -603,10 +620,10 @@ async function applyPick(
   });
   if (!team) throw new DraftStateError('NO_TEAM', `队长无对应战队: ${args.captainId}`);
 
-  if (team.budgetLeft < registration.cost) {
+  if (normalizeCost(team.budgetLeft) < normalizeCost(registration.cost)) {
     throw new DraftStateError(
       'INSUFFICIENT_BUDGET',
-      `预算不足: 剩余 ${team.budgetLeft} < 需要 ${registration.cost}`,
+      `预算不足: 剩余 ${formatCost(team.budgetLeft)} < 需要 ${formatCost(registration.cost)}`,
     );
   }
 
@@ -645,7 +662,7 @@ async function applyPick(
 
   await tx.team.update({
     where: { id: team.id },
-    data: { budgetLeft: team.budgetLeft - registration.cost },
+    data: { budgetLeft: debitCost(team.budgetLeft, registration.cost) },
   });
 
   await tx.draftEvent.create({
@@ -719,10 +736,7 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
         where: { teamId: p.teamId, position: p.position },
         data: { registrationId: null },
       });
-      await tx.team.update({
-        where: { id: p.teamId },
-        data: { budgetLeft: { increment: p.costPaid } },
-      });
+      await refundTeamBudget(tx, p.teamId, p.costPaid);
       await tx.draftPick.update({
         where: { id: p.id },
         data: { revoked: true, revokedAt: new Date() },
@@ -741,10 +755,7 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
           where: { teamId: p.teamId, position: p.position },
           data: { registrationId: null },
         });
-        await tx.team.update({
-          where: { id: p.teamId },
-          data: { budgetLeft: { increment: p.costPaid } },
-        });
+        await refundTeamBudget(tx, p.teamId, p.costPaid);
         laterRevoked += 1;
       }
       await tx.draftRound.delete({ where: { id: lr.id } });
@@ -824,10 +835,7 @@ export async function rewindRound(seasonId: string, actorUserId: string): Promis
         where: { teamId: p.teamId, position: p.position },
         data: { registrationId: null },
       });
-      await tx.team.update({
-        where: { id: p.teamId },
-        data: { budgetLeft: { increment: p.costPaid } },
-      });
+      await refundTeamBudget(tx, p.teamId, p.costPaid);
     }
     await tx.draftRound.delete({ where: { id: round.id } });
 

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { debitCost, formatCost, normalizeCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 /** Short letter label for a position — rendered inline, no tactical import needed. */
@@ -48,7 +49,7 @@ export function PickAction({
   const [submitting, setSubmitting] = useState(false);
   const positionGroupId = useId();
 
-  const insufficientBudget = budgetLeft < player.cost;
+  const insufficientBudget = normalizeCost(budgetLeft) < normalizeCost(player.cost);
   const noSlots = emptySlots.length === 0;
   const availablePositions = POSITIONS.filter(
     (pos): pos is Position => emptySlots.includes(pos) && !insufficientBudget,
@@ -122,7 +123,7 @@ export function PickAction({
               PICK <span className="text-muted-foreground">{'//'}</span> {player.nickname}
             </div>
             <div className="text-xs text-muted-foreground font-mono mt-0.5">
-              @{player.gameId} · cost {player.cost} CR · budget {budgetLeft} CR
+              @{player.gameId} · cost {formatCost(player.cost)} CR · budget {formatCost(budgetLeft)} CR
             </div>
           </div>
         </header>
@@ -142,7 +143,7 @@ export function PickAction({
 
         {insufficientBudget && (
           <div className="px-3 py-2 mb-3 border-l-[3px] border-l-destructive bg-destructive/10 rounded-sm text-xs text-destructive font-mono">
-            ⚠ 预算不足：还差 {player.cost - budgetLeft} CR
+            ⚠ 预算不足：还差 {formatCost(debitCost(player.cost, budgetLeft))} CR
           </div>
         )}
         {noSlots && (

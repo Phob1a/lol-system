@@ -15,6 +15,7 @@ import { POSITION_OPTIONS } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -317,7 +318,7 @@ export function PlayerPool({ players, renderActions }: Props) {
                 </div>
 
                 <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
-                  <div className="text-sm font-semibold text-foreground">{p.cost}</div>
+                  <div className="text-sm font-semibold text-foreground">{formatCost(p.cost)}</div>
                   <div className="text-[10px] text-muted-foreground">费用</div>
                 </div>
               </div>

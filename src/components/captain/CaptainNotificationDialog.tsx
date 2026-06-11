@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useEffect } from 'react';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 export type CaptainNoticeKind = 'started' | 'turn' | 'started-and-turn';
@@ -212,7 +213,7 @@ export function CaptainNotificationDialog({
                         REMAINING
                       </div>
                       <div className="text-lg font-bold text-green-600 tabular-nums mt-0.5">
-                        {budgetLeft}
+                        {formatCost(budgetLeft)}
                         <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
                       </div>
                     </div>

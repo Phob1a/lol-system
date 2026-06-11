@@ -1,4 +1,5 @@
 import type { Position } from '@prisma/client';
+import { debitCost } from '@/lib/costs';
 import { POSITIONS } from '@/lib/players/schema';
 
 export type RegistrationRef = {
@@ -54,7 +55,7 @@ export function computeTeamPreviews(
       captainId: captain.id,
       captainGameId: captain.gameId,
       captainNickname: captain.nickname,
-      budgetLeft: teamBudget - captain.cost,
+      budgetLeft: debitCost(teamBudget, captain.cost),
       slots,
     };
   });

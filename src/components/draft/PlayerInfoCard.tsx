@@ -1,6 +1,7 @@
 'use client';
 
 import type { RegistrationRef } from '@/lib/teams/preview';
+import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
 /** Abbreviation letter for a position value */
@@ -42,7 +43,7 @@ export function PlayerInfoCard({ player }: { player: RegistrationRef }) {
         <div className="text-right shrink-0">
           <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">COST</p>
           <p className="text-base font-semibold text-foreground leading-tight">
-            {player.cost}
+            {formatCost(player.cost)}
             <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
           </p>
         </div>
