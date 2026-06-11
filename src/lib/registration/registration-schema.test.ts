@@ -16,6 +16,14 @@ describe('PublicRegistrationInput', () => {
     expect(PublicRegistrationInput.safeParse(base).success).toBe(true);
   });
 
+  it('accepts omitted nickname and blank nickname', () => {
+    const omitted = { ...base };
+    delete (omitted as Partial<typeof base>).nickname;
+
+    expect(PublicRegistrationInput.safeParse(omitted).success).toBe(true);
+    expect(PublicRegistrationInput.safeParse({ ...base, nickname: '   ' }).success).toBe(true);
+  });
+
   it('requires at least one primary position', () => {
     expect(PublicRegistrationInput.safeParse({ ...base, primaryPositions: [] }).success).toBe(false);
   });

@@ -18,6 +18,11 @@ function assertRosterEditable(status: SeasonStatus): void {
   }
 }
 
+function displayNickname(input: { gameId: string; nickname?: string | null }): string {
+  const nickname = input.nickname?.trim();
+  return nickname && nickname.length > 0 ? nickname : input.gameId;
+}
+
 /**
  * Public, anonymous registration. Find-or-create the Player master by gameId,
  * then create the per-season Registration. The unique [seasonId, playerId]
@@ -33,10 +38,11 @@ export async function submitPublicRegistration(
   }
 
   return db.$transaction(async (tx) => {
+    const nickname = displayNickname(input);
     const player = await tx.player.upsert({
       where: { gameId: input.gameId },
-      create: { gameId: input.gameId, nickname: input.nickname },
-      update: { nickname: input.nickname },
+      create: { gameId: input.gameId, nickname },
+      update: { nickname },
     });
 
     try {
@@ -44,7 +50,7 @@ export async function submitPublicRegistration(
         data: {
           seasonId: season.id,
           playerId: player.id,
-          nickname: input.nickname,
+          nickname,
           primaryPositions: input.primaryPositions,
           secondaryPositions: input.secondaryPositions,
           currentRank: input.currentRank,
@@ -116,17 +122,18 @@ export async function adminCreateRegistration(
     });
     if (!season) throw new RegistrationError('NOT_FOUND', '赛季不存在');
     assertRosterEditable(season.status);
+    const nickname = displayNickname(input);
     const player = await tx.player.upsert({
       where: { gameId: input.gameId },
-      create: { gameId: input.gameId, nickname: input.nickname },
-      update: { nickname: input.nickname },
+      create: { gameId: input.gameId, nickname },
+      update: { nickname },
     });
     try {
       return await tx.registration.create({
         data: {
           seasonId,
           playerId: player.id,
-          nickname: input.nickname,
+          nickname,
           primaryPositions: input.primaryPositions,
           secondaryPositions: input.secondaryPositions,
           currentRank: input.currentRank,

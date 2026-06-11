@@ -34,6 +34,15 @@ describe('submitPublicRegistration', () => {
     expect(await testDb.player.findUnique({ where: { gameId: 'faker' } })).not.toBeNull();
   });
 
+  it('uses gameId as the nickname when public registration nickname is blank', async () => {
+    await openSeason();
+    const reg = await submitPublicRegistration(testDb, { ...form, nickname: '   ' });
+    const player = await testDb.player.findUnique({ where: { gameId: 'faker' } });
+
+    expect(reg.nickname).toBe('faker');
+    expect(player?.nickname).toBe('faker');
+  });
+
   it('reuses the Player master across seasons', async () => {
     await openSeason();
     await submitPublicRegistration(testDb, form);
@@ -87,6 +96,19 @@ describe('registration admin ops', () => {
     });
     expect(reg.nickname).toBe('替补');
     expect(await testDb.player.findUnique({ where: { gameId: 'walkin' } })).not.toBeNull();
+  });
+
+  it('uses gameId as the nickname when admin-created nickname is blank', async () => {
+    const s = await openSeason();
+    const reg = await adminCreateRegistration(testDb, s.id, {
+      gameId: 'walkin', nickname: '', primaryPositions: ['TOP'],
+      secondaryPositions: [], currentRank: '钻石', peakRank: '大师',
+      willingToCaptain: false, cost: 0,
+    });
+    const player = await testDb.player.findUnique({ where: { gameId: 'walkin' } });
+
+    expect(reg.nickname).toBe('walkin');
+    expect(player?.nickname).toBe('walkin');
   });
 });
 
