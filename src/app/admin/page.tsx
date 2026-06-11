@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getActiveSeason } from '@/lib/season/season-service';
+import { getAdminOverviewStats } from '@/lib/admin/overview-stats';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,17 +11,9 @@ export const dynamic = 'force-dynamic';
 export default async function AdminHomePage() {
   const season = await getActiveSeason(prisma);
 
-  const [registrationCount, captainCount, draftSession] = season
-    ? await Promise.all([
-        prisma.registration.count({ where: { seasonId: season.id, status: 'ACTIVE' } }),
-        prisma.registration.count({
-          where: { seasonId: season.id, status: 'ACTIVE', isCaptain: true },
-        }),
-        prisma.draftSession.findUnique({ where: { seasonId: season.id } }),
-      ])
-    : [0, 0, null];
-
-  const draftStatus = draftSession?.status ?? 'NOT_STARTED';
+  const overviewStats = season
+    ? await getAdminOverviewStats(prisma, season.id)
+    : { registrationCount: 0, captainIntentionCount: 0, draftStatus: 'NOT_STARTED' };
 
   if (!season) {
     return (
@@ -34,7 +27,7 @@ export default async function AdminHomePage() {
     );
   }
 
-  const stats = [
+  const statCards = [
     {
       label: 'SEASON',
       value: `${season.name} · ${season.status} · 预算 ${season.teamBudget} CR`,
@@ -42,12 +35,12 @@ export default async function AdminHomePage() {
     },
     {
       label: 'REGISTRATIONS',
-      value: `${registrationCount} 报名 · ${captainCount} 意向队长`,
+      value: `${overviewStats.registrationCount} 报名 · ${overviewStats.captainIntentionCount} 意向队长`,
       href: '/admin/registrations',
     },
     {
       label: 'DRAFT',
-      value: draftStatus,
+      value: overviewStats.draftStatus,
       href: '/admin/draft',
     },
     {
@@ -62,7 +55,7 @@ export default async function AdminHomePage() {
       <PageHeader title="概览" description="赛事总览" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((s) => (
+        {statCards.map((s) => (
           <Link key={s.href} href={s.href} className="block">
             <Card className="h-full transition-colors hover:bg-muted/50">
               <CardHeader className="pb-2">
