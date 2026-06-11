@@ -64,6 +64,7 @@ model Tournament {
   id        String           @id @default(cuid())
   seasonId  String           @unique
   name      String
+  kind      String           @default("正赛")
   status    TournamentStatus @default(SETUP)
   config    Json
   createdAt DateTime         @default(now())
@@ -816,6 +817,7 @@ export async function createTournament(
   input: {
     seasonId: string;
     name: string;
+    kind?: string; // 类型标签：正赛/娱乐赛/海斗/自定义；缺省"正赛"
     teamIds: string[];
     config: GroupKnockoutConfig;
     actorUserId: string;
@@ -840,7 +842,7 @@ export async function createTournament(
 
   return db.$transaction(async (tx) => {
     const t = await tx.tournament.create({
-      data: { seasonId: input.seasonId, name: input.name, status: 'SETUP', config },
+      data: { seasonId: input.seasonId, name: input.name, kind: input.kind ?? '正赛', status: 'SETUP', config },
     });
 
     // 阵容快照（来自当前 TeamSlot 占用者）
@@ -2057,7 +2059,7 @@ export async function getPublicTournamentState(db: Db, seasonId: string) {
   );
 
   return {
-    tournament: { id: t.id, name: t.name, status: t.status },
+    tournament: { id: t.id, name: t.name, kind: t.kind, status: t.status },
     matches: t.matches.map((m) => ({
       id: m.id, label: m.label, roundKey: m.roundKey, bestOf: m.bestOf,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,
@@ -2383,7 +2385,7 @@ git commit -m "test(tournament): end-to-end champion path integration test"
 import { useCallback, useEffect, useState } from 'react';
 
 export type PublicState = {
-  tournament: { id: string; name: string; status: string };
+  tournament: { id: string; name: string; kind: string; status: string };
   matches: Array<{
     id: string; label: string | null; roundKey: string | null; bestOf: number;
     scheduledAt: string | null; status: string; isWalkover: boolean;
@@ -2430,7 +2432,7 @@ export function useTournamentState() {
   - `ScheduleList`：按 `scheduledAt` 日期分组（null 归"时间待定"），每行：时间（`toLocaleString('zh-CN')`）、`label`、`teamA?.name ?? '待定'` vs `teamB?.name ?? '待定'`、状态徽章（FINISHED 显示胜方名 + "胜"；WALKOVER 显示"轮空"；CANCELED 划线"已取消"；SCHEDULED 显示 BO 数）。
   - `GroupStandings`：每组一张表（列：排名/队伍/场次/胜/负/积分），`tied` 行加 `bg-amber-500/10` 并注"并列待加赛"；队名从 `teams` 映射取。
   - `BracketView`：`flex gap-8 overflow-x-auto`，每轮一列（列头 = roundKey 中文名），每场一张卡片：两行队名（`teamAId` 经 standings.teams 或 matches 中的队名映射解析；空位显示"待定"），胜者行 `font-bold text-primary`。M1 不画连接线。
-  - `layout.tsx`：极简公开布局（`<div className="min-h-screen bg-background"><header>赛事名</header><main>{children}</main></div>`），不依赖登录态。
+  - `layout.tsx`：极简公开布局（`<div className="min-h-screen bg-background"><header>赛事名 + kind 类型 Badge</header><main>{children}</main></div>`），不依赖登录态。
   - `PublicTournamentView`：`loaded && !state` 时显示空态"本赛季暂未创建赛事"。
 
 - [ ] **Step 3: 手动验收**
@@ -2462,7 +2464,7 @@ git commit -m "feat(tournament): public schedule/standings/bracket pages with SS
 
 - [ ] **Step 1: `page.tsx`** —— server component，权限模式照抄 `src/app/admin/` 下现有页面（admin layout 已做 ADMIN 校验）；服务端取活跃赛季 + 该赛季全部 Team（id、name）传给 `TournamentAdmin`。无活跃赛季显示提示。
 
-- [ ] **Step 2: `SetupTab`** —— 无赛事：表单（赛事名 text；组数/每组队数/每组出线数 number；小组 BO Select(1/3/5)；各轮 BO：根据出线总数动态渲染轮次行；参赛队 Checkbox 列表）。提交前客户端校验：勾选队数 = 组数×每组队数、出线总数为 2 的幂，不满足则禁用提交并红字提示。`POST /api/tournament/admin`，失败 toast `body.error`。有赛事：配置摘要（JSON 字段逐行）+ 危险区"删除赛事"按钮（两次 `confirm()`，第二次要求与赛事名一致的输入）→ `DELETE`。
+- [ ] **Step 2: `SetupTab`** —— 无赛事：表单（赛事名 text；**类型 Select：正赛/娱乐赛/海斗/自定义——选"自定义"时显示文本输入，提交值即 `kind` 字符串**；组数/每组队数/每组出线数 number；小组 BO Select(1/3/5)；各轮 BO：根据出线总数动态渲染轮次行；参赛队 Checkbox 列表）。提交前客户端校验：勾选队数 = 组数×每组队数、出线总数为 2 的幂，不满足则禁用提交并红字提示。`POST /api/tournament/admin`，失败 toast `body.error`。有赛事：配置摘要（JSON 字段逐行）+ 危险区"删除赛事"按钮（两次 `confirm()`，第二次要求与赛事名一致的输入）→ `DELETE`。
 
 - [ ] **Step 3: `GroupsTab`** —— M1 用 Select 而非拖拽：每组一个卡片，`teamsPerGroup` 个 `Select`（选项 = 尚未被任何组选走的队）；"随机分组"按钮（Fisher-Yates 洗牌填满）；"保存分组"→ `PUT /api/tournament/admin/groups`；"确认分组并生成对阵"→ 先 PUT 再 `POST /api/tournament/admin/groups`，成功后 toast + refetch。状态非 SETUP 时整个 Tab 只读展示分组结果。
 

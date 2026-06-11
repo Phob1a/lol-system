@@ -35,6 +35,8 @@
 | 维度 | 决策 |
 |---|---|
 | 与赛季关系 | `Tournament.seasonId` 唯一，一赛季一赛事；赛季归档则赛事只读 |
+| **赛事类型（rev.3）** | `Tournament.kind` 字符串标签（预设：正赛/娱乐赛/海斗，可自定义），默认"正赛"。仅作标识与展示，不影响赛制逻辑；未来跨赛季生涯统计按 kind 过滤（娱乐赛不混入正赛生涯） |
+| **跨赛季选手身份（rev.3）** | 已由现有结构保证：`Player`（gameId 锚定）→ 各赛季 `Registration` → `GamePlayerStat`。生涯数据总览页为后续独立功能，本期零 schema 改动；运营约定：选手改名改原 Player 记录，不新建 |
 | 赛制 | A3 模式：模板化 + 手动加自定义比赛；v1 仅「小组赛+单败淘汰」模板 |
 | 出线规模 | `groupCount × advancingPerGroup` 必须为 2 的幂（≥2），不固定 8 |
 | 每阶段局数 | GROUP/KNOCKOUT 各阶段独立配 BO1/BO3/BO5（淘汰赛可按轮次细分，如 QF=BO3、决赛=BO5） |
@@ -72,6 +74,7 @@ model Tournament {
   id        String  @id @default(cuid())
   seasonId  String  @unique          // 一赛季一赛事
   name      String
+  kind      String  @default("正赛")  // 类型标签：正赛/娱乐赛/海斗/自定义（rev.3）
   status    TournamentStatus @default(SETUP)
   config    Json                     // 模板参数快照：{ template, groupCount, teamsPerGroup, advancingPerGroup, groupBestOf, knockoutBestOf: {qf,sf,final}… }
   stages    TournamentStage[]
