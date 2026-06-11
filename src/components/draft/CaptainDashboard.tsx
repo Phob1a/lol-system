@@ -114,7 +114,7 @@ export function CaptainDashboard({
           />
           <div>
             <div className="text-lg font-bold tracking-wide text-foreground">
-              DRAFT <span className="text-muted-foreground">//</span> BAY
+              DRAFT <span className="text-muted-foreground">{'//'}</span> BAY
             </div>
             <div className="text-xs text-muted-foreground">
               {!running && !finished && (
