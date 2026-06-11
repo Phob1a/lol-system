@@ -289,27 +289,41 @@ export function PlayerPool({ players, renderActions }: Props) {
         )}
       </div>
 
-      {/* ── Player card list ── */}
-      <div className="flex flex-col gap-1.5">
+      {/* ── Player card grid ── */}
+      <div
+        data-testid="player-pool-grid"
+        className="grid gap-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}
+      >
         {visible.map((p) => (
           <PlayerHoverCard key={p.id} player={p}>
             <div
               className={cn(
-                'flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5',
+                'flex h-full min-h-[116px] flex-col justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/40',
                 p.isPicked && 'opacity-50',
               )}
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-medium text-foreground">{p.nickname}</span>
-                  {p.isPicked && (
-                    <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
-                      已选
-                    </Badge>
-                  )}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-medium text-foreground">{p.nickname}</span>
+                    {p.isPicked && (
+                      <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
+                        已选
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="block truncate text-xs text-muted-foreground">@{p.gameId}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">@{p.gameId}</span>
-                <div className="mt-1.5 flex flex-wrap gap-1">
+
+                <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
+                  <div className="text-sm font-semibold text-foreground">{p.cost}</div>
+                  <div className="text-[10px] text-muted-foreground">费用</div>
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-end justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap gap-1">
                   {p.primaryPositions.map((pos) => (
                     <PosChip key={`p-${pos}`} pos={pos} filled />
                   ))}
@@ -317,13 +331,7 @@ export function PlayerPool({ players, renderActions }: Props) {
                     <PosChip key={`s-${pos}`} pos={pos} />
                   ))}
                 </div>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                <div className="text-right leading-tight">
-                  <div className="text-base font-semibold text-foreground">{p.cost}</div>
-                  <div className="text-[10px] text-muted-foreground">费用</div>
-                </div>
-                {renderActions && <div>{renderActions(p)}</div>}
+                {renderActions && <div className="shrink-0">{renderActions(p)}</div>}
               </div>
             </div>
           </PlayerHoverCard>

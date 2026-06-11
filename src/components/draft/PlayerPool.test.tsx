@@ -40,4 +40,14 @@ describe('PlayerPool', () => {
     expect(screen.getByText('SECONDARY')).toBeInTheDocument();
     expect(screen.getByText('COST')).toBeInTheDocument();
   });
+
+  it('lays out player candidates in an auto-fitting grid', () => {
+    render(<PlayerPool players={[player]} />);
+
+    const grid = screen.getByTestId('player-pool-grid');
+    expect(grid).toHaveClass('grid');
+    expect(grid).toHaveStyle({
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+    });
+  });
 });
