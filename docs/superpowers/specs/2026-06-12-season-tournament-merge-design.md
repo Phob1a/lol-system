@@ -1,6 +1,6 @@
 # 赛季-赛事整合设计（逻辑合一）
 
-日期：2026-06-12 ｜ 状态：rev.2（采纳 codex 审查 4 项）｜ 前置：tournament v2 M1（已上线，53126f6）
+日期：2026-06-12 ｜ 状态：rev.3（codex 复审补充 1 项）｜ 前置：tournament v2 M1（已上线，53126f6）
 
 ## 1. 目标与决策记录
 
@@ -72,7 +72,11 @@ resetTournament(db, { tournamentId, actorUserId })
 
 ### 3.4 归档赛季只读（codex P1；落实 M1 spec §安全 既有要求）
 
-新增统一守卫 `assertSeasonWritable(db, tournamentId)`：`tournament.season.status === 'ARCHIVED'`（或 archivedAt 非空）时抛 `INVALID_STATE`（HTTP 403/422）。**所有 tournament 写服务**统一前置调用：updateTournamentConfig、resetTournament、assignGroups、confirmGroups、closeGroupStage、addCustomMatch、recordGame、deleteGame、setWalkover、cancelMatch、rescheduleMatch。注：M1 实现未落实该 spec 要求（属既有缺口），本次一并补上。公开读路径不受影响。
+新增统一守卫，两个变体（rev.3，codex 复审补充）：
+- `assertSeasonWritable(db, tournamentId)`：经 tournament 取 season 校验；
+- `assertSeasonWritableBySeasonId(db, seasonId)`：直接按 seasonId 校验——供 **createTournamentShell**（fallback 创建时尚无 tournamentId）使用。`createSeason` 内嵌调用时新赛季必然非归档，shell 内部统一校验即可同时覆盖两个入口。
+
+season `status === 'ARCHIVED'`（或 archivedAt 非空）时抛 `INVALID_STATE`（HTTP 403/422）。**所有 tournament 写服务**统一前置调用：createTournamentShell、updateTournamentConfig、resetTournament、assignGroups、confirmGroups、closeGroupStage、addCustomMatch、recordGame、deleteGame、setWalkover、cancelMatch、rescheduleMatch。注：M1 实现未落实该 spec 要求（属既有缺口），本次一并补上。公开读路径不受影响。
 
 ## 4. HTTP 路由
 
@@ -104,7 +108,7 @@ resetTournament(db, { tournamentId, actorUserId })
 - groups-service：assignGroups 重建快照（含重复保存覆盖）、季外队伍拒绝、数量不符拒绝
 - 集成：建赛季(带配置) → 分组 → 确认 → 录分 → 冠军 全链路（替换原 integration.test.ts 的 createTournament 入口）
 - 既有 createTournament 相关测试改造为 shell + assignGroups 组合；deleteTournament 用例删除并替换为 resetTournament 用例
-- 归档只读矩阵：ARCHIVED 赛季下 updateTournamentConfig / resetTournament / assignGroups / addCustomMatch / recordGame 全部拒绝
+- 归档只读矩阵：ARCHIVED 赛季下 createTournamentShell（fallback 创建）/ updateTournamentConfig / resetTournament / assignGroups / addCustomMatch / recordGame 全部拒绝
 - addCustomMatch：SETUP 拒绝（新增）；GROUP_STAGE tiebreaker 用例保持通过
 - E2E：scripts/e2e-tournament.spec.ts 清理步骤由"删除赛事"改为 resetTournament 或新建赛季
 - 公开页空态语义不变（老赛季无赛事仍返回 null）
