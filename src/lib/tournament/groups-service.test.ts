@@ -1,16 +1,13 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createTournament } from './tournament-service';
 import { assignGroups, confirmGroups } from './groups-service';
-import { CFG_2x4x2, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 async function setup() {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTournament(testDb, {
-    seasonId, name: 'x', teamIds, config: CFG_2x4x2, actorUserId: 'u',
-  });
+  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   return { t, teamIds, groups };
 }
@@ -62,18 +59,14 @@ it('confirmGroups 生成组内单循环并置 GROUP_STAGE；重复确认被拒',
 it('assignGroups 跨赛事 groupId 被拒，且对方赛事的分组数据不受污染', async () => {
   // Set up two independent tournaments (A and B)
   const { seasonId: seasonIdA, teamIds: teamIdsA } = await seedSeasonWithTeams(8);
-  const tA = await createTournament(testDb, {
-    seasonId: seasonIdA, name: 'A', teamIds: teamIdsA, config: CFG_2x4x2, actorUserId: 'u',
-  });
+  const tA = await createTestTournament(testDb, { seasonId: seasonIdA, teamIds: teamIdsA, config: CFG_2x4x2, actorUserId: 'u' });
   const groupsA = await testDb.tournamentGroup.findMany({
     where: { stage: { tournamentId: tA.id } },
     orderBy: { name: 'asc' },
   });
 
   const { seasonId: seasonIdB, teamIds: teamIdsB } = await seedSeasonWithTeams(8);
-  const tB = await createTournament(testDb, {
-    seasonId: seasonIdB, name: 'B', teamIds: teamIdsB, config: CFG_2x4x2, actorUserId: 'u',
-  });
+  const tB = await createTestTournament(testDb, { seasonId: seasonIdB, teamIds: teamIdsB, config: CFG_2x4x2, actorUserId: 'u' });
   const groupsB = await testDb.tournamentGroup.findMany({
     where: { stage: { tournamentId: tB.id } },
     orderBy: { name: 'asc' },
@@ -123,4 +116,57 @@ it('assignGroups 仅覆盖部分分组（缺少覆盖）被拒', async () => {
       actorUserId: 'u',
     }),
   ).rejects.toThrow(/有分组未覆盖|有队伍未分组/);
+});
+
+it('assignGroups 保存即重建参赛队快照（8 队 × 1 人）', async () => {
+  const { t, teamIds, groups } = await setup();
+  expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0);
+  await assignGroups(testDb, {
+    tournamentId: t.id,
+    assignments: [
+      { groupId: groups[0].id, teamIds: teamIds.slice(0, 4) },
+      { groupId: groups[1].id, teamIds: teamIds.slice(4) },
+    ],
+    actorUserId: 'u',
+  });
+  expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(8);
+  expect(await testDb.tournamentTeamPlayer.count()).toBe(8);
+});
+
+it('重新保存不同分组：快照被覆盖（仍 8 队，无残留）', async () => {
+  const { t, teamIds, groups } = await setup();
+  await assignGroups(testDb, {
+    tournamentId: t.id,
+    assignments: [
+      { groupId: groups[0].id, teamIds: teamIds.slice(0, 4) },
+      { groupId: groups[1].id, teamIds: teamIds.slice(4) },
+    ],
+    actorUserId: 'u',
+  });
+  await assignGroups(testDb, {
+    tournamentId: t.id,
+    assignments: [
+      { groupId: groups[0].id, teamIds: [teamIds[4], teamIds[1], teamIds[2], teamIds[3]] },
+      { groupId: groups[1].id, teamIds: [teamIds[0], teamIds[5], teamIds[6], teamIds[7]] },
+    ],
+    actorUserId: 'u',
+  });
+  expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(8);
+  expect(await testDb.tournamentGroupTeam.count()).toBe(8);
+});
+
+it('季外队伍分组被拒，快照不被污染', async () => {
+  const { t, teamIds, groups } = await setup();
+  const other = await seedSeasonWithTeams(1);
+  await expect(
+    assignGroups(testDb, {
+      tournamentId: t.id,
+      assignments: [
+        { groupId: groups[0].id, teamIds: [other.teamIds[0], teamIds[1], teamIds[2], teamIds[3]] },
+        { groupId: groups[1].id, teamIds: teamIds.slice(4) },
+      ],
+      actorUserId: 'u',
+    }),
+  ).rejects.toThrow(/不属于该赛季/);
+  expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0);
 });
