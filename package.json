@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:champions": "node scripts/build-champions.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
