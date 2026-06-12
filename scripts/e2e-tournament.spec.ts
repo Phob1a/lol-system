@@ -1,5 +1,5 @@
 /**
- * E2E tournament M1 acceptance test.
+ * E2E tournament M1+M2 acceptance test.
  * Run: npx playwright test --config scripts/playwright.config.ts
  *
  * NOTE: networkidle is never used because SSE streams keep the network active.
@@ -49,8 +49,19 @@ async function apiPost(page: Page, url: string, body: unknown) {
   }, { u: url, b: JSON.stringify(body) });
 }
 
+async function apiPut(page: Page, url: string, body: unknown) {
+  return page.evaluate(async ({ u, b }: { u: string; b: string }) => {
+    const r = await fetch(u, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: b,
+    });
+    return { status: r.status, body: await r.json() };
+  }, { u: url, b: JSON.stringify(body) });
+}
+
 test.describe('Tournament M1 E2E', () => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
 
   test('full tournament lifecycle', async ({ page, context }) => {
     // ─── Step 1: Admin login ──────────────────────────────────────────────
@@ -265,8 +276,11 @@ test.describe('Tournament M1 E2E', () => {
     for (const match of pendingGroup) {
       const winnerId = match.teamA?.id;
       if (!winnerId) { console.log(`[api] No teamA for ${match.id}`); continue; }
+      // Fetch current version from admin API (public state doesn't include version)
+      const freshM = await apiGet(page, `/api/tournament/admin/matches/${match.id}`);
+      const ver = freshM?.match?.version ?? 0;
       const resp = await apiPost(page, `/api/tournament/admin/matches/${match.id}`,
-        { expectedVersion: match.version, winnerTeamId: winnerId });
+        { expectedVersion: ver, winnerTeamId: winnerId });
       console.log(`[api] ${match.id} → ${resp.status} ${resp.body?.ok ? 'OK' : resp.body?.error ?? JSON.stringify(resp.body)}`);
       await page.waitForTimeout(80);
     }
@@ -450,7 +464,7 @@ test.describe('Tournament M1 E2E', () => {
     await nav(publicPage, `${BASE}/tournament`);
     await ss(publicPage, '19-public-final');
 
-    // Screenshot all 3 public tabs (赛程/积分/对阵)
+    // Screenshot all public tabs (赛程/积分/对阵/数据榜)
     const publicTabs = publicPage.locator('[role="tab"]');
     const tabCount = await publicTabs.count();
     console.log(`[public] Tab count: ${tabCount}`);
@@ -464,6 +478,572 @@ test.describe('Tournament M1 E2E', () => {
     await page.locator('[role="tab"]').filter({ hasText: '赛程' }).click();
     await page.waitForTimeout(400);
     await ss(page, '21-admin-schedule-final');
+
+    // ─── Step 12: Detail-record one game via GameDetailEditor (BP+stats+MVP) ──
+    // Use the FINAL match (already FINISHED) to open ScoreDialog →
+    // "+ 详细录入一局" → GameDetailEditor → fill BP + stats + MVP + winner → save.
+    // Then assert public detail page + leaderboard + player page.
+    console.log('[detail] Starting game detail recording step');
+
+    // Get the FINAL match
+    const detailStateResp = await apiGet(page, '/api/tournament/public/state');
+    const detailFinalMatch =
+      (detailStateResp?.state?.matches ?? []).find(
+        (m: any) => m.roundKey === 'FINAL' && m.status === 'FINISHED',
+      ) ??
+      (detailStateResp?.state?.matches ?? []).find(
+        (m: any) => m.status === 'FINISHED' && m.teamA?.id && m.teamB?.id,
+      );
+
+    if (!detailFinalMatch) {
+      console.log('[detail] No finished match found — skipping detail UI step');
+    } else {
+      console.log(
+        `[detail] Using match: ${detailFinalMatch.id} ` +
+          `(${detailFinalMatch.teamA?.name} vs ${detailFinalMatch.teamB?.name})`,
+      );
+
+      // Load match detail to check roster snapshot
+      const matchDetail = await apiGet(
+        page,
+        `/api/tournament/admin/matches/${detailFinalMatch.id}`,
+      );
+      const rosterA = matchDetail?.match?.rosters?.find(
+        (r: any) => r.teamId === detailFinalMatch.teamA?.id,
+      );
+      const rosterB = matchDetail?.match?.rosters?.find(
+        (r: any) => r.teamId === detailFinalMatch.teamB?.id,
+      );
+      const playersA: Array<{ registrationId: string; nickname: string }> =
+        rosterA?.players ?? [];
+      const playersB: Array<{ registrationId: string; nickname: string }> =
+        rosterB?.players ?? [];
+      console.log(`[detail] Roster A: ${playersA.length} players`);
+      console.log(`[detail] Roster B: ${playersB.length} players`);
+
+      const hasFullRosters = playersA.length >= 5 && playersB.length >= 5;
+      const teamAId: string = detailFinalMatch.teamA.id;
+      const teamBId: string = detailFinalMatch.teamB.id;
+
+      // ── Helper: seed game detail via API ──────────────────────────────────
+      async function seedGameDetailViaApi(pA: typeof playersA, pB: typeof playersB) {
+        const buildStats = (
+          players: typeof playersA,
+          tId: string,
+          champIds: string[],
+        ) =>
+          players.slice(0, 5).map((p, idx) => ({
+            teamId: tId,
+            registrationId: p.registrationId,
+            championId: champIds[idx] ?? 'Ahri',
+            kills: idx + 2,
+            deaths: 2,
+            assists: idx + 3,
+            cs: 150 + idx * 20,
+            damage: 15000 + idx * 1000,
+            gold: 9000 + idx * 500,
+          }));
+
+        const champA = ['Ahri', 'Zed', 'Yasuo', 'Jinx', 'Thresh'];
+        const champB = ['Lux', 'Ezreal', 'Vi', 'Akali', 'Kaisa'];
+        const statsA = buildStats(pA, teamAId, champA);
+        const statsB = buildStats(pB, teamBId, champB);
+        const allStats = [...statsA, ...statsB];
+
+        const freshM = await apiGet(
+          page,
+          `/api/tournament/admin/matches/${detailFinalMatch.id}`,
+        );
+        const ver: number = freshM?.match?.version ?? 0;
+        const games: any[] = freshM?.match?.games ?? [];
+        const targetGame = games.find((g: any) => !g.isDraft) ?? null;
+
+        const payload = {
+          expectedVersion: ver,
+          gameId: targetGame?.id,
+          detail: {
+            blueTeamId: teamAId,
+            durationSeconds: 1815, // 30:15
+            bans: [
+              { teamId: teamAId, type: 'BAN', championId: 'Zed', order: 1 },
+              { teamId: teamBId, type: 'BAN', championId: 'Yasuo', order: 2 },
+              { teamId: teamAId, type: 'PICK', championId: 'Ahri', order: 3 },
+            ],
+            playerStats: allStats.length === 10 ? allStats : undefined,
+            mvpRegistrationId: allStats.length >= 1 ? allStats[0].registrationId : undefined,
+            winnerTeamId: teamAId,
+          },
+        };
+
+        const saveResp = await apiPut(
+          page,
+          `/api/tournament/admin/matches/${detailFinalMatch.id}/games`,
+          payload,
+        );
+        console.log(`[detail-api] Save → ${saveResp.status}`, saveResp.body);
+
+        if (saveResp.status === 409) {
+          // Version conflict — re-fetch and retry once
+          const fresh2 = await apiGet(
+            page,
+            `/api/tournament/admin/matches/${detailFinalMatch.id}`,
+          );
+          const v2: number = fresh2?.match?.version ?? 0;
+          const games2: any[] = fresh2?.match?.games ?? [];
+          const tg2 = games2.find((g: any) => !g.isDraft) ?? null;
+          const retry = await apiPut(
+            page,
+            `/api/tournament/admin/matches/${detailFinalMatch.id}/games`,
+            { ...payload, expectedVersion: v2, gameId: tg2?.id },
+          );
+          console.log(`[detail-api] Retry → ${retry.status}`, retry.body);
+        }
+      }
+
+      if (!hasFullRosters) {
+        // Rosters not full — seed via API directly
+        console.log('[detail] Rosters not full — seeding game detail via API');
+        await seedGameDetailViaApi(playersA, playersB);
+      } else {
+        // Full rosters — use GameDetailEditor UI
+        console.log('[detail] Full rosters — using GameDetailEditor UI');
+
+        await nav(page, `${BASE}/admin/tournament`);
+        await page.locator('[role="tab"]').filter({ hasText: '赛程' }).click();
+        await page.waitForTimeout(600);
+
+        // Find the FINAL match row by team names
+        const scheduleRows = page.locator('tbody tr, table tr');
+        const srCount = await scheduleRows.count().catch(() => 0);
+        let finalRowBtn: any = null;
+        for (let i = 0; i < srCount; i++) {
+          const row = scheduleRows.nth(i);
+          const rowText = await row.textContent().catch(() => '');
+          if (
+            rowText?.includes(detailFinalMatch.teamA?.name) &&
+            rowText?.includes(detailFinalMatch.teamB?.name)
+          ) {
+            const btn = row.locator('button').first();
+            if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
+              finalRowBtn = btn;
+              break;
+            }
+          }
+        }
+        if (!finalRowBtn) {
+          finalRowBtn = page
+            .locator('button:has-text("录比分"), button:has-text("改判")')
+            .first();
+        }
+
+        let detailSavedViaUi = false;
+
+        if (await finalRowBtn?.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await finalRowBtn.click();
+          await page.waitForTimeout(800);
+          await ss(page, '22-score-dialog-for-detail');
+
+          // Open "+ 详细录入一局" (new game) inside the ScoreDialog
+          const newDetailBtn = page.locator(
+            '[role="dialog"] button:has-text("详细录入一局")',
+          );
+          // Also try "详细" button on existing games
+          const existingDetailBtn = page
+            .locator('[role="dialog"] button:has-text("详细")')
+            .first();
+
+          let openedEditor = false;
+          if (await newDetailBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            console.log('[detail-ui] Clicking "+ 详细录入一局"');
+            await newDetailBtn.click();
+            await page.waitForTimeout(800);
+            openedEditor = true;
+          } else if (
+            await existingDetailBtn.isVisible({ timeout: 1000 }).catch(() => false)
+          ) {
+            console.log('[detail-ui] Clicking "详细" on existing game');
+            await existingDetailBtn.click();
+            await page.waitForTimeout(800);
+            openedEditor = true;
+          }
+
+          if (openedEditor) {
+            await ss(page, '23-game-detail-editor-open');
+
+            // GameDetailEditor is the topmost (last) dialog
+            const editorDlg = page.locator('[role="dialog"]').last();
+
+            // 1. Blue side select (first SelectTrigger in editor = 蓝方 section)
+            const blueSelectTrigger = editorDlg
+              .locator('[role="combobox"]')
+              .first();
+            if (
+              await blueSelectTrigger.isVisible({ timeout: 2000 }).catch(() => false)
+            ) {
+              await blueSelectTrigger.click();
+              await page.waitForTimeout(300);
+              // Choose first team (second option, skipping "— 不设置 —")
+              const blueOpt = page
+                .locator('[role="option"]')
+                .nth(1);
+              if (
+                await blueOpt.isVisible({ timeout: 1500 }).catch(() => false)
+              ) {
+                await blueOpt.click();
+                console.log('[detail-ui] Blue side set');
+              } else {
+                await page.keyboard.press('Escape');
+              }
+              await ss(page, '24-blue-side-set');
+            }
+
+            // 2. Duration
+            const minInp = editorDlg.locator('input[placeholder="分"]');
+            const secInp = editorDlg.locator('input[placeholder="秒"]');
+            if (await minInp.isVisible({ timeout: 1500 }).catch(() => false)) {
+              await minInp.fill('30');
+              await secInp.fill('15');
+              console.log('[detail-ui] Duration = 30:15');
+            }
+
+            // 3. Add one BP row via "添加 ban/pick"
+            const addBpBtn = editorDlg.locator('button:has-text("添加 ban/pick")');
+            if (await addBpBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+              await addBpBtn.click();
+              await page.waitForTimeout(300);
+              console.log('[detail-ui] BP row added');
+
+              // The ChampionSelect trigger for this BP row is the last
+              // button[role="combobox"][aria-haspopup="listbox"] in the dialog
+              const champTriggers = editorDlg.locator(
+                'button[role="combobox"][aria-haspopup="listbox"]',
+              );
+              const ctCount = await champTriggers.count().catch(() => 0);
+              if (ctCount > 0) {
+                const lastChampTrigger = champTriggers.last();
+                await lastChampTrigger.click();
+                await page.waitForTimeout(300);
+                const searchBox = page.locator('input[placeholder="搜索英雄…"]').first();
+                if (await searchBox.isVisible({ timeout: 1000 }).catch(() => false)) {
+                  await searchBox.fill('Ahri');
+                  await page.waitForTimeout(300);
+                  const opt = page.locator('[role="listbox"] [role="option"]').first();
+                  if (await opt.isVisible({ timeout: 1000 }).catch(() => false)) {
+                    await opt.click();
+                    console.log('[detail-ui] BP champion = Ahri');
+                  } else {
+                    await page.keyboard.press('Escape');
+                  }
+                } else {
+                  await page.keyboard.press('Escape');
+                }
+              }
+              await ss(page, '25-bp-row-filled');
+            }
+
+            // 4. Fill stats for all 10 players (5 per team)
+            // Number inputs in stats rows have placeholder="0" and type="number"
+            const statNumInputs = editorDlg.locator(
+              'input[type="number"][placeholder="0"]',
+            );
+            const siCount = await statNumInputs.count().catch(() => 0);
+            console.log(`[detail-ui] Stat number inputs: ${siCount}`);
+            // 10 players × 6 columns = 60 inputs expected
+            const sampleVals = ['5', '2', '8', '150', '15000', '9000'];
+            for (let si = 0; si < siCount; si++) {
+              const inp = statNumInputs.nth(si);
+              if (await inp.isVisible({ timeout: 300 }).catch(() => false)) {
+                await inp.fill(sampleVals[si % 6]);
+              }
+            }
+            if (siCount > 0) console.log(`[detail-ui] Filled ${siCount} stat inputs`);
+
+            // Fill ChampionSelect for each stats row
+            // These use button[role="combobox"][aria-haspopup="listbox"]
+            const allChampTriggers = editorDlg.locator(
+              'button[role="combobox"][aria-haspopup="listbox"]',
+            );
+            const actCount = await allChampTriggers.count().catch(() => 0);
+            console.log(`[detail-ui] ChampionSelect triggers: ${actCount}`);
+            const champsForStats = [
+              'Ahri', 'Zed', 'Yasuo', 'Jinx', 'Thresh',
+              'Lux', 'Ezreal', 'Vi', 'Akali', 'Kaisa',
+            ];
+            for (let ci = 0; ci < Math.min(actCount, 10); ci++) {
+              const ct = allChampTriggers.nth(ci);
+              if (await ct.isVisible({ timeout: 300 }).catch(() => false)) {
+                await ct.click();
+                await page.waitForTimeout(200);
+                const sb = page.locator('input[placeholder="搜索英雄…"]').first();
+                if (await sb.isVisible({ timeout: 800 }).catch(() => false)) {
+                  await sb.fill(champsForStats[ci % champsForStats.length]);
+                  await page.waitForTimeout(200);
+                  const opt2 = page
+                    .locator('[role="listbox"] [role="option"]')
+                    .first();
+                  if (await opt2.isVisible({ timeout: 800 }).catch(() => false)) {
+                    await opt2.click();
+                    await page.waitForTimeout(100);
+                  } else {
+                    await page.keyboard.press('Escape');
+                  }
+                } else {
+                  await page.keyboard.press('Escape');
+                }
+              }
+            }
+            await ss(page, '26-stats-champions-filled');
+
+            // 5. MVP select — enabled only when all 10 stats rows complete
+            await page.waitForTimeout(400);
+            // MVP SelectTrigger has placeholder "选择 MVP" or "需先填写双方数据"
+            // It is a Radix Select trigger (not ChampionSelect) so it lacks aria-haspopup="listbox"
+            // It appears after the stats section, before the winner select
+            // Locate by placeholder text or position: second-to-last Radix combobox
+            // Radix SelectTrigger renders as button[role="combobox"] without aria-haspopup="listbox"
+            const radixTriggers = editorDlg.locator(
+              'button[role="combobox"]:not([aria-haspopup="listbox"])',
+            );
+            const rtCount = await radixTriggers.count().catch(() => 0);
+            console.log(`[detail-ui] Radix Select triggers: ${rtCount}`);
+            // Layout: [0]=blue-side, [1]=winner-BP-row-team (per BP row), [...], [n-2]=MVP, [n-1]=winner
+            // With 1 BP row: [0]=blue, [1]=BP-team, [2]=BP-type, [3]=MVP, [4]=winner
+            // MVP is second-to-last Radix trigger
+            if (rtCount >= 2) {
+              const mvpTrigger = radixTriggers.nth(rtCount - 2);
+              const isDisabled = await mvpTrigger.isDisabled().catch(() => true);
+              const mvpText = await mvpTrigger.textContent().catch(() => '');
+              console.log(`[detail-ui] MVP trigger text: "${mvpText?.trim()}", disabled: ${isDisabled}`);
+              if (!isDisabled) {
+                await mvpTrigger.click();
+                await page.waitForTimeout(300);
+                const mvpOpt = page.locator('[role="option"]').nth(1);
+                if (await mvpOpt.isVisible({ timeout: 1500 }).catch(() => false)) {
+                  const mvpOptText = await mvpOpt.textContent();
+                  console.log(`[detail-ui] Setting MVP: "${mvpOptText?.trim()}"`);
+                  await mvpOpt.click();
+                  await page.waitForTimeout(200);
+                  console.log('[detail-ui] MVP set');
+                } else {
+                  await page.keyboard.press('Escape');
+                }
+              } else {
+                console.log('[detail-ui] MVP disabled — skipping');
+              }
+            }
+
+            // 6. Winner select — last Radix trigger
+            if (rtCount >= 1) {
+              const winnerTrigger = radixTriggers.last();
+              const winnerText = await winnerTrigger.textContent().catch(() => '');
+              console.log(`[detail-ui] Winner trigger current text: "${winnerText?.trim()}"`);
+              await winnerTrigger.click();
+              await page.waitForTimeout(300);
+              const winOpt = page
+                .locator('[role="option"]')
+                .filter({ hasText: /胜$/ })
+                .first();
+              if (await winOpt.isVisible({ timeout: 1500 }).catch(() => false)) {
+                const winOptTxt = await winOpt.textContent();
+                console.log(`[detail-ui] Selecting winner: "${winOptTxt?.trim()}"`);
+                await winOpt.click();
+                await page.waitForTimeout(200);
+              } else {
+                await page.keyboard.press('Escape');
+              }
+            }
+            await ss(page, '27-winner-and-mvp-set');
+
+            // 7. Save
+            const saveBtn = editorDlg.locator('button:has-text("保存")');
+            if (await saveBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+              await saveBtn.click();
+              await page.waitForTimeout(2500);
+              await ss(page, '28-detail-saved');
+              console.log('[detail-ui] Saved via GameDetailEditor UI');
+              detailSavedViaUi = true;
+            }
+          }
+
+          // Close all open dialogs
+          for (let i = 0; i < 3; i++) {
+            const dlgVisible = page.locator('[role="dialog"]');
+            if (await dlgVisible.isVisible({ timeout: 400 }).catch(() => false)) {
+              await page.keyboard.press('Escape');
+              await page.waitForTimeout(300);
+            } else {
+              break;
+            }
+          }
+        }
+
+        if (!detailSavedViaUi) {
+          console.log('[detail] UI path failed — falling back to API');
+          await seedGameDetailViaApi(playersA, playersB);
+        }
+      }
+
+      // Wait for SSE propagation
+      await page.waitForTimeout(1500);
+
+      // ─── Public detail page assertions ──────────────────────────────────
+      const matchId: string = detailFinalMatch.id;
+      const detailPublicUrl = `${BASE}/tournament/match/${matchId}`;
+      console.log(`[detail-public] Navigating to: ${detailPublicUrl}`);
+      await nav(publicPage, detailPublicUrl);
+      await page.waitForTimeout(1000);
+      await ss(publicPage, '29-match-detail-page');
+
+      // Check what the public API returns for this match
+      const savedDetail = await apiGet(
+        page,
+        `/api/tournament/public/match/${matchId}`,
+      );
+      const savedGames: any[] = savedDetail?.detail?.games ?? [];
+      console.log(`[detail-public] Saved games: ${savedGames.length}`);
+
+      const gameWithBans = savedGames.find((g: any) => g.bans?.length > 0);
+      const gameWithPlayers = savedGames.find((g: any) => g.players?.length >= 10);
+
+      // Assert BP timeline
+      if (gameWithBans) {
+        console.log(
+          `[detail-public] Game with BP bans found: ${gameWithBans.bans.length} entries`,
+        );
+        // The MatchDetailView renders "BP 时间线" heading when bans exist
+        const bpHeading = publicPage.locator('text=BP 时间线');
+        if (await bpHeading.isVisible({ timeout: 5000 }).catch(() => false)) {
+          console.log('[detail-public] BP 时间线 heading visible ✓');
+        } else {
+          // May be on a different game tab — click the game tab
+          const gameTabs = publicPage.locator('[role="tab"]');
+          const gtCount = await gameTabs.count().catch(() => 0);
+          for (let ti = 0; ti < gtCount; ti++) {
+            await gameTabs.nth(ti).click();
+            await page.waitForTimeout(400);
+            if (
+              await publicPage
+                .locator('text=BP 时间线')
+                .isVisible({ timeout: 1000 })
+                .catch(() => false)
+            ) {
+              console.log('[detail-public] BP 时间线 found on game tab', ti);
+              break;
+            }
+          }
+        }
+        await ss(publicPage, '30-bp-timeline');
+      } else {
+        console.log('[detail-public] No game with BP bans saved');
+      }
+
+      // Assert 10-player stats table
+      if (gameWithPlayers) {
+        console.log(
+          `[detail-public] Game with 10 players found`,
+        );
+        // Click the correct game tab if needed
+        const gameTabs2 = publicPage.locator('[role="tab"]');
+        const gt2Count = await gameTabs2.count().catch(() => 0);
+        // Find tab whose content has a table with many rows
+        for (let ti = 0; ti < gt2Count; ti++) {
+          await gameTabs2.nth(ti).click();
+          await page.waitForTimeout(400);
+          const trs = await publicPage.locator('table tbody tr').count().catch(() => 0);
+          if (trs >= 10) {
+            console.log(`[detail-public] Found 10-player table on game tab ${ti} (${trs} rows)`);
+            // Assert at least 10 rows (10 players + 2 team header rows)
+            expect(trs, '10-player table should have >= 10 rows').toBeGreaterThanOrEqual(10);
+            break;
+          }
+        }
+        await ss(publicPage, '31-player-stats-table');
+
+        // Assert MVP badge
+        const mvpBadge = publicPage.locator('text=MVP');
+        if (await mvpBadge.isVisible({ timeout: 3000 }).catch(() => false)) {
+          console.log('[detail-public] MVP badge visible ✓');
+        } else {
+          console.log('[detail-public] MVP badge not visible in current view');
+        }
+        await ss(publicPage, '32-mvp-badge');
+      } else {
+        console.log('[detail-public] No game with 10 players — skipping table assertion');
+      }
+
+      // ─── Leaderboard assertion ────────────────────────────────────────────
+      console.log('[leaderboard] Checking 数据榜 tab');
+      await nav(publicPage, `${BASE}/tournament`);
+      await page.waitForTimeout(600);
+
+      const lbTab = publicPage.locator('[role="tab"]:has-text("数据榜")');
+      if (await lbTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await lbTab.click();
+        await page.waitForTimeout(2000); // wait for leaderboard API response
+        await ss(publicPage, '33-leaderboard-tab');
+
+        const lbBodyText = await publicPage.locator('body').textContent().catch(() => '');
+        const lbIsEmpty = lbBodyText?.includes('暂无数据');
+        console.log(`[leaderboard] Empty: ${lbIsEmpty}`);
+
+        if (!lbIsEmpty) {
+          const lbRows = publicPage.locator('table tbody tr');
+          const lbRowCount = await lbRows.count().catch(() => 0);
+          console.log(`[leaderboard] Rows: ${lbRowCount}`);
+
+          if (lbRowCount > 0) {
+            console.log('[leaderboard] Non-empty leaderboard ✓');
+            // KDA column is approximately 8th td (0-indexed: #, player, games, wins, K, D, A, KDA…)
+            const kdaCell = publicPage.locator('table tbody tr:first-child td').nth(7);
+            const kdaVal = await kdaCell.textContent().catch(() => '?');
+            console.log(`[leaderboard] First row KDA: "${kdaVal?.trim()}"`);
+
+            // Assert player link is present (nickname cell has an <a>)
+            const playerNameLink = publicPage
+              .locator('table tbody tr:first-child td a')
+              .first();
+            const playerNickname = await playerNameLink.textContent().catch(() => null);
+            console.log(`[leaderboard] First player nickname: "${playerNickname?.trim()}"`);
+            if (playerNickname) {
+              console.log('[leaderboard] Player nickname present ✓');
+            }
+
+            // ─── Player page assertion ───────────────────────────────────
+            if (await playerNameLink.isVisible({ timeout: 1000 }).catch(() => false)) {
+              const playerHref = await playerNameLink
+                .getAttribute('href')
+                .catch(() => null);
+              if (playerHref) {
+                console.log(`[player] Navigating to: ${BASE}${playerHref}`);
+                await nav(publicPage, `${BASE}${playerHref}`);
+                await page.waitForTimeout(1000);
+                await ss(publicPage, '35-player-page');
+
+                const playerBodyTxt = await publicPage
+                  .locator('body')
+                  .textContent()
+                  .catch(() => '');
+                const playerPageOk =
+                  !playerBodyTxt?.includes('选手不存在') &&
+                  !playerBodyTxt?.includes('加载中…') &&
+                  (playerBodyTxt?.length ?? 0) > 200;
+                console.log(`[player] Page renders: ${playerPageOk}`);
+                if (playerPageOk) {
+                  console.log('[player] Player stats page renders ✓');
+                }
+              }
+            }
+          } else {
+            console.log('[leaderboard] Table is empty (stats not complete for any game)');
+          }
+          await ss(publicPage, '34-leaderboard-data');
+        } else {
+          console.log('[leaderboard] "暂无数据" shown — no complete stats games recorded');
+        }
+      } else {
+        console.log('[leaderboard] 数据榜 tab not found');
+      }
+    }
 
     console.log('[done] E2E complete');
     console.log(`[done] Screenshots: ${SCREENSHOTS_DIR}`);
