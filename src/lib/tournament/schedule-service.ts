@@ -1,6 +1,7 @@
 import type { Match, PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
+import { assertSeasonWritableBySeasonId } from './guards';
 
 export async function addCustomMatch(
   db: PrismaClient,
@@ -21,6 +22,7 @@ export async function addCustomMatch(
     include: { teams: true, stages: { include: { groups: { include: { teams: true } } } } },
   });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
+  await assertSeasonWritableBySeasonId(db, t.seasonId);
   if (t.status === 'FINISHED') throw new TournamentError('INVALID_STATE', '赛事已结束');
   if (input.teamAId === input.teamBId) throw new TournamentError('VALIDATION', '双方不能相同');
   if (![1, 3, 5].includes(input.bestOf)) throw new TournamentError('VALIDATION', 'BO 数非法');
