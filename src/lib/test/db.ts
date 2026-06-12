@@ -9,6 +9,10 @@ export const testDb = new PrismaClient({
 export async function resetDb(): Promise<void> {
   await testDb.$executeRawUnsafe(`
     TRUNCATE TABLE
+      "audit_logs", "game_player_stats", "game_ban_picks", "games",
+      "match_advancement_edges", "matches", "tournament_group_teams",
+      "tournament_groups", "tournament_stages", "tournament_team_players",
+      "tournament_teams", "tournaments",
       "draft_events", "draft_picks", "draft_rounds", "draft_sessions",
       "team_slots", "teams", "registrations", "players", "users", "seasons"
     RESTART IDENTITY CASCADE;
