@@ -14,15 +14,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
-      games: {
-        where: { isDraft: false },
-        orderBy: { index: 'asc' },
-        select: { id: true, index: true, winnerTeamId: true },
-      },
+      games: { orderBy: { index: 'asc' }, include: { _count: { select: { bans: true, playerStats: true } } } },
     },
   });
   if (!match) return NextResponse.json({ error: '比赛不存在' }, { status: 404 });
-  return NextResponse.json({ match });
+  const tt = await prisma.tournamentTeam.findMany({
+    where: { tournamentId: match.tournamentId, teamId: { in: [match.teamAId, match.teamBId].filter(Boolean) as string[] } },
+    include: { players: { include: { registration: { select: { id: true, nickname: true } } } } },
+  });
+  const shaped = {
+    id: match.id, version: match.version, bestOf: match.bestOf, status: match.status,
+    teamAId: match.teamAId, teamBId: match.teamBId, winnerTeamId: match.winnerTeamId,
+    games: match.games.map((g) => ({ id: g.id, index: g.index, isDraft: g.isDraft, winnerTeamId: g.winnerTeamId, hasBans: g._count.bans > 0, hasStats: g._count.playerStats === 10 })),
+    rosters: tt.map((x) => ({ teamId: x.teamId, players: x.players.map((p) => ({ registrationId: p.registrationId, nickname: p.registration.nickname })) })),
+  };
+  return NextResponse.json({ match: shaped });
 }
 
 const patchSchema = z.discriminatedUnion('op', [
