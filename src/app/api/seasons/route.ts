@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
+import { SeasonError } from '@/lib/season/errors';
 import { CreateSeasonInput } from '@/lib/season/season-schema';
 import { createSeason, listSeasons } from '@/lib/season/season-service';
+import { TournamentError } from '@/lib/tournament/errors';
+import { toResponse } from '@/lib/tournament/route-errors';
 
 export async function GET() {
   const guard = await requireAdmin();
@@ -28,6 +31,10 @@ export async function POST(req: Request) {
     const season = await createSeason(prisma, parsed.data, guard.session.user.id);
     return NextResponse.json({ season }, { status: 201 });
   } catch (e) {
+    if (e instanceof TournamentError) return toResponse(e);
+    if (e instanceof SeasonError) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: 409 });
+    }
     console.error('POST /api/seasons failed', e);
     return NextResponse.json({ error: '创建赛季失败' }, { status: 500 });
   }
