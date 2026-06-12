@@ -317,7 +317,10 @@ function MatchCard({
 // ─── SchedulePlanner (main export) ────────────────────────────────────────────
 
 export function SchedulePlanner({ state, refetch, readOnly = false }: Props) {
-  const matches: AdminMatch[] = useMemo(() => state?.matches ?? [], [state?.matches]);
+  const matches: AdminMatch[] = useMemo(
+    () => (state?.matches ?? []).filter((m) => m.status !== 'CANCELED'),
+    [state?.matches],
+  );
 
   const { pool, columns } = splitPlannerColumns(matches as PlannerMatch[]) as {
     pool: AdminMatch[];
