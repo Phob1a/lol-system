@@ -9,6 +9,9 @@ import {
   patchRegistration,
 } from './registration-service';
 import { RegistrationError } from './errors';
+import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
+
+const T = { kind: '正赛', config: CFG_2x4x2 };
 
 const form = {
   gameId: 'faker',
@@ -21,7 +24,7 @@ const form = {
 };
 
 async function openSeason() {
-  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
   await transitionSeason(testDb, s.id, 'REGISTRATION');
   return s;
 }
@@ -46,7 +49,7 @@ describe('submitPublicRegistration', () => {
   it('reuses the Player master across seasons', async () => {
     await openSeason();
     await submitPublicRegistration(testDb, form);
-    const s2 = await createSeason(testDb, { name: 'S2', teamBudget: 1000 });
+    const s2 = await createSeason(testDb, { name: 'S2', teamBudget: 1000, tournament: T }, 'u');
     await transitionSeason(testDb, s2.id, 'REGISTRATION');
     await submitPublicRegistration(testDb, form);
     expect(await testDb.player.count()).toBe(1);
@@ -60,7 +63,7 @@ describe('submitPublicRegistration', () => {
   });
 
   it('rejects when no season is open for registration', async () => {
-    await createSeason(testDb, { name: 'S1', teamBudget: 1000 }); // stays SETUP
+    await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u'); // stays SETUP
     await expect(submitPublicRegistration(testDb, form)).rejects.toBeInstanceOf(RegistrationError);
   });
 });

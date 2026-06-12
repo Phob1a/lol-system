@@ -3,6 +3,9 @@ import { testDb } from '@/lib/test/db';
 import { appointCaptain } from '@/lib/captains/captain-service';
 import { adminCreateRegistration } from '@/lib/registration/registration-service';
 import { createSeason, transitionSeason } from '@/lib/season/season-service';
+import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
+
+const T = { kind: '正赛', config: CFG_2x4x2 };
 import {
   DraftStateError,
   startDraft,
@@ -31,7 +34,7 @@ function registrationInput(gameId: string, nickname: string, cost = 10) {
 }
 
 async function openSeason(name: string) {
-  const season = await createSeason(testDb, { name, teamBudget: 1000 });
+  const season = await createSeason(testDb, { name, teamBudget: 1000, tournament: T }, 'u');
   await transitionSeason(testDb, season.id, 'REGISTRATION');
   return season;
 }
@@ -59,7 +62,7 @@ async function prepareDraftWithArchivedSeasonRegistration() {
 
 describe('draft engine season boundaries', () => {
   it('normalizes budget after debiting a decimal captain cost', async () => {
-    const season = await createSeason(testDb, { name: 'decimal-budget', teamBudget: 33.5 });
+    const season = await createSeason(testDb, { name: 'decimal-budget', teamBudget: 33.5, tournament: T }, 'u');
     await transitionSeason(testDb, season.id, 'REGISTRATION');
     const captain = await adminCreateRegistration(testDb, season.id, {
       ...registrationInput('decimal-captain', '小数队长', 33.4),

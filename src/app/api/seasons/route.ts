@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const season = await createSeason(prisma, parsed.data);
+    const season = await createSeason(prisma, parsed.data, guard.session.user.id);
     return NextResponse.json({ season }, { status: 201 });
   } catch (e) {
     console.error('POST /api/seasons failed', e);

@@ -5,9 +5,12 @@ import { createSeason, transitionSeason } from '@/lib/season/season-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { appointCaptain } from '@/lib/captains/captain-service';
 import { listSeasonTeams, resetTeamPassword, updateTeamProfile } from './team-service';
+import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
+
+const T = { kind: '正赛', config: CFG_2x4x2 };
 
 async function appointed() {
-  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
   await transitionSeason(testDb, s.id, 'REGISTRATION');
   const reg = await submitPublicRegistration(testDb, {
     gameId: 'cap', nickname: '队长', primaryPositions: ['MID'], secondaryPositions: [],

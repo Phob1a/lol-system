@@ -4,9 +4,12 @@ import { createSeason, transitionSeason } from '@/lib/season/season-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { appointCaptain, revokeCaptain } from './captain-service';
 import { CaptainError } from './errors';
+import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
+
+const T = { kind: '正赛', config: CFG_2x4x2 };
 
 async function seasonWithReg(gameId = 'cap1') {
-  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
   await transitionSeason(testDb, s.id, 'REGISTRATION');
   const reg = await submitPublicRegistration(testDb, {
     gameId, nickname: '队长甲', primaryPositions: ['MID'],
@@ -30,7 +33,7 @@ describe('appointCaptain', () => {
   });
 
   it('rejects appointing when the season is not ROSTER_LOCKED', async () => {
-    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000 });
+    const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
     await transitionSeason(testDb, s.id, 'REGISTRATION');
     const reg = await submitPublicRegistration(testDb, {
       gameId: 'c', nickname: 'c', primaryPositions: ['TOP'], secondaryPositions: [],

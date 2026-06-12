@@ -1,6 +1,8 @@
 import type { Prisma, PrismaClient, Season, SeasonStatus } from '@prisma/client';
 import type { CreateSeasonInput } from './season-schema';
 import { SeasonError } from './errors';
+import { createTournamentShell } from '@/lib/tournament/tournament-service';
+import type { GroupKnockoutConfig } from '@/lib/tournament/types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -26,16 +28,26 @@ export async function archiveActiveSeason(db: Db): Promise<void> {
 /**
  * Create a season in SETUP. If an active season exists it is archived first,
  * so at most one season is ever non-archived.
+ * Also creates the tournament shell in the same transaction (spec §3.1).
  */
 export async function createSeason(
   db: PrismaClient,
   input: CreateSeasonInput,
+  actorUserId: string,
 ): Promise<Season> {
   return db.$transaction(async (tx) => {
     await archiveActiveSeason(tx);
-    return tx.season.create({
+    const season = await tx.season.create({
       data: { name: input.name, teamBudget: input.teamBudget, status: 'SETUP' },
     });
+    await createTournamentShell(tx, {
+      seasonId: season.id,
+      name: input.tournament.name ?? input.name,
+      kind: input.tournament.kind,
+      config: input.tournament.config as GroupKnockoutConfig, // passthrough → cast; shell validates internally
+      actorUserId,
+    });
+    return season;
   });
 }
 
