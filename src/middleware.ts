@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 // Reachable with no session at all.
-const PUBLIC_PREFIXES = ['/login', '/access-denied', '/register', '/live'];
+const PUBLIC_PREFIXES = ['/login', '/access-denied', '/register', '/live', '/tournament'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -16,6 +16,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/register') ||
     pathname.startsWith('/api/live') ||
+    pathname.startsWith('/api/tournament/public') ||
     pathname === '/favicon.ico'
   ) {
     return NextResponse.next();
