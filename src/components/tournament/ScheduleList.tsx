@@ -3,21 +3,13 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import type { PublicState } from '@/hooks/useTournamentState';
+import { groupMatchesByDay } from '@/lib/tournament/schedule-grouping';
 
 type Match = NonNullable<PublicState>['matches'][number];
 
 type Props = {
   matches: Match[];
 };
-
-function getDateKey(scheduledAt: string | null): string {
-  if (!scheduledAt) return '时间待定';
-  return new Date(scheduledAt).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
 
 function StatusBadge({ match }: { match: Match }) {
   if (match.isWalkover || match.status === 'WALKOVER') {
@@ -50,23 +42,17 @@ export function ScheduleList({ matches }: Props) {
     );
   }
 
-  // Group by date key, preserving order of first occurrence
-  const groups = new Map<string, Match[]>();
-  for (const m of matches) {
-    const key = getDateKey(m.scheduledAt);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(m);
-  }
+  const groups = groupMatchesByDay<Match>(matches);
 
   return (
     <div className="space-y-6">
-      {Array.from(groups.entries()).map(([dateKey, groupMatches]) => (
-        <div key={dateKey}>
+      {groups.map((group) => (
+        <div key={group.dayKey}>
           <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-            {dateKey}
+            {group.label} · {group.count} 场
           </h3>
           <div className="space-y-2">
-            {groupMatches.map((match) => {
+            {group.matches.map((match) => {
               const isCanceled = match.status === 'CANCELED';
               const rowContent = (
                 <>
