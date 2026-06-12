@@ -26,8 +26,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  TournamentConfigForm,
+  type TournamentConfigValue,
+} from './tournament/TournamentConfigForm';
 
 type Props = { initialSeasons: Season[] };
+
+const DEFAULT_TCFG: TournamentConfigValue = {
+  name: '',
+  kind: '正赛',
+  config: {
+    template: 'group-knockout',
+    groupCount: 2,
+    teamsPerGroup: 4,
+    advancingPerGroup: 2,
+    groupBestOf: 1,
+    knockoutBestOf: { SF: 3, FINAL: 5 },
+  },
+};
 
 export function SeasonManager({ initialSeasons }: Props) {
   const router = useRouter();
@@ -36,6 +53,9 @@ export function SeasonManager({ initialSeasons }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transitioningId, setTransitioningId] = useState<string | null>(null);
+  const [tcfg, setTcfg] = useState<TournamentConfigValue>(DEFAULT_TCFG);
+  const [tcfgValid, setTcfgValid] = useState(false);
+  const [tnameEdited, setTnameEdited] = useState(false);
 
   const activeSeason = initialSeasons.find((s) => s.status !== 'ARCHIVED') ?? null;
 
@@ -44,12 +64,22 @@ export function SeasonManager({ initialSeasons }: Props) {
     const res = await fetch('/api/seasons', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, teamBudget: Number(teamBudget) }),
+      body: JSON.stringify({
+        name,
+        teamBudget: Number(teamBudget),
+        tournament: {
+          name: tcfg.name || undefined,
+          kind: tcfg.kind,
+          config: tcfg.config,
+        },
+      }),
     });
     setSubmitting(false);
     if (res.status === 201) {
       setName('');
       setTeamBudget('');
+      setTcfg(DEFAULT_TCFG);
+      setTnameEdited(false);
       router.refresh();
       toast.success('赛季已创建');
     } else {
@@ -146,28 +176,47 @@ export function SeasonManager({ initialSeasons }: Props) {
       <h1 className="text-xl font-semibold">赛季管理</h1>
 
       {/* Create form */}
-      <form onSubmit={handleCreate} className="flex items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">赛季名</label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="例：2025 Spring"
-            required
+      <form onSubmit={handleCreate} className="space-y-4 max-w-xl">
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">赛季名</label>
+            <Input
+              value={name}
+              onChange={(e) => {
+                const v = e.target.value;
+                setName(v);
+                if (!tnameEdited) setTcfg((p) => ({ ...p, name: v }));
+              }}
+              placeholder="例：2025 Spring"
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">队伍预算</label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={teamBudget}
+              onChange={(e) => setTeamBudget(e.target.value)}
+              placeholder="预算"
+              required
+            />
+          </div>
+        </div>
+
+        {/* 赛事设置 */}
+        <div className="rounded-md border p-4 space-y-3">
+          <p className="text-sm font-medium">赛事设置</p>
+          <TournamentConfigForm
+            value={tcfg}
+            onChange={setTcfg}
+            onValidityChange={setTcfgValid}
+            showNameField
+            onNameUserEdit={() => setTnameEdited(true)}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">队伍预算</label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={teamBudget}
-            onChange={(e) => setTeamBudget(e.target.value)}
-            placeholder="预算"
-            required
-          />
-        </div>
-        <Button type="submit" disabled={submitting}>
+
+        <Button type="submit" disabled={submitting || !tcfgValid || !name.trim() || !teamBudget}>
           <LoadingButtonContent loading={submitting} loadingText="创建中…">
             新建赛季
           </LoadingButtonContent>
