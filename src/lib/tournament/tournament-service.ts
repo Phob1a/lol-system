@@ -71,20 +71,87 @@ export async function createTournamentShell(
   return t;
 }
 
-export async function deleteTournament(
+/** 清空赛事结构：阶段（级联组/组队/比赛→局/edges）+ 参赛队快照。调用方保证在事务内。 */
+export async function clearTournamentStructure(tx: Db, tournamentId: string): Promise<void> {
+  await tx.tournamentStage.deleteMany({ where: { tournamentId } }); // 级联 groups/groupTeams/matches/games/edges
+  await tx.tournamentTeam.deleteMany({ where: { tournamentId } });
+}
+
+/**
+ * 修改赛事配置。
+ * - name/kind：status ≠ FINISHED 可改。
+ * - config：仅 status = SETUP；清空结构后按新 config 重建骨架（快照同被清空）。
+ */
+export async function updateTournamentConfig(
   db: PrismaClient,
-  input: { tournamentId: string; actorUserId: string },
-): Promise<void> {
+  input: { tournamentId: string; name?: string; kind?: string; config?: GroupKnockoutConfig; actorUserId: string },
+): Promise<Tournament> {
   const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  await db.$transaction(async (tx) => {
-    await tx.tournament.delete({ where: { id: t.id } }); // 全链 Cascade
+  await assertSeasonWritableBySeasonId(db, t.seasonId);
+
+  const wantsName = input.name !== undefined;
+  const wantsKind = input.kind !== undefined;
+  const wantsConfig = input.config !== undefined;
+
+  if ((wantsName || wantsKind) && t.status === 'FINISHED')
+    throw new TournamentError('INVALID_STATE', '赛事已结束，不能修改');
+  if (wantsConfig && t.status !== 'SETUP')
+    throw new TournamentError('INVALID_STATE', '仅 SETUP 状态可修改赛制配置');
+
+  const validated = wantsConfig ? groupKnockout.validate(input.config!) : null;
+
+  return db.$transaction(async (tx) => {
+    if (validated) {
+      await clearTournamentStructure(tx, input.tournamentId);
+      await createSkeletonRecords(tx, input.tournamentId, validated);
+    }
+    const updated = await tx.tournament.update({
+      where: { id: input.tournamentId },
+      data: {
+        ...(wantsName ? { name: input.name } : {}),
+        ...(wantsKind ? { kind: input.kind } : {}),
+        ...(validated ? { config: validated } : {}),
+      },
+    });
     await writeAudit(tx, {
       userId: input.actorUserId,
-      action: 'tournament.delete',
+      action: 'tournament.config.update',
       entity: 'Tournament',
-      entityId: t.id,
-      payload: { name: t.name },
+      entityId: input.tournamentId,
+      payload: {
+        ...(wantsName ? { name: input.name } : {}),
+        ...(wantsKind ? { kind: input.kind } : {}),
+        ...(validated ? { config: validated as object } : {}),
+      },
     });
+    return updated;
+  });
+}
+
+/** 重置赛事：清空结构 + 比分 → 按当前 config 重建骨架 → status 回 SETUP。 */
+export async function resetTournament(
+  db: PrismaClient,
+  input: { tournamentId: string; actorUserId: string },
+): Promise<Tournament> {
+  const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
+  if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
+  await assertSeasonWritableBySeasonId(db, t.seasonId);
+  const config = groupKnockout.validate(t.config);
+
+  return db.$transaction(async (tx) => {
+    await clearTournamentStructure(tx, input.tournamentId);
+    await createSkeletonRecords(tx, input.tournamentId, config);
+    const updated = await tx.tournament.update({
+      where: { id: input.tournamentId },
+      data: { status: 'SETUP' },
+    });
+    await writeAudit(tx, {
+      userId: input.actorUserId,
+      action: 'tournament.reset',
+      entity: 'Tournament',
+      entityId: input.tournamentId,
+    });
+    return updated;
   });
 }
