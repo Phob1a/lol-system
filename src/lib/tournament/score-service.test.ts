@@ -1,28 +1,10 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { cancelMatch, deleteGame, recordGame, setWalkover } from './score-service';
-import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
+import { setupGroupStage } from './score-service.test-helpers';
 
 beforeEach(resetDb);
-
-/** 完整走到小组赛开打的夹具 */
-export async function setupGroupStage() {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-  const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
-  await assignGroups(testDb, {
-    tournamentId: t.id,
-    assignments: [
-      { groupId: groups[0].id, teamIds: teamIds.slice(0, 4) },
-      { groupId: groups[1].id, teamIds: teamIds.slice(4) },
-    ],
-    actorUserId: 'u',
-  });
-  await confirmGroups(testDb, { tournamentId: t.id, actorUserId: 'u' });
-  return { t, teamIds, groups, seasonId };
-}
 
 it('BO1 录一局即完赛，winner 物化', async () => {
   await setupGroupStage();

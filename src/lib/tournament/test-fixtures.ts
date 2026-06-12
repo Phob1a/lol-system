@@ -65,3 +65,29 @@ export const CFG_2x4x2 = {
   groupBestOf: 1 as const,
   knockoutBestOf: { SF: 3 as const, FINAL: 5 as const },
 };
+
+/** 把指定 tournament 内某队的快照补到 5 名 registration（直接造 reg + tournamentTeamPlayer，绕过 slot），返回该队 5 个 registrationId。 */
+export async function expandRosterTo5(tournamentId: string, teamId: string): Promise<string[]> {
+  const team = (await testDb.team.findUnique({ where: { id: teamId } }))!;
+  const tt = (await testDb.tournamentTeam.findFirst({ where: { tournamentId, teamId } }))!;
+  const regIds: string[] = (
+    await testDb.tournamentTeamPlayer.findMany({ where: { tournamentTeamId: tt.id }, select: { registrationId: true } })
+  ).map((x) => x.registrationId);
+  let i = regIds.length;
+  while (regIds.length < 5) {
+    const player = await testDb.player.create({
+      data: { gameId: `p-${teamId.slice(-4)}-${i}-${Math.random().toString(36).slice(2, 8)}`, nickname: `选手${i}` },
+    });
+    const reg = await testDb.registration.create({
+      data: {
+        seasonId: team.seasonId, playerId: player.id, nickname: `选手${i}`,
+        primaryPositions: ['MID'], secondaryPositions: [], currentRank: 'GOLD', peakRank: 'PLATINUM',
+        cost: 100, status: 'ACTIVE',
+      },
+    });
+    await testDb.tournamentTeamPlayer.create({ data: { tournamentTeamId: tt.id, registrationId: reg.id } });
+    regIds.push(reg.id);
+    i++;
+  }
+  return regIds.slice(0, 5);
+}
