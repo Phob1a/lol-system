@@ -491,10 +491,12 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
     <div className="space-y-4 pt-4">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          自定义比赛
-        </Button>
+        {tournament.status !== 'SETUP' && (
+          <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            自定义比赛
+          </Button>
+        )}
 
         {showCloseGroups && (
           <Button size="sm" disabled={closingGroups} onClick={() => void handleCloseGroups()}>
