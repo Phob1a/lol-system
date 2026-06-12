@@ -1,18 +1,27 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type { AdminState } from '@/hooks/useTournamentState';
 import type { GroupKnockoutConfig } from '@/lib/tournament/types';
+import {
+  applyGroupDrop,
+  getUnassignedTeamIds,
+  type GroupDragSource,
+  type GroupDropTarget,
+} from '@/lib/tournament/group-assignment-drag';
+import { cn } from '@/lib/utils';
 
 type Team = { id: string; name: string };
 
@@ -35,6 +44,7 @@ export function GroupsTab({ teams, state, refetch }: Props) {
   const [assignments, setAssignments] = useState<string[][]>([]);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const tournament = state?.tournament ?? null;
   const standings = useMemo(() => state?.standings ?? [], [state?.standings]);
@@ -82,26 +92,6 @@ export function GroupsTab({ teams, state, refetch }: Props) {
     );
   }
 
-  function pickedExcluding(groupIdx: number, slotIdx: number): Set<string> {
-    const picked = new Set<string>();
-    assignments.forEach((row, gi) => {
-      row.forEach((tid, si) => {
-        if (tid && !(gi === groupIdx && si === slotIdx)) {
-          picked.add(tid);
-        }
-      });
-    });
-    return picked;
-  }
-
-  function setSlot(groupIdx: number, slotIdx: number, teamId: string) {
-    setAssignments((prev) => {
-      const next = prev.map((row) => [...row]);
-      next[groupIdx][slotIdx] = teamId;
-      return next;
-    });
-  }
-
   function handleRandomize() {
     const shuffled = shuffle(teams);
     const result: string[][] = [];
@@ -122,6 +112,13 @@ export function GroupsTab({ teams, state, refetch }: Props) {
       groupId: g.groupId,
       teamIds: (assignments[gi] ?? []).filter(Boolean),
     }));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const source = event.active.data.current as GroupDragSource | undefined;
+    const target = event.over?.data.current as GroupDropTarget | undefined;
+    if (!source || !target) return;
+    setAssignments((prev) => applyGroupDrop(prev, source, target));
   }
 
   async function handleSave() {
@@ -190,6 +187,8 @@ export function GroupsTab({ teams, state, refetch }: Props) {
     standings.length > 0
       ? standings.map((g) => g.name)
       : Array.from({ length: groupCount }, (_, i) => `第 ${i + 1} 组`);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const unassignedIds = getUnassignedTeamIds(teams.map((t) => t.id), assignments);
 
   return (
     <div className="space-y-6 pt-4">
@@ -218,43 +217,128 @@ export function GroupsTab({ teams, state, refetch }: Props) {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: groupCount }, (_, gi) => (
-          <div key={gi} className="rounded-md border p-4 space-y-3">
-            <h3 className="text-sm font-semibold">{groupNames[gi] ?? `第 ${gi + 1} 组`}</h3>
-            {Array.from({ length: teamsPerGroup }, (_, si) => {
-              const currentId = assignments[gi]?.[si] ?? '';
-              const picked = pickedExcluding(gi, si);
-              const currentTeam = teams.find((t) => t.id === currentId);
-              const availableTeams = teams.filter((t) => !picked.has(t.id));
-              // ensure current is in available list
-              const showCurrent = currentId && !availableTeams.find((t) => t.id === currentId);
-              return (
-                <Select
-                  key={si}
-                  value={currentId || '__empty__'}
-                  onValueChange={(v) => setSlot(gi, si, v === '__empty__' ? '' : v)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择队伍" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__empty__">—</SelectItem>
-                    {availableTeams.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                    {showCurrent && currentTeam && (
-                      <SelectItem value={currentTeam.id}>{currentTeam.name}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              );
-            })}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
+          <TeamPool teams={unassignedIds.map((id) => teamById.get(id)).filter((t): t is Team => !!t)} />
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: groupCount }, (_, gi) => (
+              <div key={gi} className="space-y-3 rounded-md border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">{groupNames[gi] ?? `第 ${gi + 1} 组`}</h3>
+                  <span className="text-xs text-muted-foreground">
+                    {(assignments[gi] ?? []).filter(Boolean).length}/{teamsPerGroup}
+                  </span>
+                </div>
+                {Array.from({ length: teamsPerGroup }, (_, si) => {
+                  const teamId = assignments[gi]?.[si] ?? '';
+                  return (
+                    <GroupSlot
+                      key={si}
+                      groupIdx={gi}
+                      slotIdx={si}
+                      team={teamId ? teamById.get(teamId) ?? null : null}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+      </DndContext>
+    </div>
+  );
+}
+
+function TeamPool({ teams }: { teams: Team[] }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'group-team-pool',
+    data: { type: 'pool' } satisfies GroupDropTarget,
+  });
+
+  return (
+    <section
+      ref={setNodeRef}
+      data-testid="group-team-pool"
+      className={cn(
+        'space-y-2 rounded-md border border-dashed p-3 transition-colors',
+        isOver && 'border-primary bg-primary/5',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">未分配队伍</h3>
+        <span className="text-xs text-muted-foreground">{teams.length}</span>
       </div>
+      <div className="space-y-2">
+        {teams.map((team) => (
+          <DraggableTeamCard key={team.id} team={team} source={{ teamId: team.id, from: 'pool' }} />
+        ))}
+        {teams.length === 0 && (
+          <div className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
+            已全部分配
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function GroupSlot({
+  groupIdx,
+  slotIdx,
+  team,
+}: {
+  groupIdx: number;
+  slotIdx: number;
+  team: Team | null;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-slot-${groupIdx}-${slotIdx}`,
+    data: { type: 'slot', groupIdx, slotIdx } satisfies GroupDropTarget,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`group-slot-${groupIdx}-${slotIdx}`}
+      className={cn(
+        'min-h-12 rounded-md border border-dashed p-2 transition-colors',
+        isOver && 'border-primary bg-primary/5',
+      )}
+    >
+      {team ? (
+        <DraggableTeamCard
+          team={team}
+          source={{ teamId: team.id, from: 'slot', groupIdx, slotIdx }}
+        />
+      ) : (
+        <div className="flex h-8 items-center justify-center text-xs text-muted-foreground">
+          拖入队伍
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DraggableTeamCard({ team, source }: { team: Team; source: GroupDragSource }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `group-team-${team.id}`,
+    data: source,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`group-team-card-${team.id}`}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        'rounded-md border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50',
+        'cursor-grab active:cursor-grabbing',
+        isDragging && 'opacity-40',
+      )}
+    >
+      {team.name}
     </div>
   );
 }
