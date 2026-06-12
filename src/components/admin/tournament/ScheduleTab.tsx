@@ -33,14 +33,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScoreDialog } from './ScoreDialog';
-import type { PublicState } from '@/hooks/useTournamentState';
+import type { AdminState } from '@/hooks/useTournamentState';
 
 type Team = { id: string; name: string };
-type MatchRow = NonNullable<PublicState>['matches'][number];
+type MatchRow = NonNullable<AdminState>['matches'][number];
 
 type Props = {
   teams: Team[];
-  state: PublicState;
+  state: AdminState;
   refetch: () => Promise<void>;
 };
 
@@ -74,7 +74,7 @@ function stageLabel(m: MatchRow): string {
   return '自定义';
 }
 
-function roundLabel(m: MatchRow, standings: NonNullable<PublicState>['standings']): string {
+function roundLabel(m: MatchRow, standings: NonNullable<AdminState>['standings']): string {
   if (m.groupId) {
     const g = standings.find((s) => s.groupId === m.groupId);
     return g?.name ?? '未知组';
@@ -165,9 +165,9 @@ function AddMatchDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  tournament: NonNullable<PublicState>['tournament'];
+  tournament: NonNullable<AdminState>['tournament'];
   teams: Team[];
-  standings: NonNullable<PublicState>['standings'];
+  standings: NonNullable<AdminState>['standings'];
   refetch: () => Promise<void>;
 }) {
   const [groupId, setGroupId] = useState<string>('__none__');

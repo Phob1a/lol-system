@@ -1,6 +1,6 @@
 'use client';
 
-import { useTournamentState } from '@/hooks/useTournamentState';
+import { useAdminTournamentState } from '@/hooks/useTournamentState';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SetupTab } from './SetupTab';
 import { GroupsTab } from './GroupsTab';
@@ -14,7 +14,7 @@ type Props = {
 };
 
 export function TournamentAdmin({ seasonId, teams }: Props) {
-  const { state, loaded, refetch } = useTournamentState();
+  const { state, loaded, refetch } = useAdminTournamentState(seasonId);
 
   if (!loaded) {
     return <div className="text-muted-foreground text-sm">加载中…</div>;

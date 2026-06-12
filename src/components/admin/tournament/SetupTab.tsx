@@ -5,11 +5,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { TournamentConfigForm, type TournamentConfigValue } from './TournamentConfigForm';
-import type { PublicState } from '@/hooks/useTournamentState';
+import type { AdminState } from '@/hooks/useTournamentState';
 
 type Props = {
   seasonId: string;
-  state: PublicState;
+  state: AdminState;
   refetch: () => Promise<void>;
 };
 
@@ -29,25 +29,18 @@ const DEFAULT_CONFIG: TournamentConfigValue = {
 function tournamentToConfigValue(t: {
   name: string;
   kind: string;
-  config: unknown;
+  config: import('@/lib/tournament/types').GroupKnockoutConfig;
 }): TournamentConfigValue {
-  const cfg = t.config as {
-    groupCount?: number;
-    teamsPerGroup?: number;
-    advancingPerGroup?: number;
-    groupBestOf?: 1 | 3 | 5;
-    knockoutBestOf?: Record<string, 1 | 3 | 5>;
-  } | null | undefined;
   return {
     name: t.name,
     kind: t.kind,
     config: {
       template: 'group-knockout',
-      groupCount: cfg?.groupCount ?? 2,
-      teamsPerGroup: cfg?.teamsPerGroup ?? 4,
-      advancingPerGroup: cfg?.advancingPerGroup ?? 2,
-      groupBestOf: cfg?.groupBestOf ?? 1,
-      knockoutBestOf: cfg?.knockoutBestOf ?? {},
+      groupCount: t.config.groupCount,
+      teamsPerGroup: t.config.teamsPerGroup,
+      advancingPerGroup: t.config.advancingPerGroup,
+      groupBestOf: t.config.groupBestOf,
+      knockoutBestOf: t.config.knockoutBestOf,
     },
   };
 }

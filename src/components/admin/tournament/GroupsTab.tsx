@@ -11,14 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { PublicState } from '@/hooks/useTournamentState';
+import type { AdminState } from '@/hooks/useTournamentState';
 import type { GroupKnockoutConfig } from '@/lib/tournament/types';
 
 type Team = { id: string; name: string };
 
 type Props = {
   teams: Team[];
-  state: PublicState;
+  state: AdminState;
   refetch: () => Promise<void>;
 };
 
