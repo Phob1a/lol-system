@@ -2,11 +2,8 @@ import { testDb } from '@/lib/test/db';
 import { createTournamentShell } from './tournament-service';
 import type { GroupKnockoutConfig } from './types';
 
-/** 造一个 season + n 支队（每队 1 个队长报名 + user），返回 ids */
-export async function seedSeasonWithTeams(n: number) {
-  const season = await testDb.season.create({
-    data: { name: 'S-test', status: 'COMPLETED', teamBudget: 1000 },
-  });
+/** 在已存在的 season 内造 n 支队（每队 1 队长报名 + user + 1 个占用 MID 的 slot），返回 teamIds。 */
+export async function seedTeamsForSeason(seasonId: string, n: number): Promise<string[]> {
   const teamIds: string[] = [];
   for (let i = 0; i < n; i++) {
     const player = await testDb.player.create({
@@ -14,29 +11,30 @@ export async function seedSeasonWithTeams(n: number) {
     });
     const reg = await testDb.registration.create({
       data: {
-        seasonId: season.id,
-        playerId: player.id,
-        nickname: `队长${i}`,
-        primaryPositions: ['MID'],
-        secondaryPositions: [],
-        currentRank: 'GOLD',
-        peakRank: 'PLATINUM',
-        cost: 100,
-        status: 'ACTIVE',
-        isCaptain: true,
+        seasonId, playerId: player.id, nickname: `队长${i}`,
+        primaryPositions: ['MID'], secondaryPositions: [],
+        currentRank: 'GOLD', peakRank: 'PLATINUM', cost: 100,
+        status: 'ACTIVE', isCaptain: true,
       },
     });
     const user = await testDb.user.create({
-      data: { username: `cap-${i}-${season.id.slice(-4)}`, passwordHash: 'x', role: 'CAPTAIN' },
+      data: { username: `cap-${i}-${seasonId.slice(-4)}-${Math.random().toString(36).slice(2, 6)}`, passwordHash: 'x', role: 'CAPTAIN' },
     });
     const team = await testDb.team.create({
-      data: { seasonId: season.id, name: `队伍${i}`, captainId: reg.id, userId: user.id },
+      data: { seasonId, name: `队伍${i}`, captainId: reg.id, userId: user.id },
     });
-    await testDb.teamSlot.create({
-      data: { teamId: team.id, position: 'MID', registrationId: reg.id },
-    });
+    await testDb.teamSlot.create({ data: { teamId: team.id, position: 'MID', registrationId: reg.id } });
     teamIds.push(team.id);
   }
+  return teamIds;
+}
+
+/** 造一个 season + n 支队（每队 1 个队长报名 + user），返回 ids */
+export async function seedSeasonWithTeams(n: number) {
+  const season = await testDb.season.create({
+    data: { name: 'S-test', status: 'COMPLETED', teamBudget: 1000 },
+  });
+  const teamIds = await seedTeamsForSeason(season.id, n);
   return { seasonId: season.id, teamIds };
 }
 

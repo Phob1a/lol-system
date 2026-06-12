@@ -70,86 +70,77 @@ test.describe('Tournament M1 E2E', () => {
     await ss(page, '03-admin-tournament-initial');
     console.log('[nav] At /admin/tournament');
 
-    // ─── Pre-check: delete any existing tournament ────────────────────────
+    // ─── Pre-check: reset any existing tournament ────────────────────────
     const dangerZone = page.locator('text=危险区');
     if (await dangerZone.isVisible({ timeout: 1500 }).catch(() => false)) {
-      console.log('[setup] Tournament already exists — deleting');
+      console.log('[setup] Tournament already exists — resetting');
       const stateResp = await apiGet(page, '/api/tournament/public/state');
       const tName = stateResp?.state?.tournament?.name ?? '';
 
-      const deleteBtn = page.locator('button:has-text("删除赛事")');
+      const resetBtn = page.locator('button:has-text("重置赛事")');
       page.on('dialog', async dialog => {
         if (dialog.type() === 'confirm') await dialog.accept();
         else if (dialog.type() === 'prompt') await dialog.accept(tName);
       });
-      await deleteBtn.click();
+      await resetBtn.click();
       await page.waitForTimeout(2500);
-      await ss(page, '03b-after-delete');
-      console.log('[setup] Tournament deleted');
+      await ss(page, '03b-after-reset');
+      console.log('[setup] Tournament reset to SETUP');
+      // Tournament still exists after reset — navigate to groups flow directly
       await nav(page, `${BASE}/admin/tournament`);
-      await page.waitForSelector('input#t-name', { timeout: 10000 });
-    }
+      await page.waitForSelector('[role="tablist"]', { timeout: 10000 });
+    } else {
+      // No existing tournament — use SetupTab fallback create form
+      // ─── Step 2: SetupTab — fill create form ─────────────────────────────
+      await page.locator('input#t-name').fill('S-E2E 测试赛');
 
-    // ─── Step 2: SetupTab — fill create form ─────────────────────────────
-    await page.locator('input#t-name').fill('S-E2E 测试赛');
-
-    // Kind select — Radix UI renders as button[role="combobox"]
-    await page.locator('button[role="combobox"]').first().click();
-    await page.waitForTimeout(300);
-    await page.locator('[role="option"]:has-text("娱乐赛")').click();
-    await page.waitForTimeout(200);
-
-    // Structure: 2 groups × 4 teams × 2 advancing
-    await page.locator('input#t-groups').fill('2');
-    await page.locator('input#t-tpg').fill('4');
-    await page.locator('input#t-apg').fill('2');
-    await page.waitForTimeout(600);
-
-    // Wait for SF/FINAL round-key selects to appear
-    await page.waitForSelector('text=SF', { timeout: 5000 });
-
-    // Enumerate all comboboxes: [0]=kind, [1]=groupBO, [2]=SF BO, [3]=FINAL BO
-    const boTriggers = page.locator('button[role="combobox"]');
-    const boCount = await boTriggers.count();
-    console.log(`[setup] Select triggers found: ${boCount}`);
-
-    if (boCount >= 3) {
-      // SF = BO3
-      await boTriggers.nth(2).click();
+      // Kind select — Radix UI renders as button[role="combobox"]
+      await page.locator('button[role="combobox"]').first().click();
+      await page.waitForTimeout(300);
+      await page.locator('[role="option"]:has-text("娱乐赛")').click();
       await page.waitForTimeout(200);
-      await page.locator('[role="option"]:has-text("BO3")').click();
-      await page.waitForTimeout(200);
-    }
-    if (boCount >= 4) {
-      // FINAL = BO5
-      await boTriggers.nth(3).click();
-      await page.waitForTimeout(200);
-      await page.locator('[role="option"]:has-text("BO5")').click();
-      await page.waitForTimeout(200);
-    }
 
-    // Select all 8 team checkboxes — Radix Checkbox renders as button[role="checkbox"]
-    const teamCheckboxes = page.locator('button[role="checkbox"]');
-    const cbCount = await teamCheckboxes.count();
-    console.log(`[setup] Team checkboxes: ${cbCount}`);
-    for (let i = 0; i < cbCount; i++) {
-      const cb = teamCheckboxes.nth(i);
-      const ariaChecked = await cb.getAttribute('aria-checked').catch(() => 'false');
-      if (ariaChecked !== 'true') {
-        await cb.click({ force: true });
-        await page.waitForTimeout(60);
+      // Structure: 2 groups × 4 teams × 2 advancing
+      await page.locator('input#t-groups').fill('2');
+      await page.locator('input#t-tpg').fill('4');
+      await page.locator('input#t-apg').fill('2');
+      await page.waitForTimeout(600);
+
+      // Wait for SF/FINAL round-key selects to appear
+      await page.waitForSelector('text=SF', { timeout: 5000 });
+
+      // Enumerate all comboboxes: [0]=kind, [1]=groupBO, [2]=SF BO, [3]=FINAL BO
+      const boTriggers = page.locator('button[role="combobox"]');
+      const boCount = await boTriggers.count();
+      console.log(`[setup] Select triggers found: ${boCount}`);
+
+      if (boCount >= 3) {
+        // SF = BO3
+        await boTriggers.nth(2).click();
+        await page.waitForTimeout(200);
+        await page.locator('[role="option"]:has-text("BO3")').click();
+        await page.waitForTimeout(200);
       }
+      if (boCount >= 4) {
+        // FINAL = BO5
+        await boTriggers.nth(3).click();
+        await page.waitForTimeout(200);
+        await page.locator('[role="option"]:has-text("BO5")').click();
+        await page.waitForTimeout(200);
+      }
+
+      // Note: admin create-form no longer has team checkboxes — teams come from season
+
+      await ss(page, '04-setup-form-filled');
+
+      // Submit
+      const createBtn = page.locator('button:has-text("创建赛事")');
+      await expect(createBtn).toBeEnabled({ timeout: 5000 });
+      await createBtn.click();
+      await page.waitForTimeout(2500);
+      await ss(page, '05-setup-created');
+      console.log('[setup] Tournament created');
     }
-
-    await ss(page, '04-setup-form-filled');
-
-    // Submit
-    const createBtn = page.locator('button:has-text("创建赛事")');
-    await expect(createBtn).toBeEnabled({ timeout: 5000 });
-    await createBtn.click();
-    await page.waitForTimeout(2500);
-    await ss(page, '05-setup-created');
-    console.log('[setup] Tournament created');
 
     // ─── Step 3: GroupsTab — randomize + save + confirm ───────────────────
     await page.locator('[role="tab"]').filter({ hasText: '分组' }).click();
@@ -476,6 +467,6 @@ test.describe('Tournament M1 E2E', () => {
 
     console.log('[done] E2E complete');
     console.log(`[done] Screenshots: ${SCREENSHOTS_DIR}`);
-    console.log('[done] E2E season + tournament left in dev DB for demonstration');
+    console.log('[done] E2E season + tournament left in dev DB (reset to SETUP on next run)');
   });
 });
