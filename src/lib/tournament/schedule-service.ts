@@ -24,6 +24,7 @@ export async function addCustomMatch(
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
   await assertSeasonWritableBySeasonId(db, t.seasonId);
   if (t.status === 'FINISHED') throw new TournamentError('INVALID_STATE', '赛事已结束');
+  if (t.status === 'SETUP') throw new TournamentError('INVALID_STATE', '分组确认前不能添加自定义比赛');
   if (input.teamAId === input.teamBId) throw new TournamentError('VALIDATION', '双方不能相同');
   if (![1, 3, 5].includes(input.bestOf)) throw new TournamentError('VALIDATION', 'BO 数非法');
 

@@ -59,3 +59,16 @@ it('不挂组的表演赛：不计分，挂在 KNOCKOUT 阶段', async () => {
   expect(m.countsForStandings).toBe(false);
   expect(m.groupId).toBeNull();
 });
+
+it('SETUP 期添加自定义比赛被拒', async () => {
+  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
+  const t = await createTournament(testDb, { seasonId, name: 'x', teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  // 仍处于 SETUP（未 confirmGroups）
+  await expect(
+    addCustomMatch(testDb, {
+      tournamentId: t.id, groupId: null,
+      teamAId: teamIds[0], teamBId: teamIds[1],
+      bestOf: 1, label: 'x', countsForStandings: false, actorUserId: 'u',
+    }),
+  ).rejects.toThrow(/分组确认前/);
+});
