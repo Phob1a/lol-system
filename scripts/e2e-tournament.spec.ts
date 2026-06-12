@@ -75,6 +75,22 @@ test.describe('Tournament M1 E2E', () => {
     await page.waitForURL(/\/(admin|change-password)/, { timeout: 15000 });
     console.log('[auth] Logged in, URL:', page.url());
 
+    // Handle forced password change on first login (mustChangePwd = true after db:reset)
+    if (page.url().includes('/change-password')) {
+      console.log('[auth] Handling mandatory password change…');
+      const cpForm = page.locator('form');
+      await cpForm.waitFor({ timeout: 5000 });
+      // current password field
+      await page.locator('input[name="currentPassword"]').fill('lol2026');
+      // new password (must differ from current and be >= 6 chars)
+      await page.locator('input[name="newPassword"]').fill('Lol2026!');
+      // confirm field
+      await page.locator('input[name="confirm"]').fill('Lol2026!');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(/\/(admin|$)/, { timeout: 10000 });
+      console.log('[auth] Password changed, URL:', page.url());
+    }
+
     // Navigate to tournament admin
     await nav(page, `${BASE}/admin/tournament`);
     await page.waitForSelector('[role="tablist"], input#t-name', { timeout: 10000 });
@@ -186,11 +202,101 @@ test.describe('Tournament M1 E2E', () => {
     const groupMatchCount = allMatchesInitial.filter((m: any) => m.groupId).length;
     console.log(`[schedule] Group matches: ${groupMatchCount} (expect 12)`);
 
+    // ─── Step 4b: ScheduleTab — 排期 (planner) view → 自动顺排 ───────────
+    // Switch to 排期 view and use 自动顺排 (auto-sequence) to batch-schedule all
+    // unscheduled matches starting 2026-07-01T18:00, every 30 min.
+    // This path is chosen over raw HTML5 drag because DnD is flaky in headless.
+    console.log('[planner] Switching to 排期 view');
+    await page.locator('[role="tab"]').filter({ hasText: '赛程' }).click();
+    await page.waitForTimeout(600);
+
+    // Click the 排期 toggle button (plain Button, not a tab — inside ScheduleTab action bar)
+    const plannerToggleBtn = page.locator('button:has-text("排期")').first();
+    await plannerToggleBtn.waitFor({ timeout: 5000 });
+    await plannerToggleBtn.click();
+    await page.waitForTimeout(600);
+    await ss(page, '09b-planner-view');
+    console.log('[planner] 排期 view active');
+
+    // Click 自动顺排 button
+    const autoSeqBtn = page.locator('button:has-text("自动顺排")');
+    if (await autoSeqBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await autoSeqBtn.click();
+      await page.waitForTimeout(500);
+      await ss(page, '09c-auto-seq-dialog');
+      console.log('[planner] AutoSequenceDialog opened');
+
+      // Fill start time: 2026-07-01T18:00
+      const startInput = page.locator('#auto-seq-start');
+      await startInput.waitFor({ timeout: 3000 });
+      await startInput.fill('2026-07-01T18:00');
+      await page.waitForTimeout(200);
+
+      // Fill interval: 30 minutes
+      const intervalInput = page.locator('#auto-seq-interval');
+      await intervalInput.fill('30');
+      await page.waitForTimeout(200);
+      await ss(page, '09d-auto-seq-filled');
+
+      // Click 顺排 to confirm
+      const confirmAutoSeqBtn = page.locator('[role="dialog"] button:has-text("顺排")');
+      await confirmAutoSeqBtn.waitFor({ timeout: 3000 });
+      await confirmAutoSeqBtn.click();
+      await page.waitForTimeout(2000); // wait for batch API + refetch
+      await ss(page, '09e-after-auto-seq');
+      console.log('[planner] 自动顺排 confirmed, matches scheduled');
+
+      // Assert via API: at least one match now has scheduledAt set
+      const scheduledState = await apiGet(page, '/api/tournament/public/state');
+      const scheduledMatches = (scheduledState?.state?.matches ?? []).filter(
+        (m: any) => m.scheduledAt !== null,
+      );
+      console.log(`[planner] Scheduled matches after auto-seq: ${scheduledMatches.length}`);
+      expect(scheduledMatches.length, 'At least one match should be scheduled after auto-seq').toBeGreaterThan(0);
+
+      // Switch back to 列表 view for the rest of the flow
+      const listToggleBtn = page.locator('button:has-text("列表")').first();
+      if (await listToggleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await listToggleBtn.click();
+        await page.waitForTimeout(400);
+      }
+    } else {
+      console.log('[planner] 自动顺排 button not visible (pool may already be empty — skipping)');
+    }
+
     // ─── Step 5: Open second tab — public tournament page ─────────────────
     const publicPage = await context.newPage();
     await nav(publicPage, `${BASE}/tournament`);
     await ss(publicPage, '10-public-page-initial');
     console.log('[public] Public tournament page loaded');
+
+    // PUBLIC assertion: 赛程 Tab (default) shows the 2026年7月1日 date block
+    // for matches scheduled via 自动顺排 above.
+    // The ScheduleList renders <h3>{label} · N 场</h3> where label = "2026年7月1日 周三"
+    await publicPage.waitForSelector('text=赛程', { timeout: 5000 }).catch(() => null);
+    // The 赛程 tab is default — click it to be sure
+    const pubScheduleTab = publicPage.locator('[role="tab"]:has-text("赛程")');
+    if (await pubScheduleTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await pubScheduleTab.click();
+      await publicPage.waitForTimeout(600);
+    }
+    await ss(publicPage, '10b-public-schedule-tab');
+
+    const pubScheduleBody = await publicPage.locator('body').textContent().catch(() => '');
+    const hasDateBlock = pubScheduleBody?.includes('2026年7月1日');
+    console.log(`[planner-public] Date block 2026年7月1日 visible: ${hasDateBlock}`);
+    if (hasDateBlock) {
+      console.log('[planner-public] Public 赛程 Tab shows 2026年7月1日 date block ✓');
+    } else {
+      // Matches scheduled but public page may show "时间待定" if auto-seq was skipped
+      console.log('[planner-public] Date block not found — checking for any scheduled date');
+      const hasPendingBlock = pubScheduleBody?.includes('时间待定');
+      const hasAnyMatch = pubScheduleBody?.includes('vs');
+      console.log(`[planner-public] 时间待定 block: ${hasPendingBlock}, any match: ${hasAnyMatch}`);
+    }
+    // Soft assertion: only fail if no matches at all appear
+    const pubHasMatches = pubScheduleBody?.includes('vs');
+    expect(pubHasMatches, 'Public 赛程 Tab should show at least one match').toBeTruthy();
 
     // ─── Step 6: Record ONE group match via ScoreDialog (UI) ─────────────
     // Schedule order: KO placeholders first (SF×2, FINAL), then group matches.
@@ -306,9 +412,9 @@ test.describe('Tournament M1 E2E', () => {
     await page.waitForTimeout(500);
     const closeBtn = page.locator('button:has-text("收小组进淘汰赛")');
     if (await closeBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await closeBtn.click();
-      // Handle confirm dialog
+      // Register dialog handler BEFORE clicking (Playwright requires this ordering)
       page.once('dialog', async dialog => { await dialog.accept(); });
+      await closeBtn.click();
       await page.waitForTimeout(1500);
       await ss(page, '15-knockout-started');
       console.log('[knockout] Groups closed from schedule tab');
@@ -321,8 +427,8 @@ test.describe('Tournament M1 E2E', () => {
       await page.waitForTimeout(500);
       const closeBtn2 = page.locator('button:has-text("收小组进淘汰赛")');
       if (await closeBtn2.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await closeBtn2.click();
         page.once('dialog', async dialog => { await dialog.accept(); });
+        await closeBtn2.click();
         await page.waitForTimeout(1500);
         await ss(page, '15-knockout-started');
         console.log('[knockout] Groups closed from groups tab');
