@@ -7,6 +7,24 @@ import { cancelMatch, deleteGame, recordGame, rescheduleMatch } from '@/lib/tour
 import { toResponse } from '@/lib/tournament/route-errors';
 import { publishTournament } from '@/server/tournament-bus';
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (guard.error) return guard.error;
+  const { id } = await params;
+  const match = await prisma.match.findUnique({
+    where: { id },
+    include: {
+      games: {
+        where: { isDraft: false },
+        orderBy: { index: 'asc' },
+        select: { id: true, index: true, winnerTeamId: true },
+      },
+    },
+  });
+  if (!match) return NextResponse.json({ error: '比赛不存在' }, { status: 404 });
+  return NextResponse.json({ match });
+}
+
 const patchSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('reschedule'), expectedVersion: z.number().int(), scheduledAt: z.string().datetime().nullable() }),
   z.object({ op: z.literal('cancel'), expectedVersion: z.number().int() }),
