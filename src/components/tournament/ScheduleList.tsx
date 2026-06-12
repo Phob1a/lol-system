@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import type { PublicState } from '@/hooks/useTournamentState';
 
@@ -65,38 +66,55 @@ export function ScheduleList({ matches }: Props) {
             {dateKey}
           </h3>
           <div className="space-y-2">
-            {groupMatches.map((match) => (
-              <div
-                key={match.id}
-                className="flex items-center justify-between border rounded-md px-4 py-3 text-sm"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {match.scheduledAt && (
-                    <span className="text-muted-foreground shrink-0 tabular-nums">
-                      {new Date(match.scheduledAt).toLocaleString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+            {groupMatches.map((match) => {
+              const isCanceled = match.status === 'CANCELED';
+              const rowContent = (
+                <>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {match.scheduledAt && (
+                      <span className="text-muted-foreground shrink-0 tabular-nums">
+                        {new Date(match.scheduledAt).toLocaleString('zh-CN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    )}
+                    {match.label && (
+                      <span className="text-muted-foreground shrink-0">
+                        {match.label}
+                      </span>
+                    )}
+                    <span className="font-medium truncate">
+                      {match.teamA?.name ?? '待定'}
                     </span>
-                  )}
-                  {match.label && (
-                    <span className="text-muted-foreground shrink-0">
-                      {match.label}
+                    <span className="text-muted-foreground shrink-0">vs</span>
+                    <span className="font-medium truncate">
+                      {match.teamB?.name ?? '待定'}
                     </span>
-                  )}
-                  <span className="font-medium truncate">
-                    {match.teamA?.name ?? '待定'}
-                  </span>
-                  <span className="text-muted-foreground shrink-0">vs</span>
-                  <span className="font-medium truncate">
-                    {match.teamB?.name ?? '待定'}
-                  </span>
+                  </div>
+                  <div className="shrink-0 ml-4">
+                    <StatusBadge match={match} />
+                  </div>
+                </>
+              );
+
+              return isCanceled ? (
+                <div
+                  key={match.id}
+                  className="flex items-center justify-between border rounded-md px-4 py-3 text-sm"
+                >
+                  {rowContent}
                 </div>
-                <div className="shrink-0 ml-4">
-                  <StatusBadge match={match} />
-                </div>
-              </div>
-            ))}
+              ) : (
+                <Link
+                  key={match.id}
+                  href={`/tournament/match/${match.id}`}
+                  className="flex items-center justify-between border rounded-md px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                >
+                  {rowContent}
+                </Link>
+              );
+            })}
           </div>
         </div>
       ))}
