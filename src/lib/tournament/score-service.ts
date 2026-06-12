@@ -214,3 +214,69 @@ export async function rescheduleMatch(
     });
   });
 }
+
+const MAX_BATCH = 200;
+
+/**
+ * 批量改期（spec §2.1）：全部校验与写入在同一事务内，all-or-nothing。
+ * reschedule 不触碰结算，version 仅作并发标记（与单场 rescheduleMatch 一致）。
+ */
+export async function rescheduleMatches(
+  db: PrismaClient,
+  input: {
+    items: Array<{ matchId: string; expectedVersion: number; scheduledAt: Date | null }>;
+    actorUserId: string;
+  },
+): Promise<void> {
+  const { items } = input;
+  return db.$transaction(async (tx) => {
+    // (a) items 非空 / ≤200 / matchId 唯一
+    if (items.length === 0) throw new TournamentError('VALIDATION', '改期列表不能为空');
+    if (items.length > MAX_BATCH) throw new TournamentError('VALIDATION', `单次改期不能超过 ${MAX_BATCH} 项`);
+    const ids = items.map((i) => i.matchId);
+    if (new Set(ids).size !== ids.length) throw new TournamentError('VALIDATION', '比赛重复');
+
+    // (b) 一次性 load 全部 match（缺任一 → MATCH_NOT_FOUND）
+    const found = await tx.match.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, tournamentId: true },
+    });
+    if (found.length !== ids.length) throw new TournamentError('MATCH_NOT_FOUND', '部分比赛不存在');
+
+    // (c) 全部同属一个 tournament
+    const tournamentIds = new Set(found.map((m) => m.tournamentId));
+    if (tournamentIds.size !== 1) throw new TournamentError('VALIDATION', '批量改期必须属于同一赛事');
+    const tournamentId = found[0].tournamentId;
+
+    // 赛季可写校验——复用现有守卫双条件语义（status==='ARCHIVED' || archivedAt!==null）；
+    // 归档 → 抛 INVALID_STATE。绝不内联只判 archivedAt 的简化版。
+    // （等价内联，若为省 DB 往返：
+    //    const t = await tx.tournament.findUnique({
+    //      where: { id: tournamentId },
+    //      select: { season: { select: { status: true, archivedAt: true } } },
+    //    });
+    //    if (t!.season.status === 'ARCHIVED' || t!.season.archivedAt !== null)
+    //      throw new TournamentError('INVALID_STATE', '赛季已归档，赛事只读');
+    //  —— 必须保留 status||archivedAt 双条件，与 assertSeasonWritableBySeasonId 一致。）
+    await assertSeasonWritable(tx, tournamentId);
+
+    // (d) 逐项乐观锁 CAS（count=0 → VERSION_CONFLICT，整体回滚）
+    for (const it of items) {
+      const res = await tx.match.updateMany({
+        where: { id: it.matchId, version: it.expectedVersion },
+        data: { scheduledAt: it.scheduledAt, version: { increment: 1 } },
+      });
+      if (res.count === 0)
+        throw new TournamentError('VERSION_CONFLICT', 'VERSION_CONFLICT：部分比赛已被修改，请刷新');
+    }
+
+    // (e) 审计一条
+    await writeAudit(tx, {
+      userId: input.actorUserId,
+      action: 'match.schedule.batch',
+      entity: 'Tournament',
+      entityId: tournamentId,
+      payload: { count: items.length },
+    });
+  });
+}
