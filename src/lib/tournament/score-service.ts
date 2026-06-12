@@ -5,7 +5,7 @@ import { assertSeasonWritable } from './guards';
 import type { Db } from './types';
 
 /** 原子性地认领版本：updateMany WHERE id=matchId AND version=expectedVersion，count=0 则冲突 */
-async function claimMatch(tx: Db, matchId: string, expectedVersion: number): Promise<Match> {
+export async function claimMatch(tx: Db, matchId: string, expectedVersion: number): Promise<Match> {
   const claimed = await tx.match.updateMany({
     where: { id: matchId, version: expectedVersion },
     data: { version: { increment: 1 } },
@@ -18,12 +18,12 @@ async function claimMatch(tx: Db, matchId: string, expectedVersion: number): Pro
   return (await tx.match.findUnique({ where: { id: matchId } }))!;
 }
 
-function winsNeeded(bestOf: number): number {
+export function winsNeeded(bestOf: number): number {
   return Math.ceil(bestOf / 2);
 }
 
 /** 下游链上是否已有录入（Game 或非 SCHEDULED 状态）；有则拒绝 */
-async function assertDownstreamClean(db: Db, matchId: string): Promise<void> {
+export async function assertDownstreamClean(db: Db, matchId: string): Promise<void> {
   const edges = await db.matchAdvancementEdge.findMany({ where: { fromMatchId: matchId } });
   for (const e of edges) {
     const to = await db.match.findUnique({
@@ -38,7 +38,7 @@ async function assertDownstreamClean(db: Db, matchId: string): Promise<void> {
 }
 
 /** 重算 Match 物化结果并沿 WINNER 边推进/回收（调用方保证在事务内） */
-async function resettleMatch(tx: Db, matchId: string): Promise<void> {
+export async function resettleMatch(tx: Db, matchId: string): Promise<void> {
   const match = await tx.match.findUnique({
     where: { id: matchId },
     include: { games: { where: { isDraft: false } } },
@@ -61,6 +61,7 @@ async function resettleMatch(tx: Db, matchId: string): Promise<void> {
     },
   });
   await propagate(tx, matchId, settledWinner);
+  await syncFinalStatus(tx, matchId, settledWinner !== null);
 }
 
 /** 把（新的）胜者写到 WINNER 边目标位；胜者为 null 时回收 */
@@ -73,6 +74,30 @@ async function propagate(tx: Db, matchId: string, winnerTeamId: string | null): 
       where: { id: e.toMatchId },
       data: e.slot === 'A' ? { teamAId: winnerTeamId } : { teamBId: winnerTeamId },
     });
+  }
+}
+
+/** 该 match 是否为决赛：KNOCKOUT 阶段、roundKey 非空、无 outgoing WINNER 边。 */
+async function isFinalMatch(tx: Db, matchId: string): Promise<boolean> {
+  const m = await tx.match.findUnique({
+    where: { id: matchId },
+    select: { roundKey: true, stage: { select: { type: true } } },
+  });
+  if (!m || m.roundKey === null || m.stage.type !== 'KNOCKOUT') return false;
+  const out = await tx.matchAdvancementEdge.count({ where: { fromMatchId: matchId, outcome: 'WINNER' } });
+  return out === 0;
+}
+
+/** 决赛结果变化后同步 tournament.status：有 winner → FINISHED；winner 回收 → 回退 KNOCKOUT。 */
+async function syncFinalStatus(tx: Db, matchId: string, hasWinner: boolean): Promise<void> {
+  if (!(await isFinalMatch(tx, matchId))) return;
+  const m = (await tx.match.findUnique({ where: { id: matchId }, select: { tournamentId: true } }))!;
+  if (hasWinner) {
+    await tx.tournament.update({ where: { id: m.tournamentId }, data: { status: 'FINISHED' } });
+  } else {
+    const t = await tx.tournament.findUnique({ where: { id: m.tournamentId }, select: { status: true } });
+    if (t?.status === 'FINISHED')
+      await tx.tournament.update({ where: { id: m.tournamentId }, data: { status: 'KNOCKOUT' } });
   }
 }
 
@@ -144,6 +169,7 @@ export async function setWalkover(
       data: { status: 'WALKOVER', winnerTeamId: input.winnerTeamId, isWalkover: true },
     });
     await propagate(tx, match.id, input.winnerTeamId);
+    await syncFinalStatus(tx, match.id, true);
     await writeAudit(tx, {
       userId: input.actorUserId, action: 'match.walkover',
       entity: 'Match', entityId: match.id, payload: { winnerTeamId: input.winnerTeamId },
@@ -164,6 +190,7 @@ export async function cancelMatch(
       data: { status: 'CANCELED', winnerTeamId: null },
     });
     await propagate(tx, match.id, null);
+    await syncFinalStatus(tx, match.id, false);
     await writeAudit(tx, {
       userId: input.actorUserId, action: 'match.cancel', entity: 'Match', entityId: match.id,
     });

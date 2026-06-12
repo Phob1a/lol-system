@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
-import { deleteGame, recordGame, setWalkover } from './score-service';
+import { cancelMatch, deleteGame, recordGame, setWalkover } from './score-service';
 import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
@@ -164,4 +164,68 @@ it('deleteGame 跨比赛校验：用比赛 A 的 id 删比赛 B 的局 → 拒�
   const matchBAfter = (await testDb.match.findUnique({ where: { id: matchB.id } }))!;
   expect(matchBAfter.status).toBe('FINISHED');
   expect(matchBAfter.winnerTeamId).toBe(matchB.teamAId);
+});
+
+/** setupGroupStage → 录满小组赛 → closeGroupStage → 录完 SF，使 FINAL 双方就位但未开打。返回 { t, final }。 */
+async function toFinalReady() {
+  const { t, teamIds } = await setupGroupStage();
+  for (const gm of await testDb.match.findMany({ where: { groupId: { not: null } } })) {
+    const winner = [gm.teamAId!, gm.teamBId!].sort((a, b) => teamIds.indexOf(a) - teamIds.indexOf(b))[0];
+    const fresh = (await testDb.match.findUnique({ where: { id: gm.id } }))!;
+    await recordGame(testDb, { matchId: gm.id, expectedVersion: fresh.version, winnerTeamId: winner, actorUserId: 'u' });
+  }
+  await closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' });
+  for (const sf of await testDb.match.findMany({ where: { roundKey: 'SF' } })) {
+    let fresh = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+    const need = Math.ceil(fresh.bestOf / 2);
+    for (let w = 0; w < need; w++) {
+      await recordGame(testDb, { matchId: sf.id, expectedVersion: fresh.version, winnerTeamId: fresh.teamAId!, actorUserId: 'u' });
+      fresh = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+    }
+  }
+  const final = (await testDb.match.findFirst({ where: { roundKey: 'FINAL' } }))!;
+  return { t, final };
+}
+
+it('决赛录满 → tournament FINISHED', async () => {
+  const { t, final } = await toFinalReady();
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('KNOCKOUT');
+  let fresh = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  const need = Math.ceil(fresh.bestOf / 2);
+  for (let w = 0; w < need; w++) {
+    await recordGame(testDb, { matchId: final.id, expectedVersion: fresh.version, winnerTeamId: fresh.teamAId!, actorUserId: 'u' });
+    fresh = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  }
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('FINISHED');
+});
+
+it('删决赛局跌破阈值 → 回退 KNOCKOUT', async () => {
+  const { t, final } = await toFinalReady();
+  let fresh = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  const need = Math.ceil(fresh.bestOf / 2);
+  for (let w = 0; w < need; w++) {
+    await recordGame(testDb, { matchId: final.id, expectedVersion: fresh.version, winnerTeamId: fresh.teamAId!, actorUserId: 'u' });
+    fresh = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  }
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('FINISHED');
+  const lastGame = (await testDb.game.findFirst({ where: { matchId: final.id }, orderBy: { index: 'desc' } }))!;
+  await deleteGame(testDb, { matchId: final.id, gameId: lastGame.id, expectedVersion: fresh.version, actorUserId: 'u' });
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('KNOCKOUT');
+});
+
+it('决赛 setWalkover → FINISHED；cancelMatch → 回退 KNOCKOUT', async () => {
+  const { t, final } = await toFinalReady();
+  const fresh = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  await setWalkover(testDb, { matchId: final.id, expectedVersion: fresh.version, winnerTeamId: fresh.teamAId!, actorUserId: 'u' });
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('FINISHED');
+  const after = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  await cancelMatch(testDb, { matchId: final.id, expectedVersion: after.version, actorUserId: 'u' });
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('KNOCKOUT');
+});
+
+it('非决赛完赛（小组赛）不触发 FINISHED', async () => {
+  const { t } = await setupGroupStage();
+  const gm = (await testDb.match.findFirst({ where: { groupId: { not: null } } }))!;
+  await recordGame(testDb, { matchId: gm.id, expectedVersion: gm.version, winnerTeamId: gm.teamAId!, actorUserId: 'u' });
+  expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('GROUP_STAGE');
 });
