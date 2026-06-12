@@ -15,6 +15,25 @@ export async function assignGroups(
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
   if (t.status !== 'SETUP') throw new TournamentError('INVALID_STATE', '当前状态不允许调整分组');
 
+  // Load the group ids that actually belong to this tournament
+  const ownGroups = await db.tournamentGroup.findMany({
+    where: { stage: { tournamentId: input.tournamentId } },
+    select: { id: true },
+  });
+  const ownGroupIds = new Set(ownGroups.map((g) => g.id));
+
+  // Validate group ownership, no duplicate groups, and exact coverage
+  const seenGroupIds = new Set<string>();
+  for (const a of input.assignments) {
+    if (!ownGroupIds.has(a.groupId))
+      throw new TournamentError('VALIDATION', '分组不属于该赛事');
+    if (seenGroupIds.has(a.groupId))
+      throw new TournamentError('VALIDATION', '分组重复');
+    seenGroupIds.add(a.groupId);
+  }
+  if (seenGroupIds.size !== ownGroupIds.size)
+    throw new TournamentError('VALIDATION', '有分组未覆盖');
+
   const cfg = t.config as GroupKnockoutConfig;
   const snapshotTeamIds = new Set(t.teams.map((x) => x.teamId));
   const seen = new Set<string>();
