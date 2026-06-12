@@ -1,17 +1,16 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createTournament } from './tournament-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
 import { getPublicTournamentState } from './read-model';
-import { CFG_2x4x2, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 it('全流程：8 队 2 组出 4 强 → SF → FINAL → 冠军', async () => {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTournament(testDb, { seasonId, name: 'S1', teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
     tournamentId: t.id,

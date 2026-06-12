@@ -1,17 +1,16 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createTournament } from './tournament-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { deleteGame, recordGame, setWalkover } from './score-service';
-import { CFG_2x4x2, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 /** 完整走到小组赛开打的夹具 */
 export async function setupGroupStage() {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTournament(testDb, { seasonId, name: 'x', teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
     tournamentId: t.id,

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
-import { createTournament, deleteTournament } from '@/lib/tournament/tournament-service';
+import { createTournamentShell, deleteTournament } from '@/lib/tournament/tournament-service';
 import { toResponse } from '@/lib/tournament/route-errors';
 import { publishTournament } from '@/server/tournament-bus';
 import type { GroupKnockoutConfig } from '@/lib/tournament/types';
@@ -20,11 +20,16 @@ export async function POST(req: NextRequest) {
   if (guard.error) return guard.error;
   try {
     const body = createSchema.parse(await req.json());
-    await createTournament(prisma, {
-      ...body,
-      config: body.config as GroupKnockoutConfig,
-      actorUserId: guard.session.user.id,
-    });
+    // Task 8 will wire teamIds into season-scoped snapshot; for now shell-only (teamIds accepted but unused)
+    await prisma.$transaction((tx) =>
+      createTournamentShell(tx, {
+        seasonId: body.seasonId,
+        name: body.name,
+        kind: body.kind ?? '正赛',
+        config: body.config as GroupKnockoutConfig,
+        actorUserId: guard.session.user.id,
+      }),
+    );
     publishTournament({ type: 'tournament.invalidated' });
     return NextResponse.json({ ok: true });
   } catch (e) {

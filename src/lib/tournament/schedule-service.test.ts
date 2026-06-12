@@ -1,15 +1,14 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createTournament } from './tournament-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { addCustomMatch } from './schedule-service';
-import { CFG_2x4x2, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 async function setup() {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTournament(testDb, { seasonId, name: 'x', teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
     tournamentId: t.id,
@@ -62,7 +61,7 @@ it('不挂组的表演赛：不计分，挂在 KNOCKOUT 阶段', async () => {
 
 it('SETUP 期添加自定义比赛被拒', async () => {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTournament(testDb, { seasonId, name: 'x', teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
   // 仍处于 SETUP（未 confirmGroups）
   await expect(
     addCustomMatch(testDb, {
