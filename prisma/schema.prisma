@@ -122,6 +122,7 @@ model Registration {
 
   tournamentRosters TournamentTeamPlayer[]
   gameStats         GamePlayerStat[]
+  gamesAsMvp        Game[]               @relation("GameMvp")
 
   @@unique([seasonId, playerId])
   @@index([seasonId])
@@ -162,6 +163,11 @@ model Team {
   matchesAsA       Match[] @relation("MatchTeamA")
   matchesAsB       Match[] @relation("MatchTeamB")
   matchesWon       Match[] @relation("MatchWinner")
+
+  gamesAsBlue  Game[]          @relation("GameBlueTeam")
+  gamesWon     Game[]          @relation("GameWinnerTeam")
+  banPicks     GameBanPick[]   @relation("GameBanPickTeam")
+  playerStats  GamePlayerStat[] @relation("GamePlayerStatTeam")
 
   createdAt DateTime @default(now())
 
@@ -434,9 +440,12 @@ model Game {
   durationSeconds   Int?
   mvpRegistrationId String?
 
-  match       Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  bans        GameBanPick[]
-  playerStats GamePlayerStat[]
+  match           Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  blueTeam        Team?            @relation("GameBlueTeam", fields: [blueTeamId], references: [id], onDelete: Restrict)
+  winnerTeam      Team?            @relation("GameWinnerTeam", fields: [winnerTeamId], references: [id], onDelete: Restrict)
+  mvpRegistration Registration?   @relation("GameMvp", fields: [mvpRegistrationId], references: [id], onDelete: Restrict)
+  bans            GameBanPick[]
+  playerStats     GamePlayerStat[]
 
   @@unique([matchId, index])
   @@index([matchId])
@@ -452,6 +461,7 @@ model GameBanPick {
   order      Int
 
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  team Team @relation("GameBanPickTeam", fields: [teamId], references: [id], onDelete: Restrict)
 
   @@unique([gameId, order])
   @@unique([gameId, championId])
@@ -473,6 +483,7 @@ model GamePlayerStat {
   gold           Int
 
   game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  team         Team         @relation("GamePlayerStatTeam", fields: [teamId], references: [id], onDelete: Restrict)
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
 
   @@unique([gameId, registrationId])
