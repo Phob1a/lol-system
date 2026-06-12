@@ -100,3 +100,69 @@ it('walkover：计胜负、无 Game、status=WALKOVER', async () => {
   expect(after.winnerTeamId).toBe(match.teamBId);
   expect(await testDb.game.count({ where: { matchId: match.id } })).toBe(0);
 });
+
+it('并发 CAS：相同 expectedVersion 同时提交，恰好一个成功一个 VERSION_CONFLICT，最终只有 1 局', async () => {
+  await setupGroupStage();
+  const match = (await testDb.match.findFirst({ where: { groupId: { not: null } } }))!;
+  const results = await Promise.allSettled([
+    recordGame(testDb, { matchId: match.id, expectedVersion: 0, winnerTeamId: match.teamAId!, actorUserId: 'u' }),
+    recordGame(testDb, { matchId: match.id, expectedVersion: 0, winnerTeamId: match.teamAId!, actorUserId: 'u' }),
+  ]);
+  const fulfilled = results.filter((r) => r.status === 'fulfilled');
+  const rejected = results.filter((r) => r.status === 'rejected');
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+  expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({ message: expect.stringMatching(/VERSION_CONFLICT/) });
+  expect(await testDb.game.count({ where: { matchId: match.id } })).toBe(1);
+});
+
+it('walkover 下游保护：SF walkover 后 FINAL 已有局，再次 walkover SF（换胜者）→ DOWNSTREAM_RECORDED', async () => {
+  const { t, teamIds } = await setupGroupStage();
+  const groupMatches = await testDb.match.findMany({ where: { groupId: { not: null } } });
+  for (const gm of groupMatches) {
+    const winner = [gm.teamAId!, gm.teamBId!].sort(
+      (a, b) => teamIds.indexOf(a) - teamIds.indexOf(b),
+    )[0];
+    const fresh = (await testDb.match.findUnique({ where: { id: gm.id } }))!;
+    await recordGame(testDb, { matchId: gm.id, expectedVersion: fresh.version, winnerTeamId: winner, actorUserId: 'u' });
+  }
+  await closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' });
+
+  const sf = (await testDb.match.findFirst({ where: { roundKey: 'SF' }, orderBy: { label: 'asc' } }))!;
+  // setWalkover SF with teamA winning
+  await setWalkover(testDb, { matchId: sf.id, expectedVersion: sf.version, winnerTeamId: sf.teamAId!, actorUserId: 'u' });
+
+  // Record a game in FINAL (downstream of SF)
+  const final = (await testDb.match.findFirst({ where: { roundKey: 'FINAL' } }))!;
+  await recordGame(testDb, { matchId: final.id, expectedVersion: final.version, winnerTeamId: sf.teamAId!, actorUserId: 'u' });
+
+  // Try to setWalkover SF again (fresh version) with the OTHER team → DOWNSTREAM_RECORDED
+  const sfAfter = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+  await expect(
+    setWalkover(testDb, { matchId: sf.id, expectedVersion: sfAfter.version, winnerTeamId: sf.teamBId!, actorUserId: 'u' }),
+  ).rejects.toThrow(/DOWNSTREAM_RECORDED/);
+});
+
+it('deleteGame 跨比赛校验：用比赛 A 的 id 删比赛 B 的局 → 拒绝，B 的局仍存在', async () => {
+  await setupGroupStage();
+  const matches = await testDb.match.findMany({ where: { groupId: { not: null } }, take: 2 });
+  const [matchA, matchB] = matches;
+
+  // Record a game on each match
+  await recordGame(testDb, { matchId: matchA.id, expectedVersion: 0, winnerTeamId: matchA.teamAId!, actorUserId: 'u' });
+  await recordGame(testDb, { matchId: matchB.id, expectedVersion: 0, winnerTeamId: matchB.teamAId!, actorUserId: 'u' });
+
+  const gameB = (await testDb.game.findFirst({ where: { matchId: matchB.id } }))!;
+  const matchAFresh = (await testDb.match.findUnique({ where: { id: matchA.id } }))!;
+
+  // Attempt to delete match B's game using match A's id
+  await expect(
+    deleteGame(testDb, { matchId: matchA.id, gameId: gameB.id, expectedVersion: matchAFresh.version, actorUserId: 'u' }),
+  ).rejects.toThrow(/该局不属于此比赛/);
+
+  // Match B's game must still exist and match B's materialized state must be unchanged
+  expect(await testDb.game.findUnique({ where: { id: gameB.id } })).not.toBeNull();
+  const matchBAfter = (await testDb.match.findUnique({ where: { id: matchB.id } }))!;
+  expect(matchBAfter.status).toBe('FINISHED');
+  expect(matchBAfter.winnerTeamId).toBe(matchB.teamAId);
+});

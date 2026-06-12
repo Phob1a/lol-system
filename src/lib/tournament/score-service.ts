@@ -3,13 +3,18 @@ import { writeAudit } from './audit';
 import { TournamentError } from './errors';
 import type { Db } from './types';
 
-/** 取 Match 并校验版本 */
-async function lockMatch(db: Db, matchId: string, expectedVersion: number): Promise<Match> {
-  const match = await db.match.findUnique({ where: { id: matchId } });
-  if (!match) throw new TournamentError('MATCH_NOT_FOUND', '比赛不存在');
-  if (match.version !== expectedVersion)
+/** 原子性地认领版本：updateMany WHERE id=matchId AND version=expectedVersion，count=0 则冲突 */
+async function claimMatch(tx: Db, matchId: string, expectedVersion: number): Promise<Match> {
+  const claimed = await tx.match.updateMany({
+    where: { id: matchId, version: expectedVersion },
+    data: { version: { increment: 1 } },
+  });
+  if (claimed.count === 0) {
+    const exists = await tx.match.findUnique({ where: { id: matchId } });
+    if (!exists) throw new TournamentError('MATCH_NOT_FOUND', '比赛不存在');
     throw new TournamentError('VERSION_CONFLICT', 'VERSION_CONFLICT：比赛已被他人修改，请刷新');
-  return match;
+  }
+  return (await tx.match.findUnique({ where: { id: matchId } }))!;
 }
 
 function winsNeeded(bestOf: number): number {
@@ -75,7 +80,7 @@ export async function recordGame(
   input: { matchId: string; expectedVersion: number; winnerTeamId: string; actorUserId: string },
 ): Promise<void> {
   return db.$transaction(async (tx) => {
-    const match = await lockMatch(tx, input.matchId, input.expectedVersion);
+    const match = await claimMatch(tx, input.matchId, input.expectedVersion);
     if (match.status === 'CANCELED' || match.status === 'WALKOVER')
       throw new TournamentError('INVALID_STATE', '该比赛状态不允许录入');
     if (!match.teamAId && !match.teamBId)
@@ -91,7 +96,6 @@ export async function recordGame(
       data: { matchId: match.id, index: count + 1, isDraft: false, winnerTeamId: input.winnerTeamId },
     });
     await resettleMatch(tx, match.id);
-    await tx.match.update({ where: { id: match.id }, data: { version: { increment: 1 } } });
     await writeAudit(tx, {
       userId: input.actorUserId, action: 'match.game.record',
       entity: 'Match', entityId: match.id,
@@ -105,11 +109,12 @@ export async function deleteGame(
   input: { matchId: string; gameId: string; expectedVersion: number; actorUserId: string },
 ): Promise<void> {
   return db.$transaction(async (tx) => {
-    const match = await lockMatch(tx, input.matchId, input.expectedVersion);
+    const match = await claimMatch(tx, input.matchId, input.expectedVersion);
     await assertDownstreamClean(tx, match.id);
-    await tx.game.delete({ where: { id: input.gameId } });
+    const deleted = await tx.game.deleteMany({ where: { id: input.gameId, matchId: match.id } });
+    if (deleted.count === 0)
+      throw new TournamentError('VALIDATION', '该局不属于此比赛');
     await resettleMatch(tx, match.id);
-    await tx.match.update({ where: { id: match.id }, data: { version: { increment: 1 } } });
     await writeAudit(tx, {
       userId: input.actorUserId, action: 'match.game.delete',
       entity: 'Match', entityId: match.id, payload: { gameId: input.gameId },
@@ -122,16 +127,17 @@ export async function setWalkover(
   input: { matchId: string; expectedVersion: number; winnerTeamId: string; actorUserId: string },
 ): Promise<void> {
   return db.$transaction(async (tx) => {
-    const match = await lockMatch(tx, input.matchId, input.expectedVersion);
+    const match = await claimMatch(tx, input.matchId, input.expectedVersion);
     if (!match.teamAId || !match.teamBId)
       throw new TournamentError('INVALID_STATE', '比赛双方未确定');
     if (![match.teamAId, match.teamBId].includes(input.winnerTeamId))
       throw new TournamentError('VALIDATION', '胜者必须是比赛双方之一');
     if ((await tx.game.count({ where: { matchId: match.id } })) > 0)
       throw new TournamentError('INVALID_STATE', '已有局记录，不能轮空');
+    await assertDownstreamClean(tx, match.id);
     await tx.match.update({
       where: { id: match.id },
-      data: { status: 'WALKOVER', winnerTeamId: input.winnerTeamId, isWalkover: true, version: { increment: 1 } },
+      data: { status: 'WALKOVER', winnerTeamId: input.winnerTeamId, isWalkover: true },
     });
     await propagate(tx, match.id, input.winnerTeamId);
     await writeAudit(tx, {
@@ -146,11 +152,11 @@ export async function cancelMatch(
   input: { matchId: string; expectedVersion: number; actorUserId: string },
 ): Promise<void> {
   return db.$transaction(async (tx) => {
-    const match = await lockMatch(tx, input.matchId, input.expectedVersion);
+    const match = await claimMatch(tx, input.matchId, input.expectedVersion);
     await assertDownstreamClean(tx, match.id);
     await tx.match.update({
       where: { id: match.id },
-      data: { status: 'CANCELED', winnerTeamId: null, version: { increment: 1 } },
+      data: { status: 'CANCELED', winnerTeamId: null },
     });
     await propagate(tx, match.id, null);
     await writeAudit(tx, {
@@ -164,10 +170,10 @@ export async function rescheduleMatch(
   input: { matchId: string; expectedVersion: number; scheduledAt: Date | null; actorUserId: string },
 ): Promise<void> {
   return db.$transaction(async (tx) => {
-    const match = await lockMatch(tx, input.matchId, input.expectedVersion);
+    const match = await claimMatch(tx, input.matchId, input.expectedVersion);
     await tx.match.update({
       where: { id: match.id },
-      data: { scheduledAt: input.scheduledAt, version: { increment: 1 } },
+      data: { scheduledAt: input.scheduledAt },
     });
     await writeAudit(tx, {
       userId: input.actorUserId, action: 'match.reschedule',
