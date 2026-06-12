@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { GroupKnockoutConfig } from '@/lib/tournament/types';
 
 export type PublicState = {
-  tournament: { id: string; name: string; kind: string; status: string };
+  tournament: { id: string; name: string; kind: string; status: string; config: GroupKnockoutConfig | unknown };
   matches: Array<{
     id: string;
     label: string | null;

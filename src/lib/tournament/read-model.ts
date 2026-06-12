@@ -54,7 +54,7 @@ export async function getPublicTournamentState(db: Db, seasonId: string) {
   );
 
   return {
-    tournament: { id: t.id, name: t.name, kind: t.kind, status: t.status },
+    tournament: { id: t.id, name: t.name, kind: t.kind, status: t.status, config: t.config },
     matches: t.matches.map((m) => ({
       id: m.id, label: m.label, roundKey: m.roundKey, bestOf: m.bestOf,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,

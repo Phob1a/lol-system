@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { PublicState } from '@/hooks/useTournamentState';
+import type { GroupKnockoutConfig } from '@/lib/tournament/types';
 
 type Team = { id: string; name: string };
 
@@ -39,11 +40,11 @@ export function GroupsTab({ teams, state, refetch }: Props) {
   const standings = useMemo(() => state?.standings ?? [], [state?.standings]);
   const isSetup = tournament?.status === 'SETUP';
 
-  const groupCount = standings.length > 0 ? standings.length : 2;
-  const teamsPerGroup =
-    standings.length > 0
-      ? Math.max(...standings.map((g) => Object.keys(g.teams).length), 1)
-      : 4;
+  const config = tournament?.config as GroupKnockoutConfig | null | undefined;
+  const groupCount = config?.groupCount ?? (standings.length > 0 ? standings.length : 2);
+  const teamsPerGroup = config?.teamsPerGroup ?? (standings.length > 0
+    ? Math.max(...standings.map((g) => Object.keys(g.teams).length), 1)
+    : 4);
 
   useEffect(() => {
     if (standings.length > 0) {

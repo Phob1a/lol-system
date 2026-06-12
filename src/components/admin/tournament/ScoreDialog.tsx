@@ -164,7 +164,7 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
             <ul className="divide-y rounded-md border">
               {games.map((g) => (
                 <li key={g.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span>第 {g.index + 1} 局</span>
+                  <span>第 {g.index} 局</span>
                   <span className="text-muted-foreground">{teamName(g.winnerTeamId)} 胜</span>
                   <Button
                     variant="ghost"
@@ -172,7 +172,7 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
                     className="h-6 w-6 text-destructive"
                     disabled={deletingGameId === g.id}
                     onClick={() => void handleDeleteGame(g.id)}
-                    aria-label={`删除第 ${g.index + 1} 局`}
+                    aria-label={`删除第 ${g.index} 局`}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>

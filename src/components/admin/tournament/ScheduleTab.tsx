@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -341,7 +341,7 @@ function AddMatchDialog({
 // ─── ScheduleTab (main export) ────────────────────────────────────────────────
 
 export function ScheduleTab({ teams, state, refetch }: Props) {
-  const [scoreMatch, setScoreMatch] = useState<MatchRow | null>(null);
+  const [scoreMatchId, setScoreMatchId] = useState<string | null>(null);
   const [walkoverMatch, setWalkoverMatch] = useState<MatchRow | null>(null);
   const [walkoverBusy, setWalkoverBusy] = useState(false);
   const [closingGroups, setClosingGroups] = useState(false);
@@ -351,8 +351,14 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
   const [localTimes, setLocalTimes] = useState<Record<string, string>>({});
 
   const tournament = state?.tournament ?? null;
-  const matches = state?.matches ?? [];
+  const stateMatches = state?.matches;
+  const matches = stateMatches ?? [];
   const standings = state?.standings ?? [];
+
+  const scoreMatch = useMemo(
+    () => (scoreMatchId ? (stateMatches?.find((m) => m.id === scoreMatchId) ?? null) : null),
+    [scoreMatchId, stateMatches],
+  );
 
   if (!tournament) {
     return (
@@ -572,7 +578,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
                         size="sm"
                         variant="outline"
                         disabled={m.status === 'CANCELED'}
-                        onClick={() => setScoreMatch(m)}
+                        onClick={() => setScoreMatchId(m.id)}
                       >
                         录比分
                       </Button>
@@ -607,7 +613,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
       <ScoreDialog
         match={scoreMatch}
         open={!!scoreMatch}
-        onClose={() => setScoreMatch(null)}
+        onClose={() => setScoreMatchId(null)}
         refetch={refetch}
       />
 
