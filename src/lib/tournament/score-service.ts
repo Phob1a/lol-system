@@ -78,7 +78,7 @@ export async function recordGame(
     const match = await lockMatch(tx, input.matchId, input.expectedVersion);
     if (match.status === 'CANCELED' || match.status === 'WALKOVER')
       throw new TournamentError('INVALID_STATE', '该比赛状态不允许录入');
-    if (!match.teamAId || !match.teamBId)
+    if (!match.teamAId && !match.teamBId)
       throw new TournamentError('INVALID_STATE', '比赛双方未确定');
     if (![match.teamAId, match.teamBId].includes(input.winnerTeamId))
       throw new TournamentError('VALIDATION', '胜者必须是比赛双方之一');
