@@ -69,9 +69,12 @@ export async function saveGameDetail(
     if (input.gameId && !game.isDraft && nextWinner === null)
       throw new TournamentError('VALIDATION', '已转正局必须有胜者');
 
-    const willChangeResult = d.winnerTeamId !== undefined && d.winnerTeamId !== game.winnerTeamId;
-    // 改判/新增转正局可能改变下游 → 做下游保护
-    if (match.status === 'FINISHED' || willChangeResult) {
+    // 下游保护：仅当结算可能变化时触发
+    //   (a) 既有局改 winner（含 null→value / draft→promoted）
+    //   (b) 新增局到已结算（FINISHED）的比赛（加局 = 可能改判）
+    const willChangeResult = !!input.gameId && d.winnerTeamId !== undefined && d.winnerTeamId !== game.winnerTeamId;
+    const newGameOnFinished = !input.gameId && match.status === 'FINISHED';
+    if (willChangeResult || newGameOnFinished) {
       await assertDownstreamClean(tx, match.id);
     }
 

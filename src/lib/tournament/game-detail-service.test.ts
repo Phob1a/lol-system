@@ -303,3 +303,75 @@ it('新建局超 bestOf 上限 → 拒绝', async () => {
     saveGameDetail(testDb, { matchId: final.id, expectedVersion: f.version, detail: { winnerTeamId: null }, actorUserId: 'u' }),
   ).rejects.toThrow(/上限/);
 });
+
+/** 辅助：将指定 SF 推进到 FINISHED（teamA 连胜到 winsNeeded）并在 FINAL 录一局，返回 { sf, sfGameId, final }。 */
+async function finishSfAndRecordFinalGame(t: { id: string }, teamIds: string[]) {
+  const groupMatches = await testDb.match.findMany({ where: { groupId: { not: null } } });
+  for (const gm of groupMatches) {
+    const winner = [gm.teamAId!, gm.teamBId!].sort((a, b) => teamIds.indexOf(a) - teamIds.indexOf(b))[0];
+    const fresh = (await testDb.match.findUnique({ where: { id: gm.id } }))!;
+    await recordGame(testDb, { matchId: gm.id, expectedVersion: fresh.version, winnerTeamId: winner, actorUserId: 'u' });
+  }
+  await closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' });
+  const sf = (await testDb.match.findFirst({ where: { roundKey: 'SF' } }))!;
+  let sfresh = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+  const need = Math.ceil(sfresh.bestOf / 2);
+  for (let w = 0; w < need; w++) {
+    await saveGameDetail(testDb, { matchId: sf.id, expectedVersion: sfresh.version, detail: { winnerTeamId: sfresh.teamAId! }, actorUserId: 'u' });
+    sfresh = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+  }
+  // SF is now FINISHED; grab the last game created on it
+  const sfGameId = (await testDb.game.findFirst({ where: { matchId: sf.id }, orderBy: { index: 'desc' } }))!.id;
+  // Record a game on FINAL (downstream of SF)
+  const finalMatch = (await testDb.match.findFirst({ where: { roundKey: 'FINAL' } }))!;
+  await recordGame(testDb, { matchId: finalMatch.id, expectedVersion: finalMatch.version, winnerTeamId: finalMatch.teamAId!, actorUserId: 'u' });
+  const finalFresh = (await testDb.match.findUnique({ where: { id: finalMatch.id } }))!;
+  return { sf: sfresh, sfGameId, final: finalFresh };
+}
+
+it('赛后补录：SF FINISHED、FINAL 已录局 → 对 SF 既有局补 BP（winner 不传）→ 成功，SF winner/status 不变，FINAL 不受影响', async () => {
+  const { t, teamIds } = await setupGroupStage();
+  const { sf, sfGameId, final } = await finishSfAndRecordFinalGame(t, teamIds);
+
+  // Pure data supplement: no winnerTeamId, just bans
+  const sfAfterVersion = sf.version;
+  await saveGameDetail(testDb, {
+    matchId: sf.id, gameId: sfGameId, expectedVersion: sfAfterVersion,
+    detail: { bans: bansFor(sf.teamAId!, sf.teamBId!) },
+    actorUserId: 'u',
+  });
+
+  const sfAfter = (await testDb.match.findUnique({ where: { id: sf.id } }))!;
+  expect(sfAfter.status).toBe('FINISHED');
+  expect(sfAfter.winnerTeamId).toBe(sf.winnerTeamId);
+
+  const finalAfter = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  expect(finalAfter.winnerTeamId).toBe(final.winnerTeamId);
+  expect(await testDb.game.count({ where: { matchId: final.id } })).toBe(1);
+
+  const game = (await testDb.game.findUnique({ where: { id: sfGameId }, include: { bans: true } }))!;
+  expect(game.bans).toHaveLength(4);
+});
+
+it('FINISHED 比赛上新增一局（下游已录）→ DOWNSTREAM_RECORDED', async () => {
+  const { t, teamIds } = await setupGroupStage();
+  const { sf } = await finishSfAndRecordFinalGame(t, teamIds);
+
+  // Attempt to add a NEW game to the FINISHED SF (downstream already has records)
+  await expect(
+    saveGameDetail(testDb, {
+      matchId: sf.id, expectedVersion: sf.version,
+      detail: { winnerTeamId: null },
+      actorUserId: 'u',
+    }),
+  ).rejects.toThrow(/DOWNSTREAM_RECORDED/);
+});
+
+it('CANCELED 比赛 saveGameDetail → 拒绝', async () => {
+  const { final } = await toFinalWithRosters();
+  await testDb.match.update({ where: { id: final.id }, data: { status: 'CANCELED' } });
+  const f = (await testDb.match.findUnique({ where: { id: final.id } }))!;
+  await expect(
+    saveGameDetail(testDb, { matchId: final.id, expectedVersion: f.version, detail: { winnerTeamId: final.teamAId }, actorUserId: 'u' }),
+  ).rejects.toThrow(/状态/);
+});
