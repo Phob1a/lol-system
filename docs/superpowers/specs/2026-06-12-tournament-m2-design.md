@@ -1,6 +1,6 @@
 # Tournament M2 设计 — 局级数据、数据榜、选手页（增量 spec）
 
-日期：2026-06-12 ｜ 状态：rev.1 待审 ｜ 前置：M1（53126f6）+ 赛季-赛事整合（8d3d04c）均已上线
+日期：2026-06-12 ｜ 状态：rev.2（采纳 codex 审查 5 项）｜ 前置：M1（53126f6）+ 赛季-赛事整合（8d3d04c）均已上线
 
 本文是 `2026-06-12-tournament-v2-design.md`（rev.3）中 M2 部分的落地细化，只写增量与契约；原 spec 的局级字段、校验、WALKOVER/表演赛语义维持不变。
 
@@ -29,18 +29,25 @@ GameDetailInput = {
   blueTeamId?: string | null;          // ∈ {match.teamA, teamB}
   winnerTeamId?: string | null;        // ∈ {match.teamA, teamB}；null = 草稿
   durationSeconds?: number | null;     // 1..7200
-  bans?: Array<{ teamId, type: 'BAN'|'PICK', championId, order }> | null;
-  playerStats?: Array<{ teamId, registrationId, championId, kills, deaths, assists, cs, damage, gold }> | null;
+  bans?: Array<...> | null;            // 三态：undefined 保留 / null 清空 / Array 整体替换（见 3.2）
+  playerStats?: Array<...> | null;     // 三态同上
   mvpRegistrationId?: string | null;
 }
 ```
 
-### 3.2 完整性契约（all-or-nothing）
+### 3.2 完整性契约（三态 + all-or-nothing，rev.2 按 codex P1 修订）
 
-- **bans**：`null`/缺省 = 不录 BP；提供则整体替换该局 BP 序列，校验：order 从 1 连续递增、championId 同局唯一、teamId ∈ 双方、type 合法。**不强制** 5ban5pick 模板（娱乐赛 BP 非标）。
-- **playerStats**：`null` = 不录；提供则必须**恰好双方各 5 条**，registrationId ∈ 该队 TournamentTeamPlayer 快照、同局唯一、六项数据非负整数、championId 必填。整体替换。
-- **mvpRegistrationId**：仅当本次保存后该局 playerStats 完整时可设，且 ∈ 该局 10 人。
-- 字段独立可补：快录局（已有 winner、无 BP/数据）之后可以只补 BP、或只补数据，互不强制。
+**bans / playerStats 统一三态语义**（消除"缺省 vs 清空"歧义，保证字段独立可补不误删另一块）：
+- `undefined`（字段缺省）：**不触碰**该块，保留该局已有 BP/数据；
+- `null`：**清空**该块（连带 mvp 若依赖被清的 stats 一并清空）；
+- `Array`：**整体替换**该块，并做完整校验。
+
+校验（仅 Array 时）：
+- **bans**：order 从 1 连续递增、championId 同局唯一、teamId ∈ 双方、type 合法。**不强制** 5ban5pick 模板（娱乐赛 BP 非标）。
+- **playerStats**：必须**恰好双方各 5 条**，registrationId ∈ 该队 TournamentTeamPlayer 快照、同局唯一、六项数据非负整数、championId 必填。
+- **championId（bans 与 stats）必须 ∈ champions.json 静态表 key 集合**（rev.2 按 codex P3；后端 saveGameDetail 强校验，前端下拉只是辅助）。
+- **mvpRegistrationId**：仅当本次保存后该局 playerStats 完整（含 undefined=保留既有完整数据的情况）时可设，且 ∈ 该局 10 人。
+- 字段独立可补：快录局（已有 winner、无 BP/数据）之后可以只补 BP（stats 传 undefined）、或只补数据，互不强制。
 
 ### 3.3 草稿与转正
 
@@ -61,13 +68,13 @@ GameDetailInput = {
 
 - `getPublicTournamentState`：移除 `version`、`config`、`tournament.config`；matches projection 去掉 version。草稿局不出现于任何公开数据。
 - 新 `getAdminTournamentState(db, seasonId)`（read-model 同文件）：= 公开形状 + version + config + 每场 games 摘要（含草稿局 isDraft 标记、各局是否已有 BP/完整数据的布尔摘要，供管理端列表显示"待补全"）。
-- 新路由 `GET /api/tournament/admin/state`（requireAdmin）。管理端 hook 改为 `useAdminTournamentState`（同 SSE bus，refetch 打 admin 端点）；公开 hook `useTournamentState` 改用收窄后类型。
+- 新路由 `GET /api/tournament/admin/state?seasonId=...`（requireAdmin；**seasonId query 参数显式传递，缺省才取活跃赛季**——与 service 签名 `getAdminTournamentState(db, seasonId)` 对齐，兼容老赛季 fallback/调试入口，rev.2 按 codex P2）。管理端 hook 改为 `useAdminTournamentState(seasonId)`（seasonId 来自 admin page 既有 prop；同 SSE bus，refetch 打 admin 端点）；公开 hook `useTournamentState` 改用收窄后类型。
 - 既有 `GET /api/tournament/admin/matches/[id]`（ScoreDialog 用）保留，响应增加 BP/数据完整性摘要与草稿标记。
-- 新公开路由 `GET /api/tournament/public/match/[id]`：match 基本信息 + 非草稿局完整明细（BP 序列、10 人数据、MVP、蓝红、时长，含队名/选手昵称/英雄名解析所需映射）。404 当 match 不存在或属非当前赛季赛事。
+- 新公开路由 `GET /api/tournament/public/match/[id]`：match 基本信息 + 非草稿局完整明细（BP 序列、10 人数据、MVP、蓝红、时长，含队名/选手昵称/英雄名解析所需映射）。**选手对象一律携带 `playerId`**（rev.2 按 codex P2，支撑选手页链接）。404 当 match 不存在或属非当前赛季赛事。
 
 ## 6. 数据榜（leaderboard）
 
-- `src/lib/tournament/leaderboard.ts` 纯函数：`computeLeaderboard(games)`，输入为非草稿且 playerStats 完整的局集合，输出每 registration 一行：`{ registrationId, games, wins, avgKills, avgDeaths, avgAssists, kda: (K+A)/max(1,D), avgCs, avgDamage, avgGold, mvpCount }`，场均保留 1 位小数（kda 2 位）。
+- `src/lib/tournament/leaderboard.ts` 纯函数：`computeLeaderboard(games)`，输入为非草稿且 playerStats 完整的局集合，输出每 registration 一行：`{ registrationId, playerId, games, wins, avgKills, avgDeaths, avgAssists, kda: (K+A)/max(1,D), avgCs, avgDamage, avgGold, mvpCount }`（**含 `playerId`**，rev.2 按 codex P2——数据榜行链接选手页 `/tournament/player/[playerId]` 由此打通；路由层再解析昵称/队名），场均保留 1 位小数（kda 2 位）。
 - 计入规则（沿用原 spec rev.2 决议）：`countsForStandings=false` 的局**计入**；WALKOVER 无 Game 自然不计；草稿局不计。
 - 路由 `GET /api/tournament/public/leaderboard`：活跃赛季赛事的榜单（含昵称/队名解析）。公开页 `/tournament` 新增「数据榜」Tab，列可排序，行链接到选手页。
 
@@ -87,7 +94,7 @@ GameDetailInput = {
 
 - champions：脚本生成的 JSON 结构校验（存在、非空、key 唯一）——轻量。
 - game-detail-service（TDD 核心）：草稿建局不结算；转正触发结算+晋级；编辑已转正局改 winner 走下游保护；BP 不完整序列拒绝；stats 非恰好 5+5 拒绝；MVP 无 stats 拒绝/非 10 人拒绝；快录局补 BP/数据不影响结算；CAS 版本冲突；归档拒绝。
-- 自动 FINISHED：决赛录满 → FINISHED；删决赛局 → 回 KNOCKOUT；非决赛完赛不触发。
+- 自动 FINISHED（rev.2 按 codex P2 补全三径矩阵）：决赛录满 → FINISHED；删决赛局 → 回 KNOCKOUT；决赛 setWalkover → FINISHED；决赛 cancelMatch（含取消 walkover）→ 回 KNOCKOUT；非决赛完赛不触发；非决赛 walkover 不触发。
 - leaderboard：聚合口径（场均/KDA/MVP 计数）、草稿与不完整局排除、表演赛计入。
 - 选手页 service：汇总 + 明细、跨赛季参数化（造两季数据验证只取指定季）。
 - read-model：公开 state 无 version/config 断言（防回归）；admin state 含之；公开 match 详情不含草稿局。
