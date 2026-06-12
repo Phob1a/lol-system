@@ -1,6 +1,6 @@
 # 赛季-赛事整合设计（逻辑合一）
 
-日期：2026-06-12 ｜ 状态：rev.1 待审 ｜ 前置：tournament v2 M1（已上线，53126f6）
+日期：2026-06-12 ｜ 状态：rev.2（采纳 codex 审查 4 项）｜ 前置：tournament v2 M1（已上线，53126f6）
 
 ## 1. 目标与决策记录
 
@@ -25,6 +25,7 @@
 2. **`assignGroups` 增强（替代独立"绑队"步骤）**
    SETUP 状态下保存分组时，同事务**重建参赛队快照**：assignments 覆盖的全部 teamId 即参赛队集合（校验 ∈ season、数量 = groupCount×teamsPerGroup、覆盖全部分组、无重复——后四项 M1 已有）。快照 players 仍取当前 TeamSlot。重复保存 = 删旧快照重建（SETUP 期安全，无比分依赖）。
    `confirmGroups` 及之后流程完全不变。
+   **快照一致性（codex P1）**：`addCustomMatch` 改为仅允许 `GROUP_STAGE/KNOCKOUT`（service 硬拒绝 SETUP/FINISHED，UI 在 SETUP 隐藏「+ 自定义比赛」）。理由：SETUP 期快照可被重建，已存在的自定义比赛会指向被移出快照/换组的队伍；tiebreaker 加赛发生在 GROUP_STAGE、表演赛在 KNOCKOUT，均不受影响。
 3. **`createTournament`（M1 原函数）退役**，由 shell + assignGroups 组合覆盖。fallback 入口（老赛季）走 shell，与新赛季后续流程一致。
 
 步骤对比：
@@ -50,6 +51,10 @@ CreateSeasonInput += {
 
 事务顺序：archiveActiveSeason → season.create → createTournamentShell。config 非法（groupKnockout.validate 抛错）→ 整体回滚，赛季不会半建。
 
+**事务契约（codex P2）**：
+- `createTournamentShell` 签名第一参数为 `Db = PrismaClient | Prisma.TransactionClient`，**自身不开启 `$transaction`**——由调用方（createSeason 的事务，或 fallback 路由自行包事务）保证原子性。
+- `createSeason` 服务签名扩展为携带操作者：`createSeason(db, input, actorUserId)`（actorUserId 来自 session，不是 Zod body 字段），透传给 shell 写 audit。
+
 ### 3.2 新增 tournament-service 函数
 
 ```
@@ -63,7 +68,11 @@ resetTournament(db, { tournamentId, actorUserId })
   - `config`：仅 status = SETUP。实现 = 校验新 config → 同事务删除 stages/groups/matches/edges + TournamentGroupTeam + TournamentTeam 快照 → 按新 config 重建骨架。UI 须提示"已保存的分组将清空"。
   - 审计：`tournament.config.update`。
 - `resetTournament`：任意状态 → 清空全部 stages/groups/matches/edges/快照（Game 级联）→ 按当前 config 重建骨架 → status 回 SETUP。审计 `tournament.reset`。替代原"删除赛事"危险区（两步确认保留：confirm + 输入赛事名）。
-- `deleteTournament` 与 `DELETE /api/tournament/admin` 路由**移除**（单一实体语义下"赛季无赛事"不再是新数据的合法状态；老赛季 fallback 只创建不删除）。
+- `deleteTournament` 与 `DELETE /api/tournament/admin` 路由**移除**（单一实体语义下"赛季无赛事"不再是新数据的合法状态；老赛季 fallback 只创建不删除）。移除涉及的全部调用方（codex P2）：`src/app/api/tournament/admin/route.ts` DELETE handler、`SetupTab.tsx` 删除按钮（改为重置）、`tournament-service.test.ts` 的 deleteTournament 用例（改验 resetTournament）、`scripts/e2e-tournament.spec.ts` 的"删除赛事"清理步骤（改用 resetTournament 或重建赛季）。
+
+### 3.4 归档赛季只读（codex P1；落实 M1 spec §安全 既有要求）
+
+新增统一守卫 `assertSeasonWritable(db, tournamentId)`：`tournament.season.status === 'ARCHIVED'`（或 archivedAt 非空）时抛 `INVALID_STATE`（HTTP 403/422）。**所有 tournament 写服务**统一前置调用：updateTournamentConfig、resetTournament、assignGroups、confirmGroups、closeGroupStage、addCustomMatch、recordGame、deleteGame、setWalkover、cancelMatch、rescheduleMatch。注：M1 实现未落实该 spec 要求（属既有缺口），本次一并补上。公开读路径不受影响。
 
 ## 4. HTTP 路由
 
@@ -94,7 +103,10 @@ resetTournament(db, { tournamentId, actorUserId })
 - tournament-service：shell 骨架完整性（沿用 M1 断言去掉快照部分）；updateTournamentConfig 的 SETUP/非 SETUP 矩阵 + 骨架重建正确性；resetTournament 清空回 SETUP
 - groups-service：assignGroups 重建快照（含重复保存覆盖）、季外队伍拒绝、数量不符拒绝
 - 集成：建赛季(带配置) → 分组 → 确认 → 录分 → 冠军 全链路（替换原 integration.test.ts 的 createTournament 入口）
-- 既有 createTournament 相关测试改造为 shell + assignGroups 组合
+- 既有 createTournament 相关测试改造为 shell + assignGroups 组合；deleteTournament 用例删除并替换为 resetTournament 用例
+- 归档只读矩阵：ARCHIVED 赛季下 updateTournamentConfig / resetTournament / assignGroups / addCustomMatch / recordGame 全部拒绝
+- addCustomMatch：SETUP 拒绝（新增）；GROUP_STAGE tiebreaker 用例保持通过
+- E2E：scripts/e2e-tournament.spec.ts 清理步骤由"删除赛事"改为 resetTournament 或新建赛季
 - 公开页空态语义不变（老赛季无赛事仍返回 null）
 
 ## 8. 范围外
