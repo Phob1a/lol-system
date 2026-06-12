@@ -1,6 +1,6 @@
 # 赛程时间表设计 — 拖拽排期面板 + 公开时间线（增量 spec）
 
-日期：2026-06-13 ｜ 状态：rev.1 待审 ｜ 前置：M1 + 赛季整合 + M2 全部上线（生产 8c7892c）
+日期：2026-06-13 ｜ 状态：rev.2（采纳 codex 审查 3 项）｜ 前置：M1 + 赛季整合 + M2 全部上线（生产 8c7892c）
 
 ## 1. 范围与决策记录
 
@@ -25,10 +25,18 @@ rescheduleMatches(db: PrismaClient, input: {
 }): Promise<void>
 ```
 
-- 单事务：对每个 item 用乐观锁 `updateMany({ where: { id, version: expectedVersion }, data: { scheduledAt, version: { increment: 1 } } })`，count=0 → 抛 `TournamentError('VERSION_CONFLICT', '部分比赛已被修改，请刷新')`（整体回滚，全有全无）。
-- 进事务前统一归档只读守卫：所有 item 的 match 必须属于同一非归档赛季赛事（取首个 match → `assertSeasonWritable`；并校验全部 matchId ∈ 该 tournament，异源 → `VALIDATION`）。
-- 写一条聚合 audit `match.schedule.batch`（payload: item 数）。
-- 注：reschedule 不触碰结算，version 仅作并发标记（与现有单场 `rescheduleMatch` 一致——它也 increment version 但不调 resettleMatch）。
+- **全部校验与写入在同一事务内**（codex P1，消除 TOCTOU）：
+  ```
+  db.$transaction(async tx => {
+    1. items 非空、≤200、matchId 唯一（重复 → VALIDATION '比赛重复'，codex P2）
+    2. 按 ids 一次性 load 全部 match（含 tournament.season）；缺任一 → MATCH_NOT_FOUND
+    3. 全部 match 同属一个 tournament 且 season 非归档（archivedAt 为空）→ 否则 VALIDATION / 归档只读 INVALID_STATE
+    4. 逐 item 乐观锁写：updateMany({ where: { id, version: expectedVersion }, data: { scheduledAt, version: { increment: 1 } } })，count=0 → VERSION_CONFLICT '部分比赛已被修改，请刷新'（整体回滚）
+    5. writeAudit(tx, 'match.schedule.batch', payload:{count})
+  })
+  ```
+  事务内任一 throw → 全回滚，全有全无。归档校验在事务内完成，避免"校验后写入前赛季被归档"。
+- 注：reschedule 不触碰结算，version 仅作并发标记（与现有单场 `rescheduleMatch` 一致——increment version 但不调 resettleMatch）。
 
 > 设计取舍：全有全无而非尽力而为。排期是低冲突操作；批量拖放在前端是一次动作，整体回滚 + 前端 refetch 重试，语义最简单，避免"部分成功"的脏中间态。
 
@@ -53,7 +61,7 @@ rescheduleMatches(db: PrismaClient, input: {
 - **桌面拖拽**（HTML5 draggable）：
   - 池 → 某天栏：落下弹时间选择 Popover（date 跟随目标栏、time 5 分钟步进可手填）→ 确认即调 batch 端点（单 item）。
   - 栏内/跨栏拖动：落到新栏弹时间选择（预填原时间）；拖回池 = 设 `scheduledAt=null`。
-  - 乐观更新本地状态 → 调接口 → 失败 toast + refetch 回滚。
+  - 乐观更新本地状态 → 调接口 → **成功后 `await refetch()`**（codex P1：batch 会 increment version，不重取会导致连续拖同一场/顺排后微调用旧 expectedVersion 打到 409；统一成功即 refetch，与现有单场 ScheduleTab 一致）→ 失败 toast + refetch 回滚。
 - **移动端降级**（无可靠原生 DnD）：点卡片弹「日期 + 时间」编辑 Dialog（含「移回未排期」按钮）→ 同一 batch 端点。用 `pointer: coarse` 媒体查询或视口宽度切换；两套入口共用同一保存函数。
 - **并行提示**：同天同 `HH:mm` 有多场时，卡片角标淡色「同时段 ×N」，不阻断保存。
 - **「自动顺排」便捷按钮**（本期含）：对未排期池一键按"起始时间 + 间隔"顺序铺到选定某天（纯前端算出 items 一次 batch 提交）——降低 12 场逐个拖的负担。起始时间/间隔用一个小表单。
@@ -74,8 +82,8 @@ rescheduleMatches(db: PrismaClient, input: {
 
 ## 5. 测试
 
-- `rescheduleMatches`（TDD，DB 集成）：批量设时间成功（含 null 清空回未排期）；某项 version 冲突 → 整体回滚（其余 item 时间不变）；异赛事 matchId 混入 → VALIDATION 拒绝且无写入；归档赛季 → 拒绝；audit 写入一条。
-- 路由：Zod 校验（空数组拒、超 200 拒、scheduledAt 非法拒）；冲突 → 409；成功 publish。
+- `rescheduleMatches`（TDD，DB 集成）：批量设时间成功（含 null 清空回未排期）；某项 version 冲突 → 整体回滚（其余 item 时间不变）；异赛事 matchId 混入 → VALIDATION 拒绝且无写入；**重复 matchId → VALIDATION 拒绝（codex P2）**；归档赛季 → 拒绝；成功后受影响 match 的 version 已 +1（验证 refetch 语义前提）；audit 写入一条。
+- 路由：Zod 校验（空数组拒、超 200 拒、scheduledAt 非法拒、重复 matchId 拒）；冲突 → 409；成功 publish。
 - 公开时间线纯函数：`groupMatchesByDay(matches)` 抽为可测纯函数（输入 matches → 有序天分组 + 时间待定置底），单测排序与分组、空态。
 - SchedulePlanner：核心排序/分组/并行计数逻辑抽纯函数测试；拖拽交互以手动验收为主。
 - E2E（实跑）：管理端排期面板把一场未排期比赛拖到某天设时间 → 公开赛程页该比赛出现在对应日期区块。
