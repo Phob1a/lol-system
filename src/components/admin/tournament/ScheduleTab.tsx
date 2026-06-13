@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScoreDialog } from './ScoreDialog';
-import { toLocalDatetimeString, fromLocalDatetimeString } from './datetime-local';
+import { ReservationDialog } from './ReservationDialog';
 import type { AdminState } from '@/hooks/useTournamentState';
 
 type Team = { id: string; name: string };
@@ -67,6 +67,16 @@ function roundLabel(m: MatchRow, standings: NonNullable<AdminState>['standings']
     return g?.name ?? '未知组';
   }
   return m.roundKey ?? m.label ?? '—';
+}
+
+function formatScheduledAt(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ─── WalkoverDialog ───────────────────────────────────────────────────────────
@@ -333,9 +343,10 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
   const [walkoverBusy, setWalkoverBusy] = useState(false);
   const [closingGroups, setClosingGroups] = useState(false);
   const [addMatchOpen, setAddMatchOpen] = useState(false);
-  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [reservationOpen, setReservationOpen] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<MatchRow | null>(null);
+  const [clearingReservationId, setClearingReservationId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
-  const [localTimes, setLocalTimes] = useState<Record<string, string>>({});
 
   const tournament = state?.tournament ?? null;
   const stateMatches = state?.matches;
@@ -359,31 +370,6 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
   const allGroupsDone =
     groupMatches.length > 0 && groupMatches.every((m) => m.status !== 'SCHEDULED');
   const showCloseGroups = tournament.status === 'GROUP_STAGE' && allGroupsDone;
-
-  async function handleReschedule(match: MatchRow, localVal: string) {
-    const scheduledAt = fromLocalDatetimeString(localVal);
-    setReschedulingId(match.id);
-    try {
-      const res = await fetch(`/api/tournament/admin/matches/${match.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ op: 'reschedule', expectedVersion: match.version, scheduledAt }),
-      });
-      if (res.ok) {
-        await refetch();
-      } else if (res.status === 409) {
-        toast.error('该比赛已被修改，已刷新');
-        await refetch();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error ?? '修改时间失败');
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '修改时间失败');
-    } finally {
-      setReschedulingId(null);
-    }
-  }
 
   async function handleCancel(match: MatchRow) {
     if (
@@ -409,6 +395,30 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
       toast.error(e instanceof Error ? e.message : '取消失败');
     } finally {
       setCancelingId(null);
+    }
+  }
+
+  async function handleClearReservation(match: MatchRow) {
+    setClearingReservationId(match.id);
+    try {
+      const res = await fetch(`/api/tournament/admin/reservations/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expectedVersion: match.version, scheduledAt: null }),
+      });
+      if (res.ok) {
+        await refetch();
+      } else if (res.status === 409) {
+        toast.error('该比赛已被修改，已刷新');
+        await refetch();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? '取消预约失败');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '取消预约失败');
+    } finally {
+      setClearingReservationId(null);
     }
   }
 
@@ -469,15 +479,19 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
     }
   }
 
-  function getLocalTime(match: MatchRow): string {
-    if (match.id in localTimes) return localTimes[match.id];
-    return toLocalDatetimeString(match.scheduledAt);
-  }
+  const scheduledMatches = matches.filter((m) => m.scheduledAt !== null);
 
   return (
     <div className="space-y-4 pt-4">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center gap-2">
+        {tournament.status !== 'SETUP' && tournament.status !== 'FINISHED' && (
+          <Button size="sm" onClick={() => setReservationOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            创建预约
+          </Button>
+        )}
+
         {tournament.status !== 'SETUP' && (
           <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
@@ -508,17 +522,15 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {matches.length === 0 && (
+            {scheduledMatches.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  暂无比赛
+                  暂无已预约比赛，可点击创建预约
                 </TableCell>
               </TableRow>
             )}
-            {matches.map((m) => {
-              const localVal = getLocalTime(m);
-              const originalVal = toLocalDatetimeString(m.scheduledAt);
-              const isDirty = localVal !== originalVal;
+            {scheduledMatches.map((m) => {
+              const canEditReservation = m.status === 'SCHEDULED';
               return (
                 <TableRow key={m.id}>
                   <TableCell className="text-sm">{stageLabel(m)}</TableCell>
@@ -534,20 +546,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <input
-                      type="datetime-local"
-                      className="rounded-md border bg-transparent px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-                      value={localVal}
-                      disabled={reschedulingId === m.id}
-                      onChange={(e) =>
-                        setLocalTimes((prev) => ({ ...prev, [m.id]: e.target.value }))
-                      }
-                      onBlur={() => {
-                        if (isDirty) void handleReschedule(m, localVal);
-                      }}
-                    />
-                  </TableCell>
+                  <TableCell className="text-sm">{formatScheduledAt(m.scheduledAt)}</TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -563,6 +562,27 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canEditReservation}
+                        onClick={() => setEditingReservation(m)}
+                      >
+                        修改时间
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canEditReservation || clearingReservationId === m.id}
+                        onClick={() => void handleClearReservation(m)}
+                      >
+                        <LoadingButtonContent
+                          loading={clearingReservationId === m.id}
+                          loadingText="…"
+                        >
+                          取消预约
+                        </LoadingButtonContent>
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -586,7 +606,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
                         onClick={() => void handleCancel(m)}
                       >
                         <LoadingButtonContent loading={cancelingId === m.id} loadingText="…">
-                          取消
+                          取消比赛
                         </LoadingButtonContent>
                       </Button>
                     </div>
@@ -604,6 +624,21 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
         open={!!scoreMatch}
         onClose={() => setScoreMatchId(null)}
         refetch={refetch}
+      />
+
+      <ReservationDialog
+        open={reservationOpen}
+        onClose={() => setReservationOpen(false)}
+        tournamentId={tournament.id}
+        refetch={refetch}
+      />
+
+      <ReservationDialog
+        open={editingReservation !== null}
+        onClose={() => setEditingReservation(null)}
+        tournamentId={tournament.id}
+        refetch={refetch}
+        editingMatch={editingReservation}
       />
 
       <WalkoverDialog

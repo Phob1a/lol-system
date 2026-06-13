@@ -1,6 +1,6 @@
 /**
  * Shared datetime-local <-> ISO string helpers.
- * Used by ScheduleTab and SchedulePlanner to ensure consistent
+ * Used by reservation dialogs to ensure consistent
  * timezone/format handling across the admin UI.
  */
 
