@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
+  rectIntersection,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
@@ -39,6 +41,12 @@ function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
+
+const slotFirstCollisionDetection: CollisionDetection = (args) => {
+  const collisions = rectIntersection(args);
+  const slotCollisions = collisions.filter(({ id }) => String(id).startsWith('group-slot-'));
+  return slotCollisions.length > 0 ? slotCollisions : collisions;
+};
 
 export function GroupsTab({ teams, state, refetch }: Props) {
   const [assignments, setAssignments] = useState<string[][]>([]);
@@ -217,19 +225,23 @@ export function GroupsTab({ teams, state, refetch }: Props) {
         </Button>
       </div>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={slotFirstCollisionDetection}
+        onDragEnd={handleDragEnd}
+      >
         <div className="grid gap-4 lg:grid-cols-[minmax(220px,280px)_1fr]">
           <TeamPool teams={unassignedIds.map((id) => teamById.get(id)).filter((t): t is Team => !!t)} />
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: groupCount }, (_, gi) => (
-              <div key={gi} className="space-y-3 rounded-md border p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold">{groupNames[gi] ?? `第 ${gi + 1} 组`}</h3>
-                  <span className="text-xs text-muted-foreground">
-                    {(assignments[gi] ?? []).filter(Boolean).length}/{teamsPerGroup}
-                  </span>
-                </div>
+              <GroupColumn
+                key={gi}
+                groupIdx={gi}
+                name={groupNames[gi] ?? `第 ${gi + 1} 组`}
+                assignedCount={(assignments[gi] ?? []).filter(Boolean).length}
+                teamsPerGroup={teamsPerGroup}
+              >
                 {Array.from({ length: teamsPerGroup }, (_, si) => {
                   const teamId = assignments[gi]?.[si] ?? '';
                   return (
@@ -241,11 +253,49 @@ export function GroupsTab({ teams, state, refetch }: Props) {
                     />
                   );
                 })}
-              </div>
+              </GroupColumn>
             ))}
           </div>
         </div>
       </DndContext>
+    </div>
+  );
+}
+
+function GroupColumn({
+  groupIdx,
+  name,
+  assignedCount,
+  teamsPerGroup,
+  children,
+}: {
+  groupIdx: number;
+  name: string;
+  assignedCount: number;
+  teamsPerGroup: number;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-column-${groupIdx}`,
+    data: { type: 'group', groupIdx } satisfies GroupDropTarget,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`group-column-${groupIdx}`}
+      className={cn(
+        'space-y-3 rounded-md border p-4 transition-colors',
+        isOver && 'border-primary bg-primary/5',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{name}</h3>
+        <span className="text-xs text-muted-foreground">
+          {assignedCount}/{teamsPerGroup}
+        </span>
+      </div>
+      {children}
     </div>
   );
 }

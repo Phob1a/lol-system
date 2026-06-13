@@ -4,6 +4,7 @@ export type GroupDragSource =
 
 export type GroupDropTarget =
   | { type: 'pool' }
+  | { type: 'group'; groupIdx: number }
   | { type: 'slot'; groupIdx: number; slotIdx: number };
 
 export function getUnassignedTeamIds(teamIds: string[], assignments: string[][]): string[] {
@@ -25,6 +26,17 @@ export function applyGroupDrop(
       next[source.groupIdx][source.slotIdx] = '';
     }
     return next;
+  }
+
+  if (target.type === 'group') {
+    if (source.from === 'slot' && source.groupIdx === target.groupIdx) return assignments;
+    const targetSlotIdx = next[target.groupIdx]?.findIndex((teamId) => teamId === '');
+    if (targetSlotIdx === undefined || targetSlotIdx < 0) return assignments;
+    if (source.from === 'slot') {
+      next[source.groupIdx][source.slotIdx] = '';
+    }
+    next[target.groupIdx][targetSlotIdx] = source.teamId;
+    return removeDuplicateOutsideTarget(next, source.teamId, target.groupIdx, targetSlotIdx);
   }
 
   const targetValue = next[target.groupIdx]?.[target.slotIdx];

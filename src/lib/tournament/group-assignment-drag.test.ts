@@ -19,6 +19,19 @@ describe('group assignment drag helpers', () => {
     ]);
   });
 
+  it('assigns a pool team to the first empty slot when dropped on a group column', () => {
+    expect(
+      applyGroupDrop(
+        [['t2', ''], ['', '']],
+        { teamId: 't1', from: 'pool' },
+        { type: 'group', groupIdx: 0 },
+      ),
+    ).toEqual([
+      ['t2', 't1'],
+      ['', ''],
+    ]);
+  });
+
   it('puts the previous occupant back into the pool when a pool team drops on an occupied slot', () => {
     expect(
       applyGroupDrop(
