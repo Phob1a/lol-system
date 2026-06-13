@@ -8,6 +8,13 @@ export type HomeSeasonStatus =
 
 export type HomeTournamentStatus = 'SETUP' | 'GROUP_STAGE' | 'KNOCKOUT' | 'FINISHED';
 
+const TOURNAMENT_STATUS_TEXT: Record<HomeTournamentStatus, string> = {
+  SETUP: '赛事筹备中',
+  GROUP_STAGE: '小组赛进行中',
+  KNOCKOUT: '淘汰赛进行中',
+  FINISHED: '赛事已结束',
+};
+
 export type PublicHomeContext = {
   season: { name: string; status: HomeSeasonStatus } | null;
   tournament: { status: HomeTournamentStatus } | null;
@@ -119,7 +126,9 @@ export function getSeasonStatusText(context: PublicHomeContext): {
 
   const name = context.season.name;
   const tournament = context.tournament;
-  const tournamentText = tournament ? `赛事状态：${tournament.status}` : '赛事暂未创建';
+  const tournamentText = tournament
+    ? TOURNAMENT_STATUS_TEXT[tournament.status]
+    : '赛事暂未创建';
 
   switch (context.season.status) {
     case 'REGISTRATION':

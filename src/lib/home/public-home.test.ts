@@ -44,4 +44,11 @@ describe('public homepage view model', () => {
     expect(getSeasonStatusText(ctx()).headline).toBe('夏季赛报名开放中');
     expect(getSeasonStatusText({ season: null, tournament: null }).headline).toBe('暂无开放赛季');
   });
+
+  it('renders tournament status as Chinese text, not the raw enum', () => {
+    expect(getSeasonStatusText(ctx({ tournament: { status: 'GROUP_STAGE' } })).description).toBe(
+      '小组赛进行中',
+    );
+    expect(getSeasonStatusText(ctx({ tournament: null })).description).toBe('赛事暂未创建');
+  });
 });
