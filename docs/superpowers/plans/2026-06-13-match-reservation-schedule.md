@@ -181,7 +181,7 @@ import { requireAdmin } from '@/lib/api-guards';
 
 export async function POST() {
   const guard = await requireAdmin();
-  if ('error' in guard) return guard.error;
+  if (guard.error) return guard.error;
 
   return NextResponse.json(
     { error: '批量排期已退役，请使用单场比赛预约', code: 'BATCH_SCHEDULE_RETIRED' },
@@ -201,10 +201,40 @@ npm run typecheck
 
 Expected: route error tests pass; typecheck passes.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Add an explicit retired batch endpoint test**
+
+Create `src/lib/tournament/schedule-batch-route.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/api-guards', () => ({
+  requireAdmin: vi.fn(async () => ({ session: { user: { id: 'admin-user', role: 'ADMIN' } } })),
+}));
+
+describe('retired schedule batch route', () => {
+  it('returns 410 and does not expose a writable scheduling path', async () => {
+    const { POST } = await import('@/app/api/tournament/admin/schedule/batch/route');
+    const res = await POST();
+    expect(res.status).toBe(410);
+    const body = await res.json();
+    expect(body.code).toBe('BATCH_SCHEDULE_RETIRED');
+  });
+});
+```
+
+Run:
 
 ```bash
-git add src/lib/tournament/errors.ts src/lib/tournament/route-errors.ts src/lib/tournament/route-errors.test.ts src/app/api/tournament/admin/schedule/batch/route.ts
+npx vitest run src/lib/tournament/schedule-batch-route.test.ts --project unit
+```
+
+Expected: PASS.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/lib/tournament/errors.ts src/lib/tournament/route-errors.ts src/lib/tournament/route-errors.test.ts src/lib/tournament/schedule-batch-route.test.ts src/app/api/tournament/admin/schedule/batch/route.ts
 git commit -m "feat(tournament): add forbidden error and retire batch scheduling route"
 ```
 
@@ -354,6 +384,53 @@ it('captain candidates are limited to own team matches', async () => {
   });
   expect(result.length).toBeGreaterThan(0);
   expect(result.every((m) => m.teamA?.id === teamIds[0] || m.teamB?.id === teamIds[0])).toBe(true);
+});
+
+it.each([TournamentStatus.SETUP, TournamentStatus.FINISHED])(
+  'listReservableMatches returns empty candidates when tournament is %s',
+  async (status) => {
+    const { t } = await setupGroupStage();
+    await testDb.tournament.update({ where: { id: t.id }, data: { status } });
+
+    const result = await listReservableMatches(testDb, {
+      tournamentId: t.id,
+      actor: { role: 'ADMIN' },
+    });
+
+    expect(result).toEqual([]);
+  },
+);
+
+it('listReservableMatches returns empty candidates when season is archived', async () => {
+  const { t, seasonId } = await setupGroupStage();
+  await testDb.season.update({ where: { id: seasonId }, data: { status: 'ARCHIVED' } });
+
+  const result = await listReservableMatches(testDb, {
+    tournamentId: t.id,
+    actor: { role: 'ADMIN' },
+  });
+
+  expect(result).toEqual([]);
+});
+
+it('listCaptainReservationState still renders scheduled history when tournament is FINISHED', async () => {
+  const { t, teamIds } = await setupGroupStage();
+  const match = await testDb.match.findFirstOrThrow({
+    where: { tournamentId: t.id, teamAId: teamIds[0] },
+  });
+  await testDb.match.update({
+    where: { id: match.id },
+    data: {
+      scheduledAt: new Date('2026-06-13T12:30:00Z'),
+      status: MatchStatus.FINISHED,
+    },
+  });
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: TournamentStatus.FINISHED } });
+
+  const state = await listCaptainReservationState(testDb, { teamId: teamIds[0] });
+
+  expect(state.scheduled.map((m) => m.id)).toContain(match.id);
+  expect(state.candidates).toEqual([]);
 });
 
 it('reserveMatch writes scheduledAt, increments version, keeps status SCHEDULED, and audits match.reschedule', async () => {
@@ -581,7 +658,13 @@ where: {
 }
 ```
 
-Then load the tournament with `season` and reject list calls when `season.status === 'ARCHIVED' || season.archivedAt !== null || tournament.status === 'SETUP' || tournament.status === 'FINISHED'`.
+Then load the tournament with `season`. For list calls, return `[]` instead of throwing when `season.status === 'ARCHIVED' || season.archivedAt !== null || tournament.status === 'SETUP' || tournament.status === 'FINISHED'`.
+
+This distinction is intentional:
+
+- `listReservableMatches` is a read/candidate query. When the tournament cannot accept new reservations, the correct candidate set is empty.
+- `reserveMatch` is a write. It must still throw `INVALID_STATE` for the same states.
+- `listCaptainReservationState` depends on this behavior so a captain can still see read-only scheduled history after the tournament becomes `FINISHED`.
 
 - [ ] **Step 5: Implement `reserveMatch` transaction**
 
@@ -659,7 +742,7 @@ Behavior:
 - If no active season, return `{ tournamentId: null, scheduled: [], candidates: [] }`.
 - Find the season tournament.
 - `scheduled` includes current-team matches with `scheduledAt !== null`, including `FINISHED`, `CANCELED`, and `WALKOVER` for read-only history.
-- `candidates` delegates to `listReservableMatches(db, { tournamentId, actor: { role: 'CAPTAIN', teamId } })`.
+- `candidates` delegates to `listReservableMatches(db, { tournamentId, actor: { role: 'CAPTAIN', teamId } })`; this returns `[]` rather than throwing when the tournament is `SETUP`/`FINISHED` or the season is read-only.
 
 - [ ] **Step 7: Run service tests**
 
@@ -715,7 +798,37 @@ await reserveMatch(prisma, {
 });
 ```
 
-Keep the branch only for backward compatibility with code that has not yet moved to the dedicated reservation route in Task 5. Its semantics must be identical to admin reservation.
+Keep the branch only for temporary backward compatibility because `ScheduleTab` still calls `op: 'reschedule'` until Task 6 removes inline time editing. Its semantics must be identical to admin reservation.
+
+- [ ] **Step 2a: Test tightened compatibility semantics**
+
+Extend `src/lib/tournament/reservation-service.test.ts` with a service-level regression for the compatibility behavior:
+
+```ts
+it('admin reservation compatibility rejects FINISHED matches', async () => {
+  const { t } = await setupGroupStage();
+  const match = await testDb.match.findFirstOrThrow({ where: { tournamentId: t.id } });
+  await testDb.match.update({ where: { id: match.id }, data: { status: MatchStatus.FINISHED } });
+
+  await expect(
+    reserveMatch(testDb, {
+      matchId: match.id,
+      expectedVersion: match.version,
+      scheduledAt: new Date('2026-06-13T12:30:00Z'),
+      actorUserId: 'admin-user',
+      actor: { role: 'ADMIN' },
+    }),
+  ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+});
+```
+
+Run:
+
+```bash
+npx vitest run src/lib/tournament/reservation-service.test.ts --project unit -t "compatibility rejects FINISHED"
+```
+
+Expected: PASS. This documents that the old `op: 'reschedule'` path is now deliberately stricter because it uses `reserveMatch`.
 
 - [ ] **Step 3: Delete old batch and single service exports**
 
@@ -741,9 +854,10 @@ Run:
 
 ```bash
 rg -n "rescheduleMatch|rescheduleMatches|match.schedule.batch|MAX_BATCH" src
+rg -n "op: 'reschedule'|op: z.literal\\('reschedule'\\)|\\\"reschedule\\\"" src
 ```
 
-Expected: no matches. If `[id]/route.ts` still has the literal operation string `'reschedule'`, that is acceptable for compatibility; the function name must be gone.
+Expected for the first command: no matches. Expected for the second command at this task: `src/app/api/tournament/admin/matches/[id]/route.ts` and the old `ScheduleTab` inline edit path may still contain `reschedule`; that is acceptable only until Task 6 removes the UI caller and Task 8 deletes the compatibility branch.
 
 - [ ] **Step 6: Run focused backend tests**
 
@@ -759,7 +873,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/tournament/score-service.ts src/app/api/tournament/admin/matches/[id]/route.ts
+git add src/lib/tournament/score-service.ts 'src/app/api/tournament/admin/matches/[id]/route.ts'
 git add -u src/lib/tournament/reschedule-matches.test.ts
 git commit -m "refactor(tournament): route schedule changes through reservations"
 ```
@@ -1031,7 +1145,7 @@ Modify `src/components/admin/tournament/ScheduleTab.tsx`:
 
 - Remove `SchedulePlanner` import.
 - Remove `view` state and list/planner toggle.
-- Remove inline time editing state: `reschedulingId`, `localTimes`, `getLocalTime`, and `handleReschedule`.
+- Before deleting inline time editing state, run `rg -n "reschedulingId|localTimes|getLocalTime|handleReschedule|toLocalDatetimeString\\(|fromLocalDatetimeString\\(" src/components/admin/tournament/ScheduleTab.tsx` and remove the exact identifiers that exist in the file. In the current codebase those are expected to include `reschedulingId`, `localTimes`, `getLocalTime`, and `handleReschedule`, plus any direct inline time input usage.
 - Add state:
 
 ```ts
@@ -1298,6 +1412,7 @@ git commit -m "feat(captain): add match reservation page"
 - Delete: `src/lib/tournament/schedule-planner.test.ts`
 - Delete: `src/lib/tournament/schedule-batch-schema.ts`
 - Delete: `src/lib/tournament/schedule-batch-schema.test.ts`
+- Modify: `src/app/api/tournament/admin/matches/[id]/route.ts`
 - Modify: `src/components/tournament/ScheduleList.test.tsx`
 - Modify: `scripts/e2e-tournament.spec.ts`
 
@@ -1317,9 +1432,28 @@ Run:
 
 ```bash
 rg -n "SchedulePlanner|schedule-planner|scheduleBatchSchema|schedule/batch|rescheduleMatches|match.schedule.batch" src scripts
+rg -n "op: 'reschedule'|op: z.literal\\('reschedule'\\)|\\\"reschedule\\\"" src
 ```
 
-Expected: no matches except possible historical comments in docs outside `src` and `scripts`.
+Expected for both commands: no matches except possible historical comments in docs outside `src` and `scripts`.
+
+- [ ] **Step 2a: Delete the temporary `op: 'reschedule'` compatibility branch**
+
+Modify `src/app/api/tournament/admin/matches/[id]/route.ts`:
+
+- Remove `op: z.literal('reschedule')` from `patchSchema`.
+- Remove the `if (body.op === 'reschedule')` branch.
+- Remove the `reserveMatch` import if it is only used by that branch.
+- Leave true match cancellation intact:
+
+```ts
+const patchSchema = z.object({
+  op: z.literal('cancel'),
+  expectedVersion: z.number().int(),
+});
+```
+
+The dedicated reservation route `/api/tournament/admin/reservations/[matchId]` is the only admin time-edit route after this step.
 
 - [ ] **Step 3: Strengthen public schedule component coverage**
 
@@ -1342,7 +1476,7 @@ Use explicit waits; do not use `networkidle` because SSE keeps a stream open.
 Run:
 
 ```bash
-npx vitest run src/lib/tournament/reservation-schema.test.ts src/lib/tournament/reservation-service.test.ts src/lib/tournament/route-errors.test.ts --project unit
+npx vitest run src/lib/tournament/reservation-schema.test.ts src/lib/tournament/reservation-service.test.ts src/lib/tournament/route-errors.test.ts src/lib/tournament/schedule-batch-route.test.ts --project unit
 npx vitest run src/components/admin/tournament/ReservationDialog.test.tsx src/components/captain/ReservationDashboard.test.tsx src/components/tournament/ScheduleList.test.tsx --project component
 npm run typecheck
 ```
@@ -1379,6 +1513,7 @@ Expected: Playwright passes. If the dev server fails to start, inspect `/tmp/lol
 
 ```bash
 git add scripts/e2e-tournament.spec.ts src/components/tournament/ScheduleList.test.tsx
+git add 'src/app/api/tournament/admin/matches/[id]/route.ts'
 git add -u src/components/admin/tournament/SchedulePlanner.tsx src/lib/tournament/schedule-planner.ts src/lib/tournament/schedule-planner.test.ts src/lib/tournament/schedule-batch-schema.ts src/lib/tournament/schedule-batch-schema.test.ts
 git commit -m "test(tournament): cover reservation scheduling flow"
 ```
@@ -1423,6 +1558,6 @@ npx playwright test --config scripts/playwright.config.ts scripts/e2e-tournament
 
 ## Review Notes For Claude
 
-- The deliberate compatibility choice is keeping `op: 'reschedule'` in `src/app/api/tournament/admin/matches/[id]/route.ts` temporarily, but routing it through `reserveMatch`. This prevents old clients from bypassing the new checks while the dedicated reservation endpoints land.
+- The deliberate compatibility choice is keeping `op: 'reschedule'` in `src/app/api/tournament/admin/matches/[id]/route.ts` only through the transition tasks, routing it through `reserveMatch`, then deleting the branch in Task 8 after UI callers move to reservation routes.
 - The old batch endpoint is retired in Task 1 before UI work begins, then planner files are removed in Task 8. This ordering prevents a half-migrated UI from silently using the unsafe batch writer.
 - Captain reservation visibility uses the existing `COMPLETED` season gate because the draft engine keeps the season in `COMPLETED` while tournament play happens.
