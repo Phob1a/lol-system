@@ -42,7 +42,14 @@ export function ScheduleList({ matches }: Props) {
     );
   }
 
-  const groups = groupMatchesByDay<Match>(matches);
+  const scheduledMatches = matches.filter((match) => match.scheduledAt !== null);
+  if (scheduledMatches.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm text-center py-8">暂无已排期比赛</p>
+    );
+  }
+
+  const groups = groupMatchesByDay<Match>(scheduledMatches);
 
   return (
     <div className="space-y-6">
