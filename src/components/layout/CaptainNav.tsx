@@ -10,7 +10,12 @@ export function CaptainNav({ showTeamManagement }: Props) {
   const pathname = usePathname();
   const links = [
     { href: '/captain', label: '选秀台' },
-    ...(showTeamManagement ? [{ href: '/captain/team', label: '队伍管理' }] : []),
+    ...(showTeamManagement
+      ? [
+          { href: '/captain/team', label: '队伍管理' },
+          { href: '/captain/reservations', label: '比赛预约' },
+        ]
+      : []),
   ];
   return (
     <nav className="flex items-center gap-1">
