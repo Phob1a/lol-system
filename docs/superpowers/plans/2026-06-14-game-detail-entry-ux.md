@@ -218,7 +218,7 @@ export type ChampionDuplicateInput = {
 };
 
 export function parseKda(input: string): ParsedKda | null {
-  const parts = input.trim().split(/[\\s/-]+/);
+  const parts = input.trim().split(/[\s/-]+/);
   if (parts.length !== 3) return null;
   const nums = parts.map((part) => Number(part));
   if (!nums.every((n) => Number.isInteger(n) && n >= 0)) return null;
@@ -713,13 +713,19 @@ git commit -m "feat(tournament): forward game detail into editor"
 Create `src/components/admin/tournament/GameDetailEditor.test.tsx` if it does not exist, with these shared helpers:
 
 ```tsx
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameDetailEditor, type Props } from './GameDetailEditor';
 
 vi.mock('./ChampionSelect', () => ({
   ChampionSelect: ({ value, onChange }: { value: string | null; onChange: (v: string) => void }) => (
-    <select aria-label="英雄" role="combobox" value={value ?? ''} onChange={(event) => onChange(event.target.value)}>
+    <select
+      aria-label="英雄"
+      data-testid="champion-select"
+      role="combobox"
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value)}
+    >
       <option value="">选择英雄</option>
       {Array.from({ length: 40 }, (_, i) => (
         <option key={i} value={`Champion${i}`}>Champion{i}</option>
@@ -769,7 +775,7 @@ afterEach(() => {
 });
 
 function chooseStatChampions() {
-  const heroSelects = screen.getAllByLabelText('英雄');
+  const heroSelects = screen.getAllByTestId('champion-select');
   const statHeroSelects = heroSelects.slice(-10);
   statHeroSelects.forEach((select, i) => {
     fireEvent.change(select, { target: { value: `Champion${i}` } });
@@ -795,8 +801,11 @@ describe('GameDetailEditor BP payload', () => {
       ],
     }} />);
 
-    expect(screen.getByText('Ahri')).toBeInTheDocument();
-    expect(screen.queryByText('Garen')).not.toBeInTheDocument();
+    const selectedChampions = screen
+      .getAllByTestId('champion-select')
+      .map((select) => (select as HTMLSelectElement).value);
+    expect(selectedChampions).toContain('Ahri');
+    expect(selectedChampions).not.toContain('Garen');
     expect(screen.queryByRole('option', { name: 'PICK' })).not.toBeInTheDocument();
   });
 
@@ -805,7 +814,7 @@ describe('GameDetailEditor BP payload', () => {
     render(<GameDetailEditor {...props()} />);
 
     fireEvent.click(screen.getByRole('button', { name: /添加 BAN/ }));
-    fireEvent.change(screen.getAllByLabelText('英雄')[0], { target: { value: 'Champion10' } });
+    fireEvent.change(screen.getAllByTestId('champion-select')[0], { target: { value: 'Champion10' } });
     chooseStatChampions();
 
     for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '1/2/3' } });
@@ -843,7 +852,7 @@ describe('GameDetailEditor BP payload', () => {
     })} />);
 
     fireEvent.click(screen.getByRole('button', { name: /添加 BAN/ }));
-    fireEvent.change(screen.getAllByLabelText('英雄').at(-1)!, { target: { value: 'Lux' } });
+    fireEvent.change(screen.getAllByTestId('champion-select')[1], { target: { value: 'Lux' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -968,240 +977,9 @@ function addBanRow() {
 }
 ```
 
-- [ ] **Step 5: Build payload with derived or legacy PICK**
+- [ ] **Step 5: Convert stat rows to KDA before deriving PICK**
 
-Import helpers:
-
-```ts
-import {
-  buildBansPayload,
-  buildStandardBanRows,
-  derivePicksFromStats,
-  findChampionDuplicate,
-  isStatsAllComplete,
-  isStatsPristine,
-  parseKda,
-  parseNonNegativeInteger,
-} from './game-detail-entry-utils';
-```
-
-In `buildPayload`, compute stats state once:
-
-```ts
-const statsComplete = isStatsAllComplete(statsA, statsB);
-const derivedPicks = statsComplete
-  ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id)
-  : [];
-```
-
-When writing `detail.bans`, replace the current `bans.map` with:
-
-```ts
-detail.bans = buildBansPayload({
-  banRows: bans,
-  derivedPicks,
-  legacyPicks,
-  useDerivedPicks: statsComplete,
-});
-```
-
-If `bansCleared` remains true, keep `detail.bans = null`.
-
-- [ ] **Step 6: Add duplicate validation across BAN and final PICK segment**
-
-In `validate`, after checking missing BAN champions:
-
-```ts
-const statsComplete = isStatsAllComplete(statsA, statsB);
-const pickItems = statsComplete
-  ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
-      source: 'stat' as const,
-      label: `选手英雄 ${index + 1}`,
-      championId: pick.championId,
-    }))
-  : legacyPicks.map((pick, index) => ({
-      source: 'pick' as const,
-      label: `既有 PICK ${index + 1}`,
-      championId: pick.championId,
-    }));
-
-const duplicate = findChampionDuplicate([
-  ...bans.map((ban, index) => ({ source: 'ban' as const, label: `BAN ${index + 1}`, championId: ban.championId })),
-  ...pickItems,
-]);
-if (duplicate) return `同局英雄不可重复：${duplicate.championId}`;
-```
-
-- [ ] **Step 7: Add standard BAN template button with blue-side resolution**
-
-Add helper in `GameDetailEditor.tsx`:
-
-```ts
-function applyStandardBanTemplate() {
-  if (bans.length > 0 && !window.confirm('套用标准模板会覆盖当前 BAN 行，是否继续？')) return;
-  const blue = blueTeamId ?? match.teamA.id;
-  const red = blue === match.teamA.id ? match.teamB.id : match.teamA.id;
-  if (!blueTeamId) {
-    setBlueTeamId(match.teamA.id);
-    setBlueTouched(true);
-  }
-  setBans(buildStandardBanRows(blue, red));
-  setBansTouched(true);
-  setBansCleared(false);
-}
-```
-
-In the BP section action area, add a template button near the clear button:
-
-```tsx
-<div className="flex items-center gap-2">
-  <span className="text-xs text-muted-foreground">
-    {blueTeamId
-      ? `以 ${(blueTeamId === match.teamA.id ? match.teamA.name : match.teamB.name)} 为蓝方`
-      : `将以 ${match.teamA.name} 为蓝方`}
-  </span>
-  <Button variant="outline" size="sm" onClick={applyStandardBanTemplate}>
-    套用标准模板
-  </Button>
-  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={clearBans}>
-    整段清空 BP
-  </Button>
-</div>
-```
-
-- [ ] **Step 8: Add champion summary below BP**
-
-Add derived list:
-
-```ts
-const statsChampionSummary = [
-  { teamName: match.teamA.name, rows: statsA },
-  { teamName: match.teamB.name, rows: statsB },
-];
-```
-
-Render after BAN rows:
-
-```tsx
-<div className="rounded-md border bg-muted/30 p-2 text-xs">
-  <p className="mb-1 font-medium text-muted-foreground">本局英雄</p>
-  {statsAllComplete ? (
-    <div className="space-y-1">
-      {statsChampionSummary.map((group) => (
-        <div key={group.teamName} className="flex flex-wrap gap-1">
-          <span className="mr-1 text-muted-foreground">{group.teamName}</span>
-          {group.rows.map((row) => (
-            <span key={row.registrationId} className="rounded border px-1">
-              {row.championId}
-            </span>
-          ))}
-        </div>
-      ))}
-    </div>
-  ) : (
-    <p className="text-muted-foreground">填齐双方数据后自动生成 PICK</p>
-  )}
-</div>
-```
-
-- [ ] **Step 9: Run BP component tests and verify they pass**
-
-Run:
-
-```bash
-npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx --project component
-```
-
-Expected: PASS for BP-related tests.
-
-- [ ] **Step 10: Commit BP behavior**
-
-```bash
-git add src/components/admin/tournament/GameDetailEditor.tsx src/components/admin/tournament/GameDetailEditor.test.tsx
-git commit -m "feat(tournament): derive picks from game stats"
-```
-
-## Task 5: KDA Input, Stats Three-State Validation, Inline Errors, and Keyboard Flow
-
-**Files:**
-- Modify: `src/components/admin/tournament/GameDetailEditor.tsx`
-- Modify: `src/components/admin/tournament/GameDetailEditor.test.tsx`
-
-- [ ] **Step 1: Add failing tests for KDA and stats three-state behavior**
-
-Append to `GameDetailEditor.test.tsx`:
-
-```tsx
-describe('GameDetailEditor stat entry', () => {
-  it('does not send playerStats when stats are completely empty', async () => {
-    const fetchMock = okFetch();
-    render(<GameDetailEditor {...props()} />);
-
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.detail.playerStats).toBeUndefined();
-  });
-
-  it('blocks save and marks cells when stats are partially filled', async () => {
-    const fetchMock = okFetch();
-    render(<GameDetailEditor {...props()} />);
-
-    fireEvent.change(screen.getAllByLabelText('KDA')[0], { target: { value: '1/2/3' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-
-    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
-    expect(screen.getByText(/选手数据需双方各 5 人填齐/)).toBeInTheDocument();
-    expect(screen.getAllByLabelText('英雄')[0]).toHaveAttribute('aria-invalid', 'true');
-  });
-
-  it('parses KDA input into kills deaths and assists payload fields', async () => {
-    const fetchMock = okFetch();
-    render(<GameDetailEditor {...props()} />);
-
-    chooseStatChampions();
-    for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '12/3/7' } });
-    for (const input of screen.getAllByLabelText('CS')) fireEvent.change(input, { target: { value: '100' } });
-    for (const input of screen.getAllByLabelText('伤害')) fireEvent.change(input, { target: { value: '10000' } });
-    for (const input of screen.getAllByLabelText('金币')) fireEvent.change(input, { target: { value: '9000' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.detail.playerStats[0]).toEqual(expect.objectContaining({
-      kills: 12,
-      deaths: 3,
-      assists: 7,
-      cs: 100,
-      damage: 10000,
-      gold: 9000,
-    }));
-  });
-
-  it('moves Enter from a stat cell to the next row same column', () => {
-    render(<GameDetailEditor {...props()} />);
-
-    const kdaInputs = screen.getAllByLabelText('KDA');
-    kdaInputs[0].focus();
-    fireEvent.keyDown(kdaInputs[0], { key: 'Enter' });
-
-    expect(kdaInputs[1]).toHaveFocus();
-  });
-});
-```
-
-- [ ] **Step 2: Run stat-entry tests and verify they fail**
-
-Run:
-
-```bash
-npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx --project component
-```
-
-Expected: FAIL because the current UI has separate K/D/A fields and no inline stat error state.
-
-- [ ] **Step 3: Replace stat row shape with KDA**
+Task 4 must be independently green. Move the minimal KDA shape into this task before using `isStatsAllComplete(statsA, statsB)`, because the helper reads `row.kda`.
 
 In `GameDetailEditor.tsx`, change `StatRow`:
 
@@ -1250,28 +1028,308 @@ function populateStatRow(p: RosterPlayer, existing: RawStat | undefined): StatRo
 }
 ```
 
-- [ ] **Step 4: Update playerStats payload parsing**
-
-In `buildPayload`, replace `kills/deaths/assists` parsing with:
+Replace `STAT_COLS` so the table exposes `KDA` in Task 4, before BP payload tests try to fill complete stats:
 
 ```ts
-const kda = parseKda(r.kda)!;
-return {
-  teamId: match.teamA.id,
-  registrationId: r.registrationId,
-  championId: r.championId!,
-  kills: kda.kills,
-  deaths: kda.deaths,
-  assists: kda.assists,
-  cs: parseNonNegativeInteger(r.cs)!,
-  damage: parseNonNegativeInteger(r.damage)!,
-  gold: parseNonNegativeInteger(r.gold)!,
-};
+const STAT_COLS: Array<{ key: 'kda' | 'cs' | 'damage' | 'gold'; label: string }> = [
+  { key: 'kda', label: 'KDA' },
+  { key: 'cs', label: 'CS' },
+  { key: 'damage', label: '伤害' },
+  { key: 'gold', label: '金币' },
+];
 ```
 
-Apply the same change to team B rows.
+In the stat table header, use the five data columns:
 
-- [ ] **Step 5: Implement stat validation states**
+```tsx
+<div className="grid min-w-[640px] grid-cols-[110px_180px_88px_72px_88px_88px] gap-1 text-xs text-muted-foreground">
+  <span>选手</span>
+  <span>英雄</span>
+  <span>KDA</span>
+  <span>CS</span>
+  <span>伤害</span>
+  <span>金币</span>
+</div>
+```
+
+- [ ] **Step 6: Build payload with derived or legacy PICK**
+
+Import helpers:
+
+```ts
+import {
+  buildBansPayload,
+  buildStandardBanRows,
+  derivePicksFromStats,
+  findChampionDuplicate,
+  isStatsAllComplete,
+  isStatsPristine,
+  parseKda,
+  parseNonNegativeInteger,
+} from './game-detail-entry-utils';
+```
+
+In `buildPayload`, compute stats state once:
+
+```ts
+const statsComplete = isStatsAllComplete(statsA, statsB);
+const derivedPicks = statsComplete
+  ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id)
+  : [];
+```
+
+Still in `buildPayload`, update `playerStats` construction to parse KDA. Build these arrays only inside the `statsComplete` branch so empty or partial stats do not parse `null` KDA values:
+
+```ts
+if (statsTouched) {
+  if (statsCleared) {
+    detail.playerStats = null;
+  } else if (statsComplete) {
+    const rowsA = statsA.map((r) => {
+      const kda = parseKda(r.kda)!;
+      return {
+        teamId: match.teamA.id,
+        registrationId: r.registrationId,
+        championId: r.championId!,
+        kills: kda.kills,
+        deaths: kda.deaths,
+        assists: kda.assists,
+        cs: parseNonNegativeInteger(r.cs)!,
+        damage: parseNonNegativeInteger(r.damage)!,
+        gold: parseNonNegativeInteger(r.gold)!,
+      };
+    });
+    const rowsB = statsB.map((r) => {
+      const kda = parseKda(r.kda)!;
+      return {
+        teamId: match.teamB.id,
+        registrationId: r.registrationId,
+        championId: r.championId!,
+        kills: kda.kills,
+        deaths: kda.deaths,
+        assists: kda.assists,
+        cs: parseNonNegativeInteger(r.cs)!,
+        damage: parseNonNegativeInteger(r.damage)!,
+        gold: parseNonNegativeInteger(r.gold)!,
+      };
+    });
+    detail.playerStats = [...rowsA, ...rowsB];
+  }
+}
+```
+
+When writing `detail.bans`, replace the current `bans.map` with:
+
+```ts
+detail.bans = buildBansPayload({
+  banRows: bans,
+  derivedPicks,
+  legacyPicks,
+  useDerivedPicks: statsComplete,
+});
+```
+
+If `bansCleared` remains true, keep `detail.bans = null`.
+
+- [ ] **Step 7: Add duplicate validation across BAN and final PICK segment**
+
+In `validate`, after checking missing BAN champions:
+
+```ts
+const statsComplete = isStatsAllComplete(statsA, statsB);
+const pickItems = statsComplete
+  ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
+      source: 'stat' as const,
+      label: `选手英雄 ${index + 1}`,
+      championId: pick.championId,
+    }))
+  : legacyPicks.map((pick, index) => ({
+      source: 'pick' as const,
+      label: `既有 PICK ${index + 1}`,
+      championId: pick.championId,
+    }));
+
+const duplicate = findChampionDuplicate([
+  ...bans.map((ban, index) => ({ source: 'ban' as const, label: `BAN ${index + 1}`, championId: ban.championId })),
+  ...pickItems,
+]);
+if (duplicate) return `同局英雄不可重复：${duplicate.championId}`;
+```
+
+- [ ] **Step 8: Add standard BAN template button with blue-side resolution**
+
+Add helper in `GameDetailEditor.tsx`:
+
+```ts
+function applyStandardBanTemplate() {
+  if (bans.length > 0 && !window.confirm('套用标准模板会覆盖当前 BAN 行，是否继续？')) return;
+  const blue = blueTeamId ?? match.teamA.id;
+  const red = blue === match.teamA.id ? match.teamB.id : match.teamA.id;
+  if (!blueTeamId) {
+    setBlueTeamId(match.teamA.id);
+    setBlueTouched(true);
+  }
+  setBans(buildStandardBanRows(blue, red));
+  setBansTouched(true);
+  setBansCleared(false);
+}
+```
+
+In the BP section action area, add a template button near the clear button:
+
+```tsx
+<div className="flex items-center gap-2">
+  <span className="text-xs text-muted-foreground">
+    {blueTeamId
+      ? `以 ${(blueTeamId === match.teamA.id ? match.teamA.name : match.teamB.name)} 为蓝方`
+      : `将以 ${match.teamA.name} 为蓝方`}
+  </span>
+  <Button variant="outline" size="sm" onClick={applyStandardBanTemplate}>
+    套用标准模板
+  </Button>
+  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={clearBans}>
+    整段清空 BP
+  </Button>
+</div>
+```
+
+- [ ] **Step 9: Add champion summary below BP**
+
+Add derived list:
+
+```ts
+const statsChampionSummary = [
+  { teamName: match.teamA.name, rows: statsA },
+  { teamName: match.teamB.name, rows: statsB },
+];
+```
+
+Render after BAN rows:
+
+```tsx
+<div className="rounded-md border bg-muted/30 p-2 text-xs">
+  <p className="mb-1 font-medium text-muted-foreground">本局英雄</p>
+  {statsAllComplete ? (
+    <div className="space-y-1">
+      {statsChampionSummary.map((group) => (
+        <div key={group.teamName} className="flex flex-wrap gap-1">
+          <span className="mr-1 text-muted-foreground">{group.teamName}</span>
+          {group.rows.map((row) => (
+            <span key={row.registrationId} className="rounded border px-1">
+              {row.championId}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="text-muted-foreground">填齐双方数据后自动生成 PICK</p>
+  )}
+</div>
+```
+
+- [ ] **Step 10: Run BP component tests and verify they pass**
+
+Run:
+
+```bash
+npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx --project component
+```
+
+Expected: PASS for BP-related tests.
+
+- [ ] **Step 11: Commit BP behavior**
+
+```bash
+git add src/components/admin/tournament/GameDetailEditor.tsx src/components/admin/tournament/GameDetailEditor.test.tsx
+git commit -m "feat(tournament): derive picks from game stats"
+```
+
+## Task 5: KDA Input, Stats Three-State Validation, Inline Errors, and Keyboard Flow
+
+**Files:**
+- Modify: `src/components/admin/tournament/GameDetailEditor.tsx`
+- Modify: `src/components/admin/tournament/GameDetailEditor.test.tsx`
+
+- [ ] **Step 1: Add failing tests for KDA and stats three-state behavior**
+
+Append to `GameDetailEditor.test.tsx`:
+
+```tsx
+describe('GameDetailEditor stat entry', () => {
+  it('does not send playerStats when stats are completely empty', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail.playerStats).toBeUndefined();
+  });
+
+  it('blocks save and marks cells when stats are partially filled', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    fireEvent.change(screen.getAllByLabelText('KDA')[0], { target: { value: '1/2/3' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
+    expect(screen.getByText(/选手数据需双方各 5 人填齐/)).toBeInTheDocument();
+    expect(screen.getByTestId('stat-champion-cell-A-0')).toHaveAttribute('data-invalid', 'true');
+  });
+
+  it('parses KDA input into kills deaths and assists payload fields', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    chooseStatChampions();
+    for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '12/3/7' } });
+    for (const input of screen.getAllByLabelText('CS')) fireEvent.change(input, { target: { value: '100' } });
+    for (const input of screen.getAllByLabelText('伤害')) fireEvent.change(input, { target: { value: '10000' } });
+    for (const input of screen.getAllByLabelText('金币')) fireEvent.change(input, { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail.playerStats[0]).toEqual(expect.objectContaining({
+      kills: 12,
+      deaths: 3,
+      assists: 7,
+      cs: 100,
+      damage: 10000,
+      gold: 9000,
+    }));
+  });
+
+  it('moves Enter from a stat cell to the next row in the same team table', () => {
+    render(<GameDetailEditor {...props()} />);
+
+    const kdaInputs = screen.getAllByLabelText('KDA');
+    kdaInputs[0].focus();
+    fireEvent.keyDown(kdaInputs[0], { key: 'Enter' });
+    expect(kdaInputs[1]).toHaveFocus();
+
+    const teamBFirst = kdaInputs[5];
+    teamBFirst.focus();
+    fireEvent.keyDown(teamBFirst, { key: 'Enter' });
+    expect(kdaInputs[6]).toHaveFocus();
+  });
+});
+```
+
+- [ ] **Step 2: Run stat-entry tests and verify they fail**
+
+Run:
+
+```bash
+npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx --project component
+```
+
+Expected: FAIL because KDA exists from Task 4, but inline stat error state and Enter-to-next-row behavior are not implemented yet.
+
+- [ ] **Step 3: Implement stat validation states**
 
 Add error state:
 
@@ -1309,7 +1367,7 @@ if (statsTouched && !statsCleared && !statsPristine && !statsComplete) {
   const errors = { ...buildStatErrors(statsA), ...buildStatErrors(statsB) };
   setStatErrors(errors);
   queueMicrotask(() => {
-    const first = document.querySelector('[aria-invalid="true"]') as HTMLElement | null;
+    const first = document.querySelector('[data-invalid="true"], [aria-invalid="true"]') as HTMLElement | null;
     first?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     first?.focus();
   });
@@ -1318,40 +1376,19 @@ if (statsTouched && !statsCleared && !statsPristine && !statsComplete) {
 setStatErrors({});
 ```
 
-In `buildPayload`, send `playerStats` only when stats are complete:
-
-```ts
-if (statsTouched) {
-  if (statsCleared) {
-    detail.playerStats = null;
-  } else if (isStatsAllComplete(statsA, statsB)) {
-    detail.playerStats = [...rowsA, ...rowsB];
-  }
-}
-```
-
-- [ ] **Step 6: Replace StatsTable columns and render inline errors**
-
-Replace `STAT_COLS`:
-
-```ts
-const STAT_COLS: Array<{ key: 'kda' | 'cs' | 'damage' | 'gold'; label: string }> = [
-  { key: 'kda', label: 'KDA' },
-  { key: 'cs', label: 'CS' },
-  { key: 'damage', label: '伤害' },
-  { key: 'gold', label: '金币' },
-];
-```
+- [ ] **Step 4: Render inline errors and Enter keyboard flow**
 
 Change `StatsTable` props:
 
 ```ts
 function StatsTable({
+  tableKey,
   teamName,
   rows,
   errors,
   onUpdate,
 }: {
+  tableKey: 'A' | 'B';
   teamName: string;
   rows: StatRow[];
   errors: StatErrorMap;
@@ -1359,20 +1396,7 @@ function StatsTable({
 }) {
 ```
 
-Pass `errors={statErrors}` from both `StatsTable` calls.
-
-In the row grid, use five data columns:
-
-```tsx
-<div className="grid min-w-[640px] grid-cols-[110px_180px_88px_72px_88px_88px] gap-1 text-xs text-muted-foreground">
-  <span>选手</span>
-  <span>英雄</span>
-  <span>KDA</span>
-  <span>CS</span>
-  <span>伤害</span>
-  <span>金币</span>
-</div>
-```
+Pass `tableKey="A" errors={statErrors}` and `tableKey="B" errors={statErrors}` from the two `StatsTable` calls.
 
 For each input, add `aria-label`, `aria-invalid`, and a red border class when invalid:
 
@@ -1386,24 +1410,29 @@ For each input, add `aria-label`, `aria-invalid`, and a red border class when in
   onKeyDown={(e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const next = document.querySelector<HTMLInputElement>(`[data-stat-input="${col.key}-${idx + 1}"]`);
+      const next = document.querySelector<HTMLInputElement>(`[data-stat-input="${tableKey}-${col.key}-${idx + 1}"]`);
       next?.focus();
     }
   }}
-  data-stat-input={`${col.key}-${idx}`}
+  data-stat-input={`${tableKey}-${col.key}-${idx}`}
   className={errors[row.registrationId]?.[col.key] ? 'h-10 border-destructive' : 'h-10'}
 />
 ```
 
-For the champion select wrapper, expose invalid state:
+For the champion select wrapper, expose invalid state without reusing `aria-label="英雄"` on the wrapper. The inner `ChampionSelect` keeps the accessible label; the wrapper only provides a deterministic test and styling hook:
 
 ```tsx
-<div aria-label="英雄" aria-invalid={errors[row.registrationId]?.championId ? 'true' : 'false'} className={errors[row.registrationId]?.championId ? 'rounded-md border border-destructive' : undefined}>
+<div
+  data-testid={`stat-champion-cell-${tableKey}-${idx}`}
+  data-invalid={errors[row.registrationId]?.championId ? 'true' : 'false'}
+  tabIndex={-1}
+  className={errors[row.registrationId]?.championId ? 'rounded-md border border-destructive' : undefined}
+>
   <ChampionSelect value={row.championId} onChange={(k) => onUpdate(idx, { championId: k })} />
 </div>
 ```
 
-- [ ] **Step 7: Run stat-entry tests and verify they pass**
+- [ ] **Step 5: Run stat-entry tests and verify they pass**
 
 Run:
 
@@ -1413,7 +1442,7 @@ npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx --proje
 
 Expected: PASS.
 
-- [ ] **Step 8: Run all affected component tests**
+- [ ] **Step 6: Run all affected component tests**
 
 Run:
 
@@ -1423,7 +1452,7 @@ npx vitest run src/components/admin/tournament/GameDetailEditor.test.tsx src/com
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit stat entry UX**
+- [ ] **Step 7: Commit stat entry UX**
 
 ```bash
 git add src/components/admin/tournament/GameDetailEditor.tsx src/components/admin/tournament/GameDetailEditor.test.tsx
