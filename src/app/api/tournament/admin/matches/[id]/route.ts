@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
 import { cancelMatch, deleteGame, recordGame } from '@/lib/tournament/score-service';
-import { reserveMatch } from '@/lib/tournament/reservation-service';
 import { toResponse } from '@/lib/tournament/route-errors';
 import { publishTournament } from '@/server/tournament-bus';
 
@@ -32,10 +31,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ match: shaped });
 }
 
-const patchSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('reschedule'), expectedVersion: z.number().int(), scheduledAt: z.string().datetime().nullable() }),
-  z.object({ op: z.literal('cancel'), expectedVersion: z.number().int() }),
-]);
+const patchSchema = z.object({
+  op: z.literal('cancel'),
+  expectedVersion: z.number().int(),
+});
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAdmin();
@@ -43,16 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   try {
     const body = patchSchema.parse(await req.json());
-    if (body.op === 'reschedule') {
-      await reserveMatch(prisma, {
-        matchId: id, expectedVersion: body.expectedVersion,
-        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
-        actorUserId: guard.session.user.id,
-        actor: { role: 'ADMIN' },
-      });
-    } else {
-      await cancelMatch(prisma, { matchId: id, expectedVersion: body.expectedVersion, actorUserId: guard.session.user.id });
-    }
+    await cancelMatch(prisma, { matchId: id, expectedVersion: body.expectedVersion, actorUserId: guard.session.user.id });
     publishTournament({ type: 'tournament.invalidated' });
     return NextResponse.json({ ok: true });
   } catch (e) {

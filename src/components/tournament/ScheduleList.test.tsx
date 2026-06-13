@@ -32,6 +32,7 @@ describe('ScheduleList', () => {
             id: 'unscheduled',
             scheduledAt: null,
             teamA: { id: 'ua', name: '未排期队伍' },
+            teamB: { id: 'ub', name: '隐藏对手' },
           }),
         ]}
       />,
@@ -39,6 +40,7 @@ describe('ScheduleList', () => {
 
     expect(screen.getByText('已排期队伍')).toBeInTheDocument();
     expect(screen.queryByText('未排期队伍')).not.toBeInTheDocument();
+    expect(screen.queryByText('隐藏对手')).not.toBeInTheDocument();
     expect(screen.queryByText(/时间待定/)).not.toBeInTheDocument();
   });
 

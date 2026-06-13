@@ -11,10 +11,12 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Page } from '@playwright/test';
+import type { Dialog, Page } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
 
 const BASE = 'http://localhost:3103';
 const SCREENSHOTS_DIR = '/tmp/e2e-screenshots';
+const prisma = new PrismaClient();
 
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
@@ -60,10 +62,18 @@ async function apiPut(page: Page, url: string, body: unknown) {
   }, { u: url, b: JSON.stringify(body) });
 }
 
+async function captainUsernameForTeam(teamName: string): Promise<string> {
+  const team = await prisma.team.findFirstOrThrow({
+    where: { name: teamName, season: { name: 'E2E 测试赛季' } },
+    include: { account: true },
+  });
+  return team.account.username;
+}
+
 test.describe('Tournament M1 E2E', () => {
   test.setTimeout(300_000);
 
-  test('full tournament lifecycle', async ({ page, context }) => {
+  test('full tournament lifecycle', async ({ page, context, browser }) => {
     // ─── Step 1: Admin login ──────────────────────────────────────────────
     await nav(page, `${BASE}/login`);
     await ss(page, '01-login-page');
@@ -72,7 +82,12 @@ test.describe('Tournament M1 E2E', () => {
     await page.locator('input[type="password"]').fill('lol2026');
     await ss(page, '02-login-filled');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(admin|change-password)/, { timeout: 15000 });
+    await page.waitForURL(/\/(admin|change-password)/, { timeout: 15000 }).catch(async () => {
+      console.log('[auth] Default admin password failed, retrying changed password…');
+      await page.locator('input[type="password"]').fill('Lol2026!');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(/\/(admin|change-password)/, { timeout: 15000 });
+    });
     console.log('[auth] Logged in, URL:', page.url());
 
     // Handle forced password change on first login (mustChangePwd = true after db:reset)
@@ -105,12 +120,14 @@ test.describe('Tournament M1 E2E', () => {
       const tName = stateResp?.state?.tournament?.name ?? '';
 
       const resetBtn = page.locator('button:has-text("重置赛事")');
-      page.on('dialog', async dialog => {
+      const handleResetDialog = async (dialog: Dialog) => {
         if (dialog.type() === 'confirm') await dialog.accept();
         else if (dialog.type() === 'prompt') await dialog.accept(tName);
-      });
+      };
+      page.on('dialog', handleResetDialog);
       await resetBtn.click();
       await page.waitForTimeout(2500);
+      page.off('dialog', handleResetDialog);
       await ss(page, '03b-after-reset');
       console.log('[setup] Tournament reset to SETUP');
       // Tournament still exists after reset — navigate to groups flow directly
@@ -202,67 +219,42 @@ test.describe('Tournament M1 E2E', () => {
     const groupMatchCount = allMatchesInitial.filter((m: any) => m.groupId).length;
     console.log(`[schedule] Group matches: ${groupMatchCount} (expect 12)`);
 
-    // ─── Step 4b: ScheduleTab — 排期 (planner) view → 自动顺排 ───────────
-    // Switch to 排期 view and use 自动顺排 (auto-sequence) to batch-schedule all
-    // unscheduled matches starting 2026-07-01T18:00, every 30 min.
-    // This path is chosen over raw HTML5 drag because DnD is flaky in headless.
-    console.log('[planner] Switching to 排期 view');
-    await page.locator('[role="tab"]').filter({ hasText: '赛程' }).click();
-    await page.waitForTimeout(600);
+    // ─── Step 4b: ScheduleTab — 创建预约 ───────────────────────────────────
+    console.log('[reservation] Creating one reservation from admin schedule tab');
+    const firstCandidateBeforeReservation = allMatchesInitial.find(
+      (m: any) => m.groupId && m.scheduledAt === null && m.teamA?.name && m.teamB?.name,
+    );
+    const hiddenCandidateBeforeReservation = allMatchesInitial.find(
+      (m: any) =>
+        m.groupId &&
+        m.scheduledAt === null &&
+        m.id !== firstCandidateBeforeReservation?.id &&
+        m.teamA?.id !== firstCandidateBeforeReservation?.teamA?.id &&
+        m.teamA?.id !== firstCandidateBeforeReservation?.teamB?.id &&
+        m.teamB?.id !== firstCandidateBeforeReservation?.teamA?.id &&
+        m.teamB?.id !== firstCandidateBeforeReservation?.teamB?.id &&
+        m.teamA?.name &&
+        m.teamB?.name,
+    );
+    expect(firstCandidateBeforeReservation, 'At least one group match should be reservable').toBeTruthy();
 
-    // Click the 排期 toggle button (plain Button, not a tab — inside ScheduleTab action bar)
-    const plannerToggleBtn = page.locator('button:has-text("排期")').first();
-    await plannerToggleBtn.waitFor({ timeout: 5000 });
-    await plannerToggleBtn.click();
-    await page.waitForTimeout(600);
-    await ss(page, '09b-planner-view');
-    console.log('[planner] 排期 view active');
+    await page.locator('button:has-text("创建预约")').first().click();
+    await page.locator('[role="dialog"]').getByRole('heading', { name: '创建预约' }).waitFor({ timeout: 5000 });
+    await page.locator('[role="dialog"] input[type="datetime-local"]').fill('2026-07-01T18:00');
+    await ss(page, '09b-reservation-dialog-filled');
+    await page.locator('[role="dialog"] button:has-text("创建预约")').click();
+    await page.waitForTimeout(1500);
+    await ss(page, '09c-after-admin-reservation');
 
-    // Click 自动顺排 button
-    const autoSeqBtn = page.locator('button:has-text("自动顺排")');
-    if (await autoSeqBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await autoSeqBtn.click();
-      await page.waitForTimeout(500);
-      await ss(page, '09c-auto-seq-dialog');
-      console.log('[planner] AutoSequenceDialog opened');
-
-      // Fill start time: 2026-07-01T18:00
-      const startInput = page.locator('#auto-seq-start');
-      await startInput.waitFor({ timeout: 3000 });
-      await startInput.fill('2026-07-01T18:00');
-      await page.waitForTimeout(200);
-
-      // Fill interval: 30 minutes
-      const intervalInput = page.locator('#auto-seq-interval');
-      await intervalInput.fill('30');
-      await page.waitForTimeout(200);
-      await ss(page, '09d-auto-seq-filled');
-
-      // Click 顺排 to confirm
-      const confirmAutoSeqBtn = page.locator('[role="dialog"] button:has-text("顺排")');
-      await confirmAutoSeqBtn.waitFor({ timeout: 3000 });
-      await confirmAutoSeqBtn.click();
-      await page.waitForTimeout(2000); // wait for batch API + refetch
-      await ss(page, '09e-after-auto-seq');
-      console.log('[planner] 自动顺排 confirmed, matches scheduled');
-
-      // Assert via API: at least one match now has scheduledAt set
-      const scheduledState = await apiGet(page, '/api/tournament/public/state');
-      const scheduledMatches = (scheduledState?.state?.matches ?? []).filter(
-        (m: any) => m.scheduledAt !== null,
-      );
-      console.log(`[planner] Scheduled matches after auto-seq: ${scheduledMatches.length}`);
-      expect(scheduledMatches.length, 'At least one match should be scheduled after auto-seq').toBeGreaterThan(0);
-
-      // Switch back to 列表 view for the rest of the flow
-      const listToggleBtn = page.locator('button:has-text("列表")').first();
-      if (await listToggleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await listToggleBtn.click();
-        await page.waitForTimeout(400);
-      }
-    } else {
-      console.log('[planner] 自动顺排 button not visible (pool may already be empty — skipping)');
-    }
+    const scheduledState = await apiGet(page, '/api/tournament/public/state');
+    let reservedMatch = (scheduledState?.state?.matches ?? []).find(
+      (m: any) => m.scheduledAt !== null,
+    );
+    expect(reservedMatch, 'Admin reservation should set scheduledAt on one match').toBeTruthy();
+    console.log(
+      `[reservation] Admin reserved ${reservedMatch.id}: ${reservedMatch.teamA?.name} vs ${reservedMatch.teamB?.name}`,
+    );
+    const reservedLabel = `${reservedMatch.teamA.name} vs ${reservedMatch.teamB.name}`;
 
     // ─── Step 5: Open second tab — public tournament page ─────────────────
     const publicPage = await context.newPage();
@@ -270,8 +262,8 @@ test.describe('Tournament M1 E2E', () => {
     await ss(publicPage, '10-public-page-initial');
     console.log('[public] Public tournament page loaded');
 
-    // PUBLIC assertion: 赛程 Tab (default) shows the 2026年7月1日 date block
-    // for matches scheduled via 自动顺排 above.
+    // PUBLIC assertion: 赛程 Tab (default) shows the reserved match and hides
+    // still-unreserved generated matches.
     // The ScheduleList renders <h3>{label} · N 场</h3> where label = "2026年7月1日 周三"
     await publicPage.waitForSelector('text=赛程', { timeout: 5000 }).catch(() => null);
     // The 赛程 tab is default — click it to be sure
@@ -282,21 +274,62 @@ test.describe('Tournament M1 E2E', () => {
     }
     await ss(publicPage, '10b-public-schedule-tab');
 
-    const pubScheduleBody = await publicPage.locator('body').textContent().catch(() => '');
-    const hasDateBlock = pubScheduleBody?.includes('2026年7月1日');
-    console.log(`[planner-public] Date block 2026年7月1日 visible: ${hasDateBlock}`);
-    if (hasDateBlock) {
-      console.log('[planner-public] Public 赛程 Tab shows 2026年7月1日 date block ✓');
-    } else {
-      // Matches scheduled but public page may show "时间待定" if auto-seq was skipped
-      console.log('[planner-public] Date block not found — checking for any scheduled date');
-      const hasPendingBlock = pubScheduleBody?.includes('时间待定');
-      const hasAnyMatch = pubScheduleBody?.includes('vs');
-      console.log(`[planner-public] 时间待定 block: ${hasPendingBlock}, any match: ${hasAnyMatch}`);
+    let pubScheduleBody = await publicPage.locator('body').textContent().catch(() => '');
+    expect(pubScheduleBody, 'Public schedule should show reserved team A')
+      .toContain(reservedMatch.teamA?.name);
+    expect(pubScheduleBody, 'Public schedule should show reserved team B')
+      .toContain(reservedMatch.teamB?.name);
+    if (hiddenCandidateBeforeReservation?.teamA?.name) {
+      expect(pubScheduleBody, 'Public schedule should hide unscheduled candidate team A')
+        .not.toContain(hiddenCandidateBeforeReservation.teamA.name);
+      expect(pubScheduleBody, 'Public schedule should hide unscheduled candidate team B')
+        .not.toContain(hiddenCandidateBeforeReservation.teamB.name);
     }
-    // Soft assertion: only fail if no matches at all appear
-    const pubHasMatches = pubScheduleBody?.includes('vs');
-    expect(pubHasMatches, 'Public 赛程 Tab should show at least one match').toBeTruthy();
+
+    // ─── Step 5b: Captain reservation edit + cancellation ────────────────
+    const captainContext = await browser.newContext();
+    const captainPage = await captainContext.newPage();
+    const captainUsername = await captainUsernameForTeam(reservedMatch.teamA.name);
+    await nav(captainPage, `${BASE}/login`);
+    await captainPage.locator('input').first().fill(captainUsername);
+    await captainPage.locator('input[type="password"]').fill('lol2026');
+    await captainPage.click('button[type="submit"]');
+    await captainPage.waitForURL(/\/captain/, { timeout: 15000 });
+
+    await nav(captainPage, `${BASE}/captain/reservations`);
+    await captainPage.waitForSelector('text=比赛预约', { timeout: 10000 });
+    await ss(captainPage, '10c-captain-reservations');
+    await expect(captainPage.getByText(reservedLabel)).toBeVisible();
+    await captainPage.locator('input[type="datetime-local"]').first().fill('2026-07-01T19:00');
+    await captainPage.locator('button:has-text("修改时间")').first().click();
+    await captainPage.waitForTimeout(1500);
+    await nav(publicPage, `${BASE}/tournament`);
+    pubScheduleBody = await publicPage.locator('body').textContent().catch(() => '');
+    expect(pubScheduleBody, 'Public schedule should show captain-updated reservation hour')
+      .toContain('19:00');
+
+    await nav(captainPage, `${BASE}/captain/reservations`);
+    await captainPage.locator('button:has-text("取消预约")').first().click();
+    await captainPage.waitForTimeout(1500);
+    await nav(publicPage, `${BASE}/tournament`);
+    pubScheduleBody = await publicPage.locator('body').textContent().catch(() => '');
+    expect(pubScheduleBody, 'Public schedule should hide canceled reservation')
+      .not.toContain(reservedMatch.teamA.name);
+
+    await nav(page, `${BASE}/admin/tournament`);
+    await page.locator('[role="tab"]').filter({ hasText: '赛程' }).click();
+    await page.locator('button:has-text("创建预约")').first().click();
+    await page.locator('[role="dialog"]').getByRole('heading', { name: '创建预约' }).waitFor({ timeout: 5000 });
+    await expect(page.locator('[role="dialog"]').getByText(reservedLabel))
+      .toBeVisible();
+    await page.locator('[role="dialog"]').getByText(reservedLabel).click();
+    await page.locator('[role="dialog"] input[type="datetime-local"]').fill('2026-07-01T18:00');
+    await page.locator('[role="dialog"] button:has-text("创建预约")').click();
+    await page.waitForTimeout(1500);
+    const rescheduledState = await apiGet(page, '/api/tournament/public/state');
+    reservedMatch = (rescheduledState?.state?.matches ?? []).find(
+      (m: any) => m.id === reservedMatch.id,
+    ) ?? reservedMatch;
 
     // ─── Step 6: Record ONE group match via ScoreDialog (UI) ─────────────
     // Schedule order: KO placeholders first (SF×2, FINAL), then group matches.
@@ -514,29 +547,33 @@ test.describe('Tournament M1 E2E', () => {
     }
     console.log(`[ko] SF recorded via UI: ${sfUiDone}`);
 
-    // Record all remaining KO matches via API
-    const state4 = await apiGet(page, '/api/tournament/public/state');
-    const remainingKo = (state4?.state?.matches ?? []).filter(
-      (m: any) => !m.groupId && m.status !== 'FINISHED' && m.status !== 'WALKOVER'
-    );
-    console.log(`[ko] Remaining KO matches via API: ${remainingKo.length}`);
+    // Record remaining KO matches via API. Refresh between rounds because FINAL
+    // teams are materialized only after both upstream SF winners propagate.
+    for (let pass = 1; pass <= 6; pass++) {
+      const state4 = await apiGet(page, '/api/tournament/public/state');
+      const remainingKo = (state4?.state?.matches ?? []).filter(
+        (m: any) => !m.groupId && m.status !== 'FINISHED' && m.status !== 'WALKOVER'
+      );
+      const recordableKo = remainingKo.filter((m: any) => m.teamA?.id && m.teamB?.id);
+      console.log(`[ko] API pass ${pass}: remaining=${remainingKo.length}, recordable=${recordableKo.length}`);
+      if (recordableKo.length === 0) break;
 
-    for (const match of remainingKo) {
-      const bo = match.bestOf ?? 1;
-      const winsNeeded = Math.ceil(bo / 2);
-      const winnerId = match.teamA?.id;
-      if (!winnerId) { console.log(`[ko] No teamA for ${match.id}`); continue; }
+      for (const match of recordableKo) {
+        const bo = match.bestOf ?? 1;
+        const winsNeeded = Math.ceil(bo / 2);
+        const winnerId = match.teamA.id;
 
-      for (let g = 0; g < winsNeeded; g++) {
-        const freshM = await apiGet(page, `/api/tournament/admin/matches/${match.id}`);
-        if (freshM?.match?.status === 'FINISHED') break;
+        for (let g = 0; g < winsNeeded; g++) {
+          const freshM = await apiGet(page, `/api/tournament/admin/matches/${match.id}`);
+          if (freshM?.match?.status === 'FINISHED') break;
 
-        const ver = freshM?.match?.version ?? 0;
-        const resp = await apiPost(page, `/api/tournament/admin/matches/${match.id}`,
-          { expectedVersion: ver, winnerTeamId: winnerId });
-        console.log(`[ko] ${match.id} ${match.roundKey} game ${g + 1} → ${resp.status} ${resp.body?.ok ? 'OK' : resp.body?.error ?? ''}`);
-        if (resp.status !== 200) break;
-        await page.waitForTimeout(80);
+          const ver = freshM?.match?.version ?? 0;
+          const resp = await apiPost(page, `/api/tournament/admin/matches/${match.id}`,
+            { expectedVersion: ver, winnerTeamId: winnerId });
+          console.log(`[ko] ${match.id} ${match.roundKey} game ${g + 1} → ${resp.status} ${resp.body?.ok ? 'OK' : resp.body?.error ?? ''}`);
+          if (resp.status !== 200) break;
+          await page.waitForTimeout(80);
+        }
       }
     }
 

@@ -10,8 +10,10 @@
  * season with 8 teams so tournament creation can proceed.
  */
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const CAPTAIN_PASSWORD = 'lol2026';
 
 const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
@@ -20,28 +22,37 @@ async function main() {
   const existing = await prisma.season.findFirst({ where: { status: { not: 'ARCHIVED' } } });
   console.log('Existing active season:', existing?.name, existing?.status);
 
-  // Check if there's already an e2e season with enough players
-  const e2eSeason = await prisma.season.findFirst({ where: { name: 'E2E 测试赛季' } });
-  if (e2eSeason) {
-    const teams = await prisma.team.count({ where: { seasonId: e2eSeason.id } });
-    console.log('E2E season already exists:', e2eSeason.id, 'with', teams, 'teams');
-    if (teams >= 8) {
-      // Check if teams have 5 slots each
-      const slots = await prisma.teamSlot.count({ where: { team: { seasonId: e2eSeason.id } } });
-      if (slots >= 40) {
-        console.log('E2E season already has enough teams and players. Done.');
-        return;
-      }
-    }
-  }
-
-  // Archive the existing non-e2e season if it exists
+  // Archive the existing non-e2e season if it exists. E2E must be the active season.
   if (existing && existing.name !== 'E2E 测试赛季') {
     console.log('Archiving existing season:', existing.name);
     await prisma.season.update({
       where: { id: existing.id },
       data: { status: 'ARCHIVED', archivedAt: new Date() },
     });
+  }
+
+  // Check if there's already an e2e season with enough players
+  const e2eSeason = await prisma.season.findFirst({ where: { name: 'E2E 测试赛季' } });
+  if (e2eSeason) {
+    await prisma.season.update({
+      where: { id: e2eSeason.id },
+      data: { status: 'COMPLETED', archivedAt: null },
+    });
+    const teams = await prisma.team.count({ where: { seasonId: e2eSeason.id } });
+    console.log('E2E season already exists:', e2eSeason.id, 'with', teams, 'teams');
+    if (teams >= 8) {
+      // Check if teams have 5 slots each
+      const slots = await prisma.teamSlot.count({ where: { team: { seasonId: e2eSeason.id } } });
+      if (slots >= 40) {
+        const passwordHash = await bcrypt.hash(CAPTAIN_PASSWORD, 10);
+        await prisma.user.updateMany({
+          where: { team: { seasonId: e2eSeason.id } },
+          data: { passwordHash, mustChangePwd: false },
+        });
+        console.log('E2E season already has enough teams and players. Done.');
+        return;
+      }
+    }
   }
 
   // Create a new COMPLETED season (getActiveSeason returns any non-ARCHIVED season)
@@ -58,6 +69,8 @@ async function main() {
     '天地不仁队', '风云变幻队', '龙腾虎跃队', '星火燎原队',
     '雷霆万钧队', '破釜沉舟队', '势如破竹队', '百战百胜队',
   ];
+
+  const captainPasswordHash = await bcrypt.hash(CAPTAIN_PASSWORD, 10);
 
   for (let i = 0; i < 8; i++) {
     const ts = Date.now() + i * 100;
@@ -91,7 +104,12 @@ async function main() {
     const captainReg = regs[0].reg;
     const username = `e2e-cap-${i}-${ts}`;
     const user = await prisma.user.create({
-      data: { username, passwordHash: 'x', role: 'CAPTAIN' },
+      data: {
+        username,
+        passwordHash: captainPasswordHash,
+        role: 'CAPTAIN',
+        mustChangePwd: false,
+      },
     });
 
     const team = await prisma.team.create({
