@@ -25,6 +25,13 @@ describe('toResponse', () => {
     expect(res.status).toBe(409);
   });
 
+  it('FORBIDDEN → 403', async () => {
+    const res = toResponse(new TournamentError('FORBIDDEN', '无权操作该比赛'));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.code).toBe('FORBIDDEN');
+  });
+
   it('non-TournamentError → 500', async () => {
     const res = toResponse(new Error('unknown'));
     expect(res.status).toBe(500);

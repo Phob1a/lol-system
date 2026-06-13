@@ -4,6 +4,7 @@ export type TournamentErrorCode =
   | 'TOURNAMENT_NOT_FOUND'
   | 'INVALID_CONFIG'
   | 'INVALID_STATE'
+  | 'FORBIDDEN'
   | 'TEAM_NOT_IN_SEASON'
   | 'MATCH_NOT_FOUND'
   | 'VERSION_CONFLICT'
