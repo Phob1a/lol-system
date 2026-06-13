@@ -1,23 +1,27 @@
 # 比赛局数据录入体验优化设计
 
-日期：2026-06-14 ｜ 状态：rev.1 ｜ 前置：M2 局级数据录入已上线
+日期：2026-06-14 ｜ 状态：rev.2（采纳 codex review：P1 编辑既有局读模型、P2 不完整 stats 行为）｜ 前置：M2 局级数据录入已上线
 
 ## 1. 目标
 
 降低单局详细数据录入成本。当前 `GameDetailEditor`（~800 行单弹窗）一局要填 蓝方/时长/BP/双方 10 人数据/MVP/胜方，含 10 个英雄选择 + 60 个数字框，BO3/BO5 重复多次，体验差。
 
-本期只做三件高性价比改动，**零后端契约/schema 变更**：
+本期做三件高性价比改动：
 
 1. **消除英雄重复录入**（方案 Y：选手数据为源，BP pick 自动派生）。
 2. **BP 标准模板**（一键生成标准 ban 行）。
 3. **数据录入手感**（KDA 合并输入 + 键盘流 + 缺漏内联高亮）。
 
+**后端边界（rev.2 修正）**：不改 `saveGameDetail` 写契约、不改 `BanInput`、不改数据模型。但为支持「编辑既有局」在方案 Y 下正确工作，**需要扩展 admin 只读 detail 读取**（见 §4.6）——这是只读 read model 改动，不动写路径。因此本期不是「零后端改动」，而是「零 save 契约/schema 变更 + 一处只读扩展」。
+
 ## 2. 范围与约束
 
-- 改动集中在 `src/components/admin/tournament/GameDetailEditor.tsx` 及其内部 `StatsTable` / BP 区，必要的纯函数抽到独立文件以便单测。
-- **不改后端** `saveGameDetail`（`src/lib/tournament/game-detail-service.ts`）契约、不改 `BanInput`、不改数据模型、不改 `ScoreDialog` 编排、不改公开 `MatchDetailView` 渲染契约。
+- 前端改动集中在 `src/components/admin/tournament/GameDetailEditor.tsx`、`ScoreDialog.tsx` 及内部 `StatsTable` / BP 区，必要的纯函数抽到独立文件以便单测。
+- **不改 `saveGameDetail` 写契约**、不改 `BanInput`、不改数据模型、不改公开 `MatchDetailView` 渲染契约。
 - 保存 payload 仍是现有 tri-state 契约：`bans` 仍是 `Array<{teamId,type:'BAN'|'PICK',championId,order}>`，`playerStats` 不变。
+- **只读扩展（rev.2）**：扩展 admin `GET /api/tournament/admin/matches/[id]` 的 game 形状，使其返回每个 game 的完整 detail（`bans`、`playerStats`、`blueTeamId`、`durationSeconds`、`mvpRegistrationId`），供编辑既有局回填。仅 SELECT，不动写路径（详见 §4.6）。
 - 后端 `validateBans` 既有硬约束（实现必须满足）：`order` 从 1 连续递增；同局英雄（ban+pick 合并）不可重复；championId 必须合法。
+- 后端 `validateStats` 既有硬约束：`playerStats` 必须**恰好 10 条（每队各 5）**，不能半份持久化——决定了 §6.3 不完整数据的行为（见 §4.4）。
 
 ## 3. 已确认决策
 
@@ -52,17 +56,33 @@
 - **新增**：派生 PICK（= 10 选手英雄）必须两两不重复；且不得与任何 BAN 英雄重复。命中时定位到冲突的选手行/ban 行并提示「同局英雄不可重复：X」，不发请求（避免后端 422 兜底后用户找不到冲突点）。
 - 选手英雄未填齐时不派生 PICK（保持草稿可存：见 4.4）。
 
-### 4.4 与 tri-state / 草稿的关系
+### 4.4 与 tri-state / 草稿的关系（rev.2 明确不完整 stats 行为）
 
-- 仅当**选手数据完整**（两队各 5 人英雄+数值齐全，沿用现有 `statsAllComplete`）时才派生 PICK 并写入 `detail.bans`。
-- 数据未填齐（草稿）时：`detail.bans` 只含手填 BAN 行（PICK 不派生），与现状一致，可存草稿。
-- `statsCleared`（整段清空选手数据）时：派生 PICK 失效，`detail.bans` 回退为仅手填 BAN（若 BAN 也清空则 `null`）。
-- 编辑既有局：现存的 PICK 条目不在 BP 区显示为可编辑行（BP 区只列 BAN 行）；选手英雄从 `playerStats` 回填（既有逻辑）。保存时 PICK 由选手英雄重新派生覆盖。
+后端 `validateStats` 只接收恰好 10 条（5+5），无法半份持久化。因此选手数据按三种状态明确处理，消除 rev.1 的「草稿可存」与「缺漏标红」矛盾：
+
+- **完整**（两队各 5 人英雄+数值齐全，`statsAllComplete`）：保存时发送 `playerStats`，并派生 PICK 写入 `detail.bans`（PICK = 10 选手英雄，order 续在 BAN 之后）。
+- **完全为空**（操作员没动选手数据，或整段清空 `statsCleared`）：**不发送 `playerStats`**（tri-state：未动=undefined 保留；整段清空=null）；`detail.bans` 回退为仅手填 BAN（BAN 也空则 `null`）。winner/duration/BAN/MVP 等可独立保存——这就是「存草稿」路径。
+- **部分填写**（动过选手数据但不满 10 条完整）：**阻塞本次保存**，对缺漏/非法单元格内联标红并滚动定位，提示「选手数据需双方各 5 人填齐才会保存；如只想存其他字段，请整段清空选手数据」。理由：后端存不了半份，静默丢弃用户已输入的部分比报错更让人困惑（这是对 codex 建议「不阻塞」的有意微调——用明确阻塞替代静默不持久化，避免用户误以为半份已存）。
+
+即：§6.3 的缺漏标红只在「部分填写」态触发并阻塞；「完全为空」态不触发、可存草稿。两者不再矛盾。
+
+- 编辑既有局：依赖 §4.6 的只读扩展把原始 detail（BAN 行 + playerStats 英雄/数值 + blueTeamId/duration/mvp）回填进 editor。BP 区只列 BAN 行（现存 PICK 不作为可编辑行）；选手英雄从 `playerStats` 回填。保存时若选手数据完整则 PICK 由选手英雄重新派生覆盖；若操作员未动数据则 `playerStats`/`bans` 按 tri-state 保留不变。
 
 ### 4.5 显示
 
 - BP 区下方加只读「本局英雄」摘要：两队各 5 个英雄图标 + 名（来自选手行），让操作员确认无需手填 pick。
 - 选手数据未填齐时摘要提示「填齐双方数据后自动生成 PICK」。
+
+### 4.6 编辑既有局的只读数据回填（rev.2 新增，修 P1）
+
+现状问题：admin `GET /api/tournament/admin/matches/[id]` 只返回 game 摘要 + `_count`（`hasBans`/`hasStats` 布尔），`ScoreDialog.openDetailForGame` 也只把 `id/index/isDraft/winnerTeamId/hasBans/hasStats` 传给 editor。`GameDetailEditor.resetForm` 虽读 `initial.bans/playerStats`，但当前无调用方提供 → 编辑既有局时拿不到原 BAN 行与选手英雄。这在方案 Y 下会导致：编辑既有局若触发 stats 重算，可能拿空数据派生 PICK、清掉既有 BP/数据。
+
+修法（codex 建议 A，采纳）：
+
+- 扩展 admin `GET /api/tournament/admin/matches/[id]` 返回的每个 game 形状，新增完整 detail 字段：`blueTeamId`、`durationSeconds`、`mvpRegistrationId`、`bans:[{teamId,type,championId,order}]`、`playerStats:[{teamId,registrationId,championId,kills,deaths,assists,cs,damage,gold}]`。纯 SELECT（含 `gameBanPick`、`gamePlayerStat` 关联），不改任何写路径/契约/schema。
+- `ScoreDialog.openDetailForGame` 把这些字段透传进 `GameDetailEditor` 的 `initial`，使既有回填逻辑（`resetForm` 读 `initial.bans/playerStats/...`）真正生效。
+- 编辑既有局时：BP 区回填 BAN 行；选手行回填英雄+数值；blueTeam/duration/mvp 回填。
+- 该 GET 已是 admin 守卫，无新增鉴权面。
 
 ## 5. item 2 — BP 标准模板（仅 ban）
 
@@ -88,8 +108,9 @@
 
 ### 6.3 缺漏内联高亮
 
-- 保存校验不再只弹一句笼统 toast：对未填/非法的单元格（英雄/KDA/CS/伤害/金币）直接标红边框，并自动滚动定位到第一个错误处。
-- 仍保留一条汇总 toast 说明「双方各 5 人数据须填齐」。
+- 仅在「部分填写」态（§4.4：动过选手数据但不满完整 10 条）触发：对未填/非法的单元格（英雄/KDA/CS/伤害/金币）直接标红边框，自动滚动定位到第一个错误处，并阻塞保存。
+- 汇总 toast：「选手数据需双方各 5 人填齐才会保存；如只想存其他字段，请整段清空选手数据」。
+- 「完全为空」态不标红、不阻塞（可存草稿，§4.4）。
 
 ### 6.4 触控
 
@@ -97,9 +118,9 @@
 
 ## 7. 与现有功能关系
 
-- 后端 `saveGameDetail` / `validateBans` / `validatePlayerStats` 不变；本期仅改变前端如何**构造** bans payload。
-- 公开 `MatchDetailView` 继续按 `bans`（含 BAN+PICK）渲染 BP，派生 PICK 后展示不变（顺序为合成顺序）。
-- `ScoreDialog` 编排、tri-state 草稿、版本 CAS、MVP 门控（数据齐全才可选）均不变。
+- 后端写服务 `saveGameDetail` / `validateBans` / `validateStats` 不变；本期前端改变如何**构造** bans payload（派生 PICK），并新增一处 admin 只读 detail 扩展（§4.6）。
+- 公开 `MatchDetailView` 继续按 `bans`（含 BAN+PICK）渲染 BP，派生 PICK 后展示不变（顺序为合成顺序）。公开读模型 `getPublicMatchDetail` 不改。
+- `ScoreDialog` 编排基本不变，仅 `openDetailForGame` 透传扩展后的既有局 detail（§4.6）。tri-state、版本 CAS、MVP 门控（数据齐全才可选）均不变。
 
 ## 8. 测试
 
@@ -109,20 +130,23 @@
 - `buildStandardBanRows(teamAId, teamBId)`：10 行、蓝红交替、order 正确。
 - `parseKda`：`'12/3/7'`/`'12 3 7'`/`'12-3-7'` 成功，`'12/3'`/`'a/b/c'`/空 失败。
 
-组件测试（`GameDetailEditor.test.tsx`，新增/扩展）：
+组件测试（`GameDetailEditor.test.tsx` / `ScoreDialog.test.tsx`，新增/扩展）：
 - BP 区只显示 BAN 行，无手动加 PICK 入口。
 - 选手行填齐英雄后保存，payload `bans` 含 10 条派生 PICK（type=PICK、order 续在 ban 之后）。
 - 两选手同英雄 / 选手英雄撞 ban → 保存被拦，提示重复、不发请求。
-- 数据未填齐 → 只存草稿，payload bans 不含 PICK。
+- 不完整 stats 三态：完全为空 → 不发 `playerStats`、可存草稿、不标红；部分填写 → 阻塞保存 + 标红 + 不发请求。
+- 编辑既有局（§4.6）：editor 收到带 `bans`/`playerStats` 的 `initial` 时，BP 回填 BAN 行、选手行回填英雄+数值；未改动时保存按 tri-state 保留（不误清）。
 - 「套用标准模板」生成 10 个 ban 行。
 - KDA 合并框解析 `12/3/7`；非法输入高亮。
-- 缺漏单元格保存时标红。
 
-回归：现有 `game-detail-service.test.ts` 后端测试不动且继续通过（契约未变）。
+读模型测试（admin GET detail，§4.6）：
+- `GET /api/tournament/admin/matches/[id]` 返回的 game 含 `bans`/`playerStats`/`blueTeamId`/`durationSeconds`/`mvpRegistrationId`；空 detail 的 game 返回空数组/ null。
+
+回归：现有 `game-detail-service.test.ts` 后端写服务测试不动且继续通过（写契约未变）。
 
 ## 9. 范围外
 
-- 不改后端契约 / 数据模型。
+- 不改 save 写契约 / 数据模型（只读 detail 扩展见 §4.6，属本期范围内）。
 - 不还原真实 BP 选秀次序。
 - 不做粘贴 / OCR / 截图导入。
 - 布局 Tab 化、「保存并录入下一局」、关闭未保存确认（原 item 4/5）留下一批。
