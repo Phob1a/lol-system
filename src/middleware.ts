@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 // Reachable with no session at all.
-const PUBLIC_PREFIXES = ['/login', '/access-denied', '/register', '/live', '/tournament'];
+const PUBLIC_PREFIXES = ['/', '/login', '/access-denied', '/register', '/live', '/tournament'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -38,14 +38,6 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith('/captain') && (token.role !== 'CAPTAIN' || !token.teamId)) {
-    return NextResponse.redirect(new URL('/access-denied', req.url));
-  }
-
-  if (pathname === '/') {
-    if (token.role === 'ADMIN') return NextResponse.redirect(new URL('/admin', req.url));
-    if (token.role === 'CAPTAIN' && token.teamId) {
-      return NextResponse.redirect(new URL('/captain', req.url));
-    }
     return NextResponse.redirect(new URL('/access-denied', req.url));
   }
 
