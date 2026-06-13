@@ -1052,6 +1052,23 @@ In the stat table header, use the five data columns:
 </div>
 ```
 
+Still in `StatsTable`, replace the existing numeric stat inputs with labeled text inputs. Do this in Task 4 so the derived PICK tests can fill `KDA` with values like `1/2/3` and query the inputs by accessible label:
+
+```tsx
+{STAT_COLS.map((col) => (
+  <Input
+    key={col.key}
+    aria-label={col.label}
+    inputMode="numeric"
+    value={row[col.key]}
+    onChange={(e) => onUpdate(idx, { [col.key]: e.target.value })}
+    className="h-10"
+  />
+))}
+```
+
+Do not set `type="number"` on these inputs. The KDA field accepts slash, space, or dash separators, and `type="number"` rejects `1/2/3`.
+
 - [ ] **Step 6: Build payload with derived or legacy PICK**
 
 Import helpers:
@@ -1398,7 +1415,7 @@ function StatsTable({
 
 Pass `tableKey="A" errors={statErrors}` and `tableKey="B" errors={statErrors}` from the two `StatsTable` calls.
 
-For each input, add `aria-label`, `aria-invalid`, and a red border class when invalid:
+Extend the Task 4 stat input with `aria-invalid`, Enter navigation, table-scoped `data-stat-input`, and a red border class when invalid. Keep Task 4's `aria-label`, `inputMode="numeric"`, and no-`type` behavior:
 
 ```tsx
 <Input
