@@ -30,7 +30,7 @@
 | 英雄去重方向 | 方案 Y：选手数据行的英雄是真源；BP 的 PICK 自动由选手英雄派生。 |
 | BP 顺序保真 | 不还原真实选秀次序（Y 接受的取舍）。派生 PICK 用合成顺序。 |
 | BP 模板性质 | 「填充」非「强制」：一键铺标准 ban 行，可再增删。 |
-| 后端 | 零变更。仅前端在保存时合成 bans payload。 |
+| 后端 | 写契约/schema 零变更；为编辑既有局新增 admin 只读 detail 扩展（§4.6）。 |
 
 ## 4. item 1 — 英雄不重复（方案 Y）
 
@@ -41,19 +41,22 @@
 
 ### 4.2 PICK 自动派生
 
-保存构建 payload 时（`buildPayload`），若 `bans` 字段被写入（`bansTouched || statsTouched` 任一为真时需要重算，详见 4.4）：
+保存构建 payload 时（`buildPayload`），当 `bans` 字段需要写入（`bansTouched || statsTouched`）：
 
-- 收集所有手填 BAN 行（保留各自 teamId/championId）。
-- 对两队各 5 个**已填英雄**的选手行，生成 `type:'PICK'` 条目：`teamId` = 该选手所属队伍，`championId` = 该选手英雄。
-- `order` 赋值：先 BAN 行按其行序 `1..B`，再 PICK 行接续 `B+1..B+10`（顺序为「队伍A 5 人槽位 + 队伍B 5 人槽位」，合成顺序）。
-- 合并后的数组即 `detail.bans`，满足后端 order 连续 + 去重约束。
+- **BAN 段**：收集所有手填 BAN 行（保留各自 teamId/championId），order `1..B`。
+- **PICK 段**：来源按数据状态二选一（见 §4.4 对 legacy PICK 的处理）：
+  - 选手数据**完整**（`statsAllComplete`）→ **派生 PICK**：对两队各 5 个已填英雄的选手行生成 `type:'PICK'` 条目（`teamId`=该选手队伍，`championId`=该选手英雄）。
+  - 选手数据**不完整**但既有局原本带 PICK（`initial.bans` 中的 PICK）→ **保留 legacy PICK**：原样带出这些 PICK（见 §4.4），不丢弃。
+  - 既无完整 stats 也无 legacy PICK → 不产生 PICK 段。
+- PICK 段 order 接续 BAN 段：`B+1..`（派生时为「队伍A 5 槽 + 队伍B 5 槽」合成顺序；legacy 时按原相对顺序重新编号）。
+- 合并后的数组即 `detail.bans`，须满足后端 order 从 1 连续 + ban/pick 英雄全局去重（含 legacy PICK 与 BAN 的去重，见 §4.3）。
 
 ### 4.3 客户端校验（保存前）
 
 在现有 `validate()` 基础上扩展：
 
 - BAN 行不可缺英雄；BAN 行之间英雄不重复（已有）。
-- **新增**：派生 PICK（= 10 选手英雄）必须两两不重复；且不得与任何 BAN 英雄重复。命中时定位到冲突的选手行/ban 行并提示「同局英雄不可重复：X」，不发请求（避免后端 422 兜底后用户找不到冲突点）。
+- **新增**：最终 PICK 段（派生或 legacy）必须两两不重复，且不得与任何 BAN 英雄重复。命中时定位到冲突的选手行/ban 行并提示「同局英雄不可重复：X」，不发请求（避免后端 422 兜底后用户找不到冲突点）。特别地，编辑既有局时若手填 BAN 与某 legacy PICK 撞英雄，须拦截提示。
 - 选手英雄未填齐时不派生 PICK（保持草稿可存：见 4.4）。
 
 ### 4.4 与 tri-state / 草稿的关系（rev.2 明确不完整 stats 行为）
@@ -67,6 +70,19 @@
 即：§6.3 的缺漏标红只在「部分填写」态触发并阻塞；「完全为空」态不触发、可存草稿。两者不再矛盾。
 
 - 编辑既有局：依赖 §4.6 的只读扩展把原始 detail（BAN 行 + playerStats 英雄/数值 + blueTeamId/duration/mvp）回填进 editor。BP 区只列 BAN 行（现存 PICK 不作为可编辑行）；选手英雄从 `playerStats` 回填。保存时若选手数据完整则 PICK 由选手英雄重新派生覆盖；若操作员未动数据则 `playerStats`/`bans` 按 tri-state 保留不变。
+
+#### 4.4.1 legacy PICK 保护（修 P2-1，防静默丢数据）
+
+现有系统允许「只存 bans 且 bans 含 PICK、不带完整 playerStats」（旧 UI 可手动加 PICK，后端也有纯补 BP 路径）。因此存在中间态：**既有局有 PICK 但无完整 playerStats，操作员只改了 BAN 行**。
+
+editor 必须把 `initial.bans` 中的 PICK 条目单独留存为 **legacy PICK**（不在 BP 区显示为可编辑行，但保存时参与）：
+
+- 若本次保存时选手数据**完整** → 用派生 PICK **覆盖** legacy PICK（数据真源优先）。
+- 若选手数据**不完整**（含完全为空：操作员只改 BAN）→ 保存的 `detail.bans` = 手填 BAN 段 + **legacy PICK 段**（接在 BAN 后重新编号），legacy PICK 原样保留，**不得丢弃**。
+- legacy PICK 与手填 BAN 之间做去重校验（§4.3）；冲突则拦截提示。
+- 仅当操作员显式整段清空 BP（既有的 `clearBans` → `bans=null`）时才连同 legacy PICK 一并清空，这是显式破坏性操作。
+
+这样「编辑旧局 BAN」不会静默删掉原 PICK；只有「填齐 stats」或「显式清空」才会改动 PICK 段。
 
 ### 4.5 显示
 
@@ -87,10 +103,13 @@
 ## 5. item 2 — BP 标准模板（仅 ban）
 
 - BP 区加「套用标准模板」按钮：一键生成标准 BAN 行。默认 **5 蓝 / 5 红 共 10 个 ban，顺序蓝-红交替**（蓝1 红1 蓝2 红2 … 蓝5 红5）。操作员只填英雄。
+- **蓝/红来源（修 P2-2）**：蓝方由 `blueTeamId` 决定，而非 `teamA`。公开 `MatchDetailView` 也按 `ban.teamId === game.blueTeamId` 渲染蓝/红，所以模板必须按 `blueTeamId` 派 ban 行的 teamId。
+  - 若 `blueTeamId` 已设置：blue = blueTeamId，red = 另一队。
+  - 若 `blueTeamId` **未设置**：默认 blue = `teamA`，并**同步把蓝方设为 teamA**（设置 `blueTeamId = teamA.id`、置 `blueTouched`，使其随本次保存持久化）。减少一次手动选蓝方的操作；按钮旁注明「将以 X 队为蓝方」。
 - 模板是填充：生成后可继续增删 BAN 行、改队伍。
 - 已有 BAN 行时点模板 → 二次确认覆盖。
 - PICK 不在模板内（Y 下自动派生）。
-- 模板生成逻辑抽为纯函数 `buildStandardBanRows(teamAId, teamBId)`，便于单测。
+- 模板生成逻辑抽为纯函数 **`buildStandardBanRows(blueTeamId, redTeamId)`**（按 blue/red 而非 teamA/teamB），便于单测、避免实现时按 teamA/teamB 写错。
 
 ## 6. item 3 — 数据录入手感
 
@@ -126,8 +145,9 @@
 
 纯函数单测：
 - `derivePicksFromStats(statsA, statsB, teamAId, teamBId)`：生成 5+5 PICK、teamId 正确、championId 来自选手英雄。
-- `buildBansPayload(banRows, statsA, statsB, ...)`：order 从 1 连续（ban 段 + pick 段）、合并去重边界。
-- `buildStandardBanRows(teamAId, teamBId)`：10 行、蓝红交替、order 正确。
+- `buildBansPayload(banRows, statsComplete, derivedOrLegacyPicks, ...)`：order 从 1 连续（ban 段 + pick 段）；stats 完整→用派生 PICK，stats 不完整→保留 legacy PICK 并重新编号；ban 与 PICK 合并去重边界。
+- legacy PICK 保护：编辑既有局（有 PICK 无完整 stats），只改 BAN 保存 → 输出仍含原 PICK（重新编号），不丢失。
+- `buildStandardBanRows(blueTeamId, redTeamId)`：10 行、蓝红交替（首行 teamId=blueTeamId）、order 正确。
 - `parseKda`：`'12/3/7'`/`'12 3 7'`/`'12-3-7'` 成功，`'12/3'`/`'a/b/c'`/空 失败。
 
 组件测试（`GameDetailEditor.test.tsx` / `ScoreDialog.test.tsx`，新增/扩展）：
@@ -136,7 +156,7 @@
 - 两选手同英雄 / 选手英雄撞 ban → 保存被拦，提示重复、不发请求。
 - 不完整 stats 三态：完全为空 → 不发 `playerStats`、可存草稿、不标红；部分填写 → 阻塞保存 + 标红 + 不发请求。
 - 编辑既有局（§4.6）：editor 收到带 `bans`/`playerStats` 的 `initial` 时，BP 回填 BAN 行、选手行回填英雄+数值；未改动时保存按 tri-state 保留（不误清）。
-- 「套用标准模板」生成 10 个 ban 行。
+- 「套用标准模板」生成 10 个 ban 行；`blueTeamId` 未设置时默认 teamA 为蓝并同步 `blueTeamId`，首 ban 行 teamId = 蓝方。
 - KDA 合并框解析 `12/3/7`；非法输入高亮。
 
 读模型测试（admin GET detail，§4.6）：
