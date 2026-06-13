@@ -1,17 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { getPostAuthRedirect } from '@/lib/auth-landing';
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get('callbackUrl') ?? '/';
+  const callbackUrl = params.get('callbackUrl');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,15 @@ export function LoginForm() {
         setErr('登录失败：账号或密码错误');
         return;
       }
-      router.push(callbackUrl);
+      const session = await getSession();
+      const role = session?.user.role ?? 'ADMIN';
+      router.push(
+        getPostAuthRedirect({
+          role,
+          callbackUrl,
+          mustChangePwd: session?.user.mustChangePwd,
+        }),
+      );
       router.refresh();
     } finally {
       // Keep the submit button disabled until after setErr lands, so a

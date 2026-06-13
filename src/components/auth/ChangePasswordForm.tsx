@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { getPostAuthRedirect } from '@/lib/auth-landing';
 
 export function ChangePasswordForm() {
   const router = useRouter();
-  const { update } = useSession();
+  const { data: session, update } = useSession();
   const [submitting, setSubmitting] = useState(false);
   const [strength, setStrength] = useState(0);
 
@@ -41,7 +42,8 @@ export function ChangePasswordForm() {
     }
     toast.success('密码已更新');
     await update({ mustChangePwd: false });
-    router.push('/');
+    const role = session?.user.role ?? 'ADMIN';
+    router.push(getPostAuthRedirect({ role }));
     router.refresh();
   }
 
