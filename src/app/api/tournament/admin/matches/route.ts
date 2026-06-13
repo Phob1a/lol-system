@@ -14,7 +14,6 @@ const addMatchSchema = z.object({
   bestOf: z.number().int().positive(),
   label: z.string().min(1),
   countsForStandings: z.boolean(),
-  scheduledAt: z.string().datetime().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,7 +23,6 @@ export async function POST(req: NextRequest) {
     const body = addMatchSchema.parse(await req.json());
     await addCustomMatch(prisma, {
       ...body,
-      scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
       actorUserId: guard.session.user.id,
     });
     publishTournament({ type: 'tournament.invalidated' });

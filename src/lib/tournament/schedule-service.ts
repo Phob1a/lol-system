@@ -13,7 +13,6 @@ export async function addCustomMatch(
     bestOf: number;
     label: string;
     countsForStandings: boolean;
-    scheduledAt?: Date | null;
     actorUserId: string;
   },
 ): Promise<Match> {
@@ -57,7 +56,7 @@ export async function addCustomMatch(
         countsForStandings: input.countsForStandings,
         teamAId: input.teamAId,
         teamBId: input.teamBId,
-        scheduledAt: input.scheduledAt ?? null,
+        scheduledAt: null,
       },
     });
     await writeAudit(tx, {

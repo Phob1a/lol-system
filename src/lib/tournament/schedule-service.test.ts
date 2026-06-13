@@ -59,6 +59,25 @@ it('不挂组的表演赛：不计分，挂在 KNOCKOUT 阶段', async () => {
   expect(m.groupId).toBeNull();
 });
 
+it('自定义比赛创建时不写预约时间', async () => {
+  const { t, teamIds } = await setup();
+  const input = {
+    tournamentId: t.id,
+    groupId: null,
+    teamAId: teamIds[0],
+    teamBId: teamIds[4],
+    bestOf: 1,
+    label: '待预约表演赛',
+    countsForStandings: false,
+    scheduledAt: new Date('2026-06-13T12:30:00Z'),
+    actorUserId: 'u',
+  };
+
+  const m = await addCustomMatch(testDb, input);
+
+  expect(m.scheduledAt).toBeNull();
+});
+
 it('SETUP 期添加自定义比赛被拒', async () => {
   const { seasonId, teamIds } = await seedSeasonWithTeams(8);
   const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });

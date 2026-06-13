@@ -221,6 +221,22 @@ it.each([MatchStatus.FINISHED, MatchStatus.CANCELED, MatchStatus.WALKOVER])(
   },
 );
 
+it('admin reservation compatibility rejects FINISHED matches', async () => {
+  const { t } = await setupGroupStage();
+  const match = await testDb.match.findFirstOrThrow({ where: { tournamentId: t.id } });
+  await testDb.match.update({ where: { id: match.id }, data: { status: MatchStatus.FINISHED } });
+
+  await expect(
+    reserveMatch(testDb, {
+      matchId: match.id,
+      expectedVersion: match.version,
+      scheduledAt: new Date('2026-06-13T12:30:00Z'),
+      actorUserId: 'admin-user',
+      actor: { role: 'ADMIN' },
+    }),
+  ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+});
+
 it('rejects matches with an unresolved side', async () => {
   const { t } = await setupGroupStage();
   const match = await testDb.match.findFirstOrThrow({ where: { tournamentId: t.id } });

@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
-import { cancelMatch, deleteGame, recordGame, rescheduleMatch } from '@/lib/tournament/score-service';
+import { cancelMatch, deleteGame, recordGame } from '@/lib/tournament/score-service';
+import { reserveMatch } from '@/lib/tournament/reservation-service';
 import { toResponse } from '@/lib/tournament/route-errors';
 import { publishTournament } from '@/server/tournament-bus';
 
@@ -43,10 +44,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const body = patchSchema.parse(await req.json());
     if (body.op === 'reschedule') {
-      await rescheduleMatch(prisma, {
+      await reserveMatch(prisma, {
         matchId: id, expectedVersion: body.expectedVersion,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
         actorUserId: guard.session.user.id,
+        actor: { role: 'ADMIN' },
       });
     } else {
       await cancelMatch(prisma, { matchId: id, expectedVersion: body.expectedVersion, actorUserId: guard.session.user.id });
