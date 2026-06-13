@@ -1,6 +1,6 @@
 # 比赛预约排期重构设计
 
-日期：2026-06-13 ｜ 状态：rev.1 ｜ 前置：M1 + 赛季整合 + M2 + 赛程时间表已上线
+日期：2026-06-13 ｜ 状态：rev.2（采纳 Claude Code review）｜ 前置：M1 + 赛季整合 + M2 + 赛程时间表已上线
 
 ## 1. 目标
 
@@ -18,6 +18,7 @@
 | 取消语义 | 取消预约只清空 `scheduledAt`，不把比赛状态改成 `CANCELED`。 |
 | 真正取消比赛 | 保留为管理员特殊操作，不放入普通预约流。 |
 | 候选限制 | 小组赛只能约同组对阵；淘汰赛只能约双方已确定且含本人队伍的对阵。 |
+| 批量排期 | 本期退役现有自动顺排/批量排期入口，避免与新预约流形成两套写 `scheduledAt` 的路径。 |
 | 数据库 | 零 schema 变更。继续使用 `Match.scheduledAt` + `Match.version`。 |
 
 ## 3. 后端模型
@@ -98,11 +99,9 @@ reserveMatch(db, input: {
 3. 校验 `status === 'SCHEDULED'`、双方已确定。
 4. 队长 actor 额外校验 `teamId` 是 `teamAId/teamBId` 之一。
 5. 更新 `scheduledAt`。
-6. 写审计：
-   - `match.reservation.set`：`scheduledAt !== null`
-   - `match.reservation.clear`：`scheduledAt === null`
+6. 写审计：沿用现有单场动词 `match.reschedule`，payload 标明 `{ scheduledAt, actorRole, reservation: true }`。不新增 `match.reservation.*` 动词，避免同一类 `scheduledAt` 变更出现多套审计动作。
 
-现有 `rescheduleMatch` / `rescheduleMatches` 可保留给管理员批量/旧入口，但新的管理员和队长预约 UI 应调用 `reserveMatch` 语义，避免把“取消预约”和“取消比赛”混淆。
+现有单场 `rescheduleMatch` 可被 `reserveMatch` 吸收或改造成内部 helper，但对外新 UI 必须统一走 `reserveMatch` 语义。现有批量 `rescheduleMatches` / `POST /api/tournament/admin/schedule/batch` 在本期退役：产品 UI 不再调用；实现时应删除该路由或让它返回明确的 410/422，不允许继续作为可写 `scheduledAt` 的第二路径。原因是该批量路径没有 `status === 'SCHEDULED'`、双方已确定、预约候选等校验，会和新预约流产生校验分歧。
 
 ### 3.5 路由
 
@@ -116,17 +115,18 @@ reserveMatch(db, input: {
 
 - `GET /api/captain/reservations`
   - 返回当前队伍已预约比赛 + 可预约候选。
+  - 不传 `tournamentId`；路由由当前活跃赛季解析 tournament，再按 session.teamId 过滤。
 - `PATCH /api/captain/reservations/[matchId]`
   - body 同管理员。
   - require CAPTAIN，且 session.teamId 必须存在。
 
-错误映射沿用 `toResponse`：
+错误映射：
 
-- 参数错误 → 422
-- 队长操作非本队比赛 → 403
+- 参数错误 → 422。ZodError 在 route 内单独 catch，保持现有路由写法。
+- 队长操作非本队比赛 → 403。实现必须新增 `TournamentErrorCode = 'FORBIDDEN'` 并在 `route-errors.ts` 的 STATUS 表映射到 403；不要在每个 route 手写 403，避免权限错误分散。
 - match 不存在 → 404
 - version 冲突 → 409
-- 状态不允许 / 赛季归档 → 409
+- 状态不允许 / 赛季归档 → 422。沿用现有 `INVALID_STATE` 映射，不改全局语义。
 
 ## 4. 管理员排期页
 
@@ -137,13 +137,13 @@ reserveMatch(db, input: {
 - 默认展示“已预约比赛”列表，按日期升序分组。
 - 顶部按钮：「创建预约」。
 - 每行操作：
-  - 修改时间
-  - 取消预约
+  - 修改时间（仅 `status === 'SCHEDULED'` 可用；已完赛/轮空/取消比赛只读展示）
+  - 取消预约（仅 `status === 'SCHEDULED'` 可用；已完赛/轮空/取消比赛只读展示）
   - 录比分
   - 轮空
   - 更多：真正取消比赛（管理员特殊操作，需二次确认，文案必须写“取消比赛”）
 
-移除或隐藏普通排期流里的“自动顺排”。它和“按需预约”目标相冲突；如以后需要批量导入时间，再单独设计为管理员高级工具。
+移除普通排期流里的“自动顺排”和批量排期面板。它们和“按需预约”目标相冲突；如以后需要批量导入时间，再单独设计为管理员高级工具，并复用预约候选校验。
 
 ### 4.2 创建预约 Dialog
 
@@ -167,6 +167,8 @@ reserveMatch(db, input: {
 
 队长导航增加「比赛预约」。在赛季进入 `COMPLETED` 后可见；更早阶段队伍阵容未完成，不展示预约入口。
 
+理由：当前 draft engine 在选秀完成后把赛季置为 `COMPLETED`，而赛事的小组赛/淘汰赛运行期间赛季保持 `COMPLETED` 直到归档。因此 `COMPLETED` 是队长预约窗口，而不是赛事已经结束。
+
 ### 5.2 页面内容
 
 队长预约页展示两个区块：
@@ -177,8 +179,10 @@ reserveMatch(db, input: {
 操作：
 
 - 创建预约：从“可预约”列表选择一场 + 时间。
-- 修改预约：对已预约比赛修改时间。
-- 取消预约：清空该比赛时间。
+- 修改预约：对已预约比赛修改时间；仅 `status === 'SCHEDULED'` 可用。
+- 取消预约：清空该比赛时间；仅 `status === 'SCHEDULED'` 可用。
+
+已预约列表会包含已完赛、轮空、真正取消的历史比赛；这些行只读展示，不显示或禁用“修改预约/取消预约”。后端仍用 `status === 'SCHEDULED'` 兜底，避免前端状态过期时误写。
 
 页面只展示自己队伍相关比赛，不暴露其它队伍完整排期管理面。
 
@@ -188,12 +192,14 @@ reserveMatch(db, input: {
 
 原因：公开用户关心“什么时候打”，不是赛制内部还有哪些未约对阵。未预约对阵可在积分/淘汰赛图里通过其它视图体现，不进入赛程时间线。
 
+这是视图层过滤，不是读模型收窄。公开 read model 仍可返回全部 match，以供积分、淘汰赛图和比赛详情入口使用；`ScheduleList` 负责过滤未预约比赛。
+
 ## 7. 与现有功能关系
 
 - `confirmGroups` 仍生成小组赛对阵。
 - `closeGroupStage` 仍依赖小组赛 match 完成情况，不依赖是否曾预约。
-- `addCustomMatch` 保留为管理员“加赛/表演赛”能力，不作为普通创建预约入口。
-- 现有 `SchedulePlanner` 的未排期池 + 自动顺排形态将被预约工作台替代；保留纯函数可按需复用日期分组逻辑。
+- `addCustomMatch` 保留为管理员“加赛/表演赛”能力，不作为普通创建预约入口。它允许 `scheduledAt=null` 创建自定义比赛；这类比赛创建后若满足候选条件（`status === 'SCHEDULED'`、双方确定、未预约、赛季可写），可以进入管理员预约候选池。队长不能创建自定义赛，只能预约自己相关的既有 match。
+- 现有 `SchedulePlanner` 的未排期池 + 自动顺排形态将被预约工作台替代；保留纯函数可按需复用日期分组逻辑。`POST /api/tournament/admin/schedule/batch` 同步退役，不能继续作为生产 UI 的写入路径。
 - SSE invalidation 继续复用 `publishTournament({ type: 'tournament.invalidated' })`。
 
 ## 8. 测试
@@ -208,12 +214,15 @@ reserveMatch(db, input: {
 - 淘汰赛双方未确定的 match 不进入候选。
 - version 冲突返回 `VERSION_CONFLICT`，不写入。
 - 归档赛季拒绝。
+- `FORBIDDEN` 新错误码映射 403，队长操作非本队比赛时使用。
+- `INVALID_STATE` 继续映射 422，状态不允许/归档不改为 409。
+- 批量排期端点退役：不存在或返回明确错误；不能继续成功写入 `scheduledAt`。
 
 路由：
 
 - admin/captain 权限覆盖。
 - Zod 校验 datetime/null/expectedVersion。
-- 403/404/409/422 映射。
+- 403/404/409/422 映射；ZodError 仍在 route 层单独 catch 为 422。
 
 组件：
 
