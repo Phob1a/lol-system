@@ -33,7 +33,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScoreDialog } from './ScoreDialog';
-import { SchedulePlanner } from './SchedulePlanner';
 import { toLocalDatetimeString, fromLocalDatetimeString } from './datetime-local';
 import type { AdminState } from '@/hooks/useTournamentState';
 
@@ -329,8 +328,7 @@ function AddMatchDialog({
 
 // ─── ScheduleTab (main export) ────────────────────────────────────────────────
 
-export function ScheduleTab({ teams, state, refetch, seasonId }: Props) {
-  const [view, setView] = useState<'list' | 'planner'>('list');
+export function ScheduleTab({ teams, state, refetch }: Props) {
   const [scoreMatchId, setScoreMatchId] = useState<string | null>(null);
   const [walkoverMatch, setWalkoverMatch] = useState<MatchRow | null>(null);
   const [walkoverBusy, setWalkoverBusy] = useState(false);
@@ -481,34 +479,14 @@ export function ScheduleTab({ teams, state, refetch, seasonId }: Props) {
     <div className="space-y-4 pt-4">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* View toggle */}
-        <div className="flex rounded-md border">
-          <Button
-            size="sm"
-            variant={view === 'list' ? 'default' : 'ghost'}
-            className="rounded-r-none"
-            onClick={() => setView('list')}
-          >
-            列表
-          </Button>
-          <Button
-            size="sm"
-            variant={view === 'planner' ? 'default' : 'ghost'}
-            className="rounded-l-none"
-            onClick={() => setView('planner')}
-          >
-            排期
-          </Button>
-        </div>
-
-        {view === 'list' && tournament.status !== 'SETUP' && (
+        {tournament.status !== 'SETUP' && (
           <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
             自定义比赛
           </Button>
         )}
 
-        {view === 'list' && showCloseGroups && (
+        {showCloseGroups && (
           <Button size="sm" disabled={closingGroups} onClick={() => void handleCloseGroups()}>
             <LoadingButtonContent loading={closingGroups} loadingText="处理中…">
               收小组进淘汰赛
@@ -517,13 +495,7 @@ export function ScheduleTab({ teams, state, refetch, seasonId }: Props) {
         )}
       </div>
 
-      {/* Planner view */}
-      {view === 'planner' && (
-        <SchedulePlanner state={state} refetch={refetch} seasonId={seasonId} readOnly={false} />
-      )}
-
       {/* Matches table */}
-      {view === 'list' && (
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
@@ -626,7 +598,6 @@ export function ScheduleTab({ teams, state, refetch, seasonId }: Props) {
           </TableBody>
         </Table>
       </div>
-      )}
 
       {/* Dialogs */}
       <ScoreDialog
