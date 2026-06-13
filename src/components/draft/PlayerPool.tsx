@@ -341,7 +341,17 @@ function PlayerPoolCard({
   });
 
   useEffect(() => {
-    if (isDragging) suppressClickRef.current = true;
+    if (isDragging) {
+      suppressClickRef.current = true;
+      return;
+    }
+    // Drag ended: clear suppression after the trailing click from this pointer
+    // sequence has fired, so the next genuine double-click is not swallowed —
+    // including after a drag that dropped on an invalid target (failed pick).
+    const timer = setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isDragging]);
 
   return (
@@ -352,10 +362,7 @@ function PlayerPoolCard({
         {...(draggable ? attributes : {})}
         {...(draggable ? listeners : {})}
         onDoubleClick={() => {
-          if (suppressClickRef.current) {
-            suppressClickRef.current = false;
-            return;
-          }
+          if (suppressClickRef.current) return;
           if (actionable) onPickRequest(player);
         }}
         className={cn(
