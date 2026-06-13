@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { DndContext } from '@dnd-kit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RegistrationForPool } from '@/lib/filters';
 import { PlayerPool } from './PlayerPool';
@@ -49,5 +50,38 @@ describe('PlayerPool', () => {
     expect(grid).toHaveStyle({
       gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
     });
+  });
+
+  it('marks a player card as draggable when drag data is provided', () => {
+    render(
+      <DndContext>
+        <PlayerPool
+          players={[player]}
+          getDragData={(p) => ({ type: 'pool-player', playerId: p.id })}
+        />
+      </DndContext>,
+    );
+
+    const card = screen.getByTestId('player-pool-card-p1');
+    expect(card).toHaveAttribute('aria-roledescription', 'draggable');
+    expect(card).toHaveClass('cursor-grab');
+  });
+
+  it('uses card double-click as the fallback pick action for draggable cards', () => {
+    const onPickRequest = vi.fn();
+    render(
+      <DndContext>
+        <PlayerPool
+          players={[player]}
+          getDragData={(p) => ({ type: 'pool-player', playerId: p.id })}
+          onPickRequest={onPickRequest}
+        />
+      </DndContext>,
+    );
+
+    expect(screen.getByText('拖到空位')).toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByTestId('player-pool-card-p1'));
+
+    expect(onPickRequest).toHaveBeenCalledWith(player);
   });
 });

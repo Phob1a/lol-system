@@ -1,6 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import type { Position } from '@prisma/client';
+import { toast } from 'sonner';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import type { DraftSnapshot } from '@/lib/draft/types';
 import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
@@ -12,9 +21,9 @@ import {
   CaptainNotificationDialog,
   type CaptainNoticeKind,
 } from '@/components/captain/CaptainNotificationDialog';
-import { Button } from '@/components/ui/button';
 import { formatCost, normalizeCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
+import { resolveDraftPickDrop } from '@/lib/draft/drag-pick';
 
 type Props = {
   initialSnapshot: DraftSnapshot;
@@ -25,6 +34,8 @@ type Props = {
   teamBudget: number;
 };
 
+type PickableRegistration = RegistrationRef & { isPicked?: boolean };
+
 export function CaptainDashboard({
   initialSnapshot,
   pool,
@@ -34,7 +45,9 @@ export function CaptainDashboard({
 }: Props) {
   const { snapshot, prevSnapshot, connected } = useDraftStream(initialSnapshot);
   const [pickTarget, setPickTarget] = useState<RegistrationRef | null>(null);
+  const [pickInitialPosition, setPickInitialPosition] = useState<Position | undefined>(undefined);
   const [noticeKind, setNoticeKind] = useState<CaptainNoticeKind | null>(null);
+  const [rearrangingSlots, setRearrangingSlots] = useState(false);
 
   const session = snapshot?.session ?? null;
   const running = session?.status === 'IN_PROGRESS';
@@ -76,6 +89,16 @@ export function CaptainDashboard({
     [ownLiveTeam],
   );
   const myBudget = ownLiveTeam?.budgetLeft ?? 0;
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function canPickPlayer(player: PickableRegistration) {
+    return (
+      isMyTurn &&
+      !player.isPicked &&
+      normalizeCost(player.cost) <= normalizeCost(myBudget) &&
+      myEmptySlots.length > 0
+    );
+  }
 
   useEffect(() => {
     if (!snapshot || !ownCaptainId) return;
@@ -97,8 +120,60 @@ export function CaptainDashboard({
     ? snapshot?.teams.find((t) => t.captainId === onTheClockId)?.captainNickname ?? onTheClockId
     : null;
 
+  async function persistOwnSlotSwap(from: Position, to: Position) {
+    if (!ownLiveTeam || from === to) return;
+    const fromIdx = ownLiveTeam.slots.findIndex((s) => s.position === from);
+    const toIdx = ownLiveTeam.slots.findIndex((s) => s.position === to);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const next = ownLiveTeam.slots.map((s) => ({ ...s }));
+    const fromRegistration = next[fromIdx].registration;
+    const toRegistration = next[toIdx].registration;
+    next[fromIdx] = { ...next[fromIdx], registration: toRegistration };
+    next[toIdx] = { ...next[toIdx], registration: fromRegistration };
+
+    setRearrangingSlots(true);
+    const res = await fetch(`/api/draft/team/${ownLiveTeam.id}/slots`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slots: next.map((s) => ({ position: s.position, registrationId: s.registration?.id ?? null })),
+      }),
+    });
+    setRearrangingSlots(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? '调整失败');
+      return;
+    }
+    toast.success('已调整位置');
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const pickIntent = resolveDraftPickDrop(event.active.data.current, event.over?.data.current);
+    if (pickIntent && isMyTurn && myEmptySlots.includes(pickIntent.position)) {
+      const player = decoratedPool.find((p) => p.id === pickIntent.playerId);
+      if (
+        player &&
+        !player.isPicked &&
+        normalizeCost(player.cost) <= normalizeCost(myBudget)
+      ) {
+        setPickTarget(player as RegistrationRef);
+        setPickInitialPosition(pickIntent.position);
+      }
+      return;
+    }
+
+    const active = event.active.data.current as { type?: string; position?: Position } | undefined;
+    const over = event.over?.data.current as { position?: Position } | undefined;
+    if (active?.type === 'slot-player' && active.position && over?.position) {
+      void persistOwnSlotSwap(active.position, over.position);
+    }
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div
@@ -196,6 +271,8 @@ export function CaptainDashboard({
                       })),
                     }}
                     seq={snapshot?.seq ?? 0}
+                    pickDropEnabled={isMyTurn}
+                    dndMode="external"
                   />
                 );
               }
@@ -211,19 +288,22 @@ export function CaptainDashboard({
         </div>
         <PlayerPool
           players={decoratedPool}
-          renderActions={
+          getDragData={
             isMyTurn
-              ? (p) => (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => setPickTarget(p as RegistrationRef)}
-                    disabled={p.isPicked || normalizeCost(p.cost) > normalizeCost(myBudget) || myEmptySlots.length === 0}
-                    className="text-xs px-2.5 py-1 h-auto"
-                  >
-                    ▸ PICK
-                  </Button>
-                )
+              ? (p) => {
+                  if (!canPickPlayer(p)) return null;
+                  return { type: 'pool-player', playerId: p.id };
+                }
+              : undefined
+          }
+          onPickRequest={
+            isMyTurn
+              ? (p) => {
+                  const player = p as PickableRegistration;
+                  if (!canPickPlayer(player)) return;
+                  setPickTarget(player);
+                  setPickInitialPosition(undefined);
+                }
               : undefined
           }
         />
@@ -232,12 +312,21 @@ export function CaptainDashboard({
       {pickTarget && snapshot && (
         <PickAction
           open
-          onOpenChange={(o) => !o && setPickTarget(null)}
-          onPicked={() => setPickTarget(null)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setPickTarget(null);
+              setPickInitialPosition(undefined);
+            }
+          }}
+          onPicked={() => {
+            setPickTarget(null);
+            setPickInitialPosition(undefined);
+          }}
           player={pickTarget}
           emptySlots={myEmptySlots}
           budgetLeft={myBudget}
           expectedSeq={snapshot.seq}
+          initialPosition={pickInitialPosition}
         />
       )}
 
@@ -250,7 +339,11 @@ export function CaptainDashboard({
           onConfirm={() => setNoticeKind(null)}
         />
       )}
-    </div>
+        {rearrangingSlots && (
+          <span className="sr-only" role="status">正在调整位置</span>
+        )}
+      </div>
+    </DndContext>
   );
 }
 

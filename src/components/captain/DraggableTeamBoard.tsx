@@ -24,11 +24,20 @@ type Props = {
   team: TeamPreview & { id: string };
   /** Snapshot version for optimistic-conflict detection; bump invalidates local state. */
   seq: number;
+  /** Enables pool-player drop affordance on empty own-team slots. */
+  pickDropEnabled?: boolean;
+  /** Use an ancestor DndContext when the pool and board need to share one drag surface. */
+  dndMode?: 'internal' | 'external';
 };
 
 type LocalSlot = { position: Position; registration: RegistrationRef | null };
 
-export function DraggableTeamBoard({ team, seq }: Props) {
+export function DraggableTeamBoard({
+  team,
+  seq,
+  pickDropEnabled = false,
+  dndMode = 'internal',
+}: Props) {
   const [slots, setSlots] = useState<LocalSlot[]>(
     team.slots.map((s) => ({ position: s.position, registration: s.player })),
   );
@@ -61,7 +70,7 @@ export function DraggableTeamBoard({ team, seq }: Props) {
 
   function onDragEnd(event: DragEndEvent) {
     const fromPos = event.active.data.current?.position as Position | undefined;
-    const toPos = event.over?.id as Position | undefined;
+    const toPos = event.over?.data.current?.position as Position | undefined;
     if (!fromPos || !toPos || fromPos === toPos) return;
 
     const fromIdx = slots.findIndex((s) => s.position === fromPos);
@@ -87,7 +96,7 @@ export function DraggableTeamBoard({ team, seq }: Props) {
     })),
   };
 
-  return (
+  const board = (
     <div className="rounded-xl border-2 border-primary bg-primary/5 shadow p-3 relative">
       <TeamHoverCard team={hoverTeam} disabled={submitting}>
         <div className="flex justify-between items-baseline gap-2 mb-2.5">
@@ -110,28 +119,50 @@ export function DraggableTeamBoard({ team, seq }: Props) {
         </div>
       </TeamHoverCard>
 
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-1">
-          {slots.map((slot) => (
-            <DroppableSlot key={slot.position} slot={slot} disabled={submitting} />
-          ))}
-        </div>
-      </DndContext>
+      <div className="flex flex-col gap-1">
+        {slots.map((slot) => (
+          <DroppableSlot
+            key={slot.position}
+            slot={slot}
+            disabled={submitting}
+            pickDropEnabled={pickDropEnabled}
+          />
+        ))}
+      </div>
     </div>
   );
+
+  if (dndMode === 'external') return board;
+  return <DndContext sensors={sensors} onDragEnd={onDragEnd}>{board}</DndContext>;
 }
 
-function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean }) {
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: slot.position });
+function DroppableSlot({
+  slot,
+  disabled,
+  pickDropEnabled,
+}: {
+  slot: LocalSlot;
+  disabled: boolean;
+  pickDropEnabled: boolean;
+}) {
+  const canDropPick = pickDropEnabled && slot.registration === null && !disabled;
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `team-slot-${slot.position}`,
+    data: { position: slot.position, acceptsPick: canDropPick },
+  });
   return (
     <div
       ref={setDropRef}
+      data-testid={`team-slot-drop-${slot.position}`}
+      data-pick-drop-enabled={String(canDropPick)}
       className={cn(
         'grid items-center gap-2 px-2 py-1.5 rounded-md border text-xs transition-colors',
         isOver
           ? 'ring-2 ring-primary bg-accent border-primary'
           : slot.registration
           ? 'border-border bg-muted/30'
+          : canDropPick
+          ? 'border-dashed border-primary/60 bg-primary/5'
           : 'border-border bg-muted/10',
       )}
       style={{ gridTemplateColumns: '46px 1fr auto' }}
@@ -161,7 +192,7 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
 function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `slot-${slot.position}`,
-    data: { position: slot.position },
+    data: { type: 'slot-player', position: slot.position },
     disabled,
   });
   if (!slot.registration) return null;

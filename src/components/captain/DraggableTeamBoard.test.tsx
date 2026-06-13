@@ -69,4 +69,15 @@ describe('DraggableTeamBoard', () => {
 
     expect(screen.queryByText('队伍详情')).not.toBeInTheDocument();
   });
+
+  it('marks empty slots as pick drop targets when pick dragging is enabled', () => {
+    render(<DraggableTeamBoard team={team} seq={1} pickDropEnabled />);
+
+    const jungle = screen.getByTestId('team-slot-drop-JUNGLE');
+    expect(jungle).toHaveAttribute('data-pick-drop-enabled', 'true');
+    expect(jungle).toHaveClass('border-dashed');
+
+    const top = screen.getByTestId('team-slot-drop-TOP');
+    expect(top).toHaveAttribute('data-pick-drop-enabled', 'false');
+  });
 });

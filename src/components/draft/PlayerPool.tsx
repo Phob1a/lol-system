@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDraggable } from '@dnd-kit/core';
 import {
   filterPlayers,
   sortPlayers,
@@ -22,6 +23,10 @@ type Props = {
   players: RegistrationForPool[];
   /** Per-row action area (e.g. "选他" button when on the clock). */
   renderActions?: (player: RegistrationForPool) => React.ReactNode;
+  /** Return drag payload for eligible pick cards; null keeps the card static. */
+  getDragData?: (player: RegistrationForPool) => Record<string, unknown> | null;
+  /** Fallback pick request for double-click/double-tap on an eligible draggable card. */
+  onPickRequest?: (player: RegistrationForPool) => void;
 };
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -88,7 +93,7 @@ function FilterChip({
   );
 }
 
-export function PlayerPool({ players, renderActions }: Props) {
+export function PlayerPool({ players, renderActions, getDragData, onPickRequest }: Props) {
   const [filter, setFilter] = useState<PlayerFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -297,45 +302,13 @@ export function PlayerPool({ players, renderActions }: Props) {
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}
       >
         {visible.map((p) => (
-          <PlayerHoverCard key={p.id} player={p}>
-            <div
-              className={cn(
-                'flex h-full min-h-[116px] flex-col justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/40',
-                p.isPicked && 'opacity-50',
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-medium text-foreground">{p.nickname}</span>
-                    {p.isPicked && (
-                      <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
-                        已选
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="block truncate text-xs text-muted-foreground">@{p.gameId}</span>
-                </div>
-
-                <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
-                  <div className="text-sm font-semibold text-foreground">{formatCost(p.cost)}</div>
-                  <div className="text-[10px] text-muted-foreground">费用</div>
-                </div>
-              </div>
-
-              <div className="mt-2 flex items-end justify-between gap-2">
-                <div className="flex min-w-0 flex-wrap gap-1">
-                  {p.primaryPositions.map((pos) => (
-                    <PosChip key={`p-${pos}`} pos={pos} filled />
-                  ))}
-                  {p.secondaryPositions.map((pos) => (
-                    <PosChip key={`s-${pos}`} pos={pos} />
-                  ))}
-                </div>
-                {renderActions && <div className="shrink-0">{renderActions(p)}</div>}
-              </div>
-            </div>
-          </PlayerHoverCard>
+          <PlayerPoolCard
+            key={p.id}
+            player={p}
+            dragData={getDragData?.(p) ?? null}
+            onPickRequest={onPickRequest}
+            action={renderActions?.(p)}
+          />
         ))}
         {visible.length === 0 && (
           <div className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
@@ -344,5 +317,90 @@ export function PlayerPool({ players, renderActions }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+function PlayerPoolCard({
+  player,
+  dragData,
+  onPickRequest,
+  action,
+}: {
+  player: RegistrationForPool;
+  dragData: Record<string, unknown> | null;
+  onPickRequest?: (player: RegistrationForPool) => void;
+  action?: React.ReactNode;
+}) {
+  const draggable = dragData !== null;
+  const actionable = draggable && onPickRequest !== undefined;
+  const suppressClickRef = useRef(false);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pool-player-${player.id}`,
+    data: dragData ?? undefined,
+    disabled: !draggable,
+  });
+
+  useEffect(() => {
+    if (isDragging) suppressClickRef.current = true;
+  }, [isDragging]);
+
+  return (
+    <PlayerHoverCard player={player}>
+      <div
+        ref={setNodeRef}
+        data-testid={`player-pool-card-${player.id}`}
+        {...(draggable ? attributes : {})}
+        {...(draggable ? listeners : {})}
+        onDoubleClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          if (actionable) onPickRequest(player);
+        }}
+        className={cn(
+          'flex h-full min-h-[116px] flex-col justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/40',
+          player.isPicked && 'opacity-50',
+          draggable && 'cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-40',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-foreground">{player.nickname}</span>
+              {player.isPicked && (
+                <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
+                  已选
+                </Badge>
+              )}
+            </div>
+            <span className="block truncate text-xs text-muted-foreground">@{player.gameId}</span>
+          </div>
+
+          <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
+            <div className="text-sm font-semibold text-foreground">{formatCost(player.cost)}</div>
+            <div className="text-[10px] text-muted-foreground">费用</div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-end justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap gap-1">
+            {player.primaryPositions.map((pos) => (
+              <PosChip key={`p-${pos}`} pos={pos} filled />
+            ))}
+            {player.secondaryPositions.map((pos) => (
+              <PosChip key={`s-${pos}`} pos={pos} />
+            ))}
+          </div>
+          {actionable && (
+            <span className="shrink-0 rounded border border-primary/50 px-2 py-1 text-[10px] font-medium text-primary">
+              拖到空位
+            </span>
+          )}
+          {action && <div className="shrink-0">{action}</div>}
+        </div>
+      </div>
+    </PlayerHoverCard>
   );
 }

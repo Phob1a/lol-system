@@ -20,7 +20,10 @@ const player: RegistrationRef = {
   cost: 20,
 };
 
-function renderPickAction(emptySlots: Position[] = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT']) {
+function renderPickAction(
+  emptySlots: Position[] = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'],
+  initialPosition?: Position,
+) {
   return render(
     <PickAction
       open
@@ -30,6 +33,7 @@ function renderPickAction(emptySlots: Position[] = ['TOP', 'JUNGLE', 'MID', 'ADC
       emptySlots={emptySlots}
       budgetLeft={100}
       expectedSeq={1}
+      initialPosition={initialPosition}
     />,
   );
 }
@@ -53,5 +57,12 @@ describe('PickAction', () => {
 
     expect(mid).toBeChecked();
     expect(mid).toHaveFocus();
+  });
+
+  it('preselects the dropped position when opened from drag-to-pick', () => {
+    renderPickAction(['TOP', 'MID', 'ADC'], 'MID');
+
+    expect(screen.getByRole('radio', { name: /中单/ })).toBeChecked();
+    expect(screen.getByRole('button', { name: /confirm pick/i })).toBeEnabled();
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { type KeyboardEvent, useId, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
@@ -33,6 +33,7 @@ type Props = {
   budgetLeft: number;
   expectedSeq: number;
   onBehalfOf?: string;
+  initialPosition?: Position;
 };
 
 export function PickAction({
@@ -44,8 +45,9 @@ export function PickAction({
   budgetLeft,
   expectedSeq,
   onBehalfOf,
+  initialPosition,
 }: Props) {
-  const [position, setPosition] = useState<Position | ''>('');
+  const [position, setPosition] = useState<Position | ''>(initialPosition ?? '');
   const [submitting, setSubmitting] = useState(false);
   const positionGroupId = useId();
 
@@ -54,6 +56,11 @@ export function PickAction({
   const availablePositions = POSITIONS.filter(
     (pos): pos is Position => emptySlots.includes(pos) && !insufficientBudget,
   );
+
+  useEffect(() => {
+    if (!open) return;
+    setPosition(initialPosition && emptySlots.includes(initialPosition) ? initialPosition : '');
+  }, [emptySlots, initialPosition, open]);
 
   function handlePositionKeyDown(event: KeyboardEvent<HTMLFieldSetElement>) {
     const direction =
