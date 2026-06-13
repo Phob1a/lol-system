@@ -27,7 +27,7 @@ function state(): AdminState {
 
 describe('ScheduleTab', () => {
   it('does not expose the retired planner entry while batch scheduling is disabled', () => {
-    render(<ScheduleTab teams={[]} state={state()} refetch={vi.fn()} seasonId="season-1" />);
+    render(<ScheduleTab teams={[]} state={state()} refetch={vi.fn()} />);
 
     expect(screen.queryByRole('button', { name: '排期' })).not.toBeInTheDocument();
   });

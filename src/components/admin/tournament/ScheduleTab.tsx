@@ -43,7 +43,6 @@ type Props = {
   teams: Team[];
   state: AdminState;
   refetch: () => Promise<void>;
-  seasonId: string;
 };
 
 function statusLabel(status: string): string {

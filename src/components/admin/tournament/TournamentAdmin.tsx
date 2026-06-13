@@ -47,7 +47,7 @@ export function TournamentAdmin({ seasonId, teams }: Props) {
         </TabsContent>
 
         <TabsContent value="schedule">
-          <ScheduleTab teams={teams} state={state} refetch={refetch} seasonId={seasonId} />
+          <ScheduleTab teams={teams} state={state} refetch={refetch} />
         </TabsContent>
       </Tabs>
     </div>
