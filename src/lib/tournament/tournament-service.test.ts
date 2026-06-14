@@ -1,22 +1,40 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import {
-  getTournamentBySeason,
+  createTournament,
+  transitionTournament,
+  getActiveTournament,
   resetTournament,
   updateTournamentConfig,
 } from './tournament-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
-import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2 } from './test-fixtures';
 
 beforeEach(resetDb);
 
+const CFG = {
+  template: 'group-knockout' as const,
+  groupCount: 2,
+  teamsPerGroup: 2,
+  advancingPerGroup: 1,
+  groupBestOf: 1 as const,
+  knockoutBestOf: { FINAL: 1 as const },
+};
+const mk = (name = 'T1') =>
+  createTournament(testDb, { name, teamBudget: 1000, kind: '正赛', config: CFG }, 'u');
+
 /** 建赛事 + 分组 + 确认 → GROUP_STAGE。 */
 async function toGroupStage() {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-  const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
+  // Create a single tournament, then seed teams into it
+  const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+  const { seedTeamsForTournament } = await import('./test-fixtures');
+  const teamIds = await seedTeamsForTournament(t.id, 8);
+  const groups = await testDb.tournamentGroup.findMany({
+    where: { stage: { tournamentId: t.id } },
+    orderBy: { name: 'asc' },
+  });
   await assignGroups(testDb, {
     tournamentId: t.id,
     assignments: [
@@ -26,14 +44,52 @@ async function toGroupStage() {
     actorUserId: 'u',
   });
   await confirmGroups(testDb, { tournamentId: t.id, actorUserId: 'u' });
-  return { seasonId, teamIds, t };
+  return { teamIds, t };
 }
+
+describe('transitionTournament', () => {
+  it('walks the full linear lifecycle', async () => {
+    const t = await mk();
+    expect(t.status).toBe('SETUP');
+    for (const next of ['REGISTRATION', 'ROSTER_LOCKED', 'DRAFTING', 'GROUPING'] as const) {
+      const u = await transitionTournament(testDb, t.id, next);
+      expect(u.status).toBe(next);
+    }
+  });
+
+  it('rejects illegal edge SETUP -> GROUP_STAGE', async () => {
+    const t = await mk();
+    await expect(transitionTournament(testDb, t.id, 'GROUP_STAGE')).rejects.toThrow();
+  });
+
+  it('allows ROSTER_LOCKED -> REGISTRATION rollback', async () => {
+    const t = await mk();
+    await transitionTournament(testDb, t.id, 'REGISTRATION');
+    await transitionTournament(testDb, t.id, 'ROSTER_LOCKED');
+    const u = await transitionTournament(testDb, t.id, 'REGISTRATION');
+    expect(u.status).toBe('REGISTRATION');
+  });
+});
+
+describe('archiveActiveTournament', () => {
+  it('keeps at most one non-archived tournament', async () => {
+    const a = await mk('A');
+    const b = await mk('B'); // creating B archives A
+    expect((await testDb.tournament.findUnique({ where: { id: a.id } }))!.status).toBe('ARCHIVED');
+    const active = await getActiveTournament(testDb);
+    expect(active!.id).toBe(b.id);
+  });
+});
 
 describe('updateTournamentConfig', () => {
   it('SETUP：改 config 重建骨架并清空快照/分组', async () => {
-    const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-    const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-    const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
+    const { seedTeamsForTournament } = await import('./test-fixtures');
+    const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+    const teamIds = await seedTeamsForTournament(t.id, 8);
+    const groups = await testDb.tournamentGroup.findMany({
+      where: { stage: { tournamentId: t.id } },
+      orderBy: { name: 'asc' },
+    });
     await assignGroups(testDb, {
       tournamentId: t.id,
       assignments: [
@@ -79,10 +135,9 @@ describe('updateTournamentConfig', () => {
     ).rejects.toThrow(/结束|FINISHED|状态/);
   });
 
-  it('归档赛季：改配置被拒', async () => {
-    const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-    const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-    await testDb.season.update({ where: { id: seasonId }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
+  it('归档赛事：改配置被拒', async () => {
+    const t = await mk();
+    await testDb.tournament.update({ where: { id: t.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
     await expect(
       updateTournamentConfig(testDb, { tournamentId: t.id, kind: '娱乐赛', actorUserId: 'u' }),
     ).rejects.toThrow(/归档/);
@@ -110,12 +165,12 @@ describe('resetTournament', () => {
     expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0);
     expect(await testDb.tournamentGroupTeam.count()).toBe(0);
     expect(await testDb.auditLog.count({ where: { action: 'tournament.reset' } })).toBe(1);
-    expect(await getTournamentBySeason(testDb, t.seasonId)).not.toBeNull(); // 赛事仍在
+    expect(await testDb.tournament.findUnique({ where: { id: t.id } })).not.toBeNull(); // 赛事仍在
   });
 
-  it('归档赛季：重置被拒', async () => {
-    const { seasonId, t } = await toGroupStage();
-    await testDb.season.update({ where: { id: seasonId }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
+  it('归档赛事：重置被拒', async () => {
+    const t = await mk();
+    await testDb.tournament.update({ where: { id: t.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
     await expect(resetTournament(testDb, { tournamentId: t.id, actorUserId: 'u' })).rejects.toThrow(/归档/);
   });
 });

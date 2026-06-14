@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritableBySeasonId } from './guards';
+import { assertTournamentWritable } from './guards';
 import type { GroupKnockoutConfig } from './types';
 
 export async function assignGroups(
@@ -15,7 +15,7 @@ export async function assignGroups(
   const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
   if (t.status !== 'SETUP') throw new TournamentError('INVALID_STATE', '当前状态不允许调整分组');
-  await assertSeasonWritableBySeasonId(db, t.seasonId);
+  await assertTournamentWritable(db, t.id);
 
   // 本赛事的合法 groupId 集合
   const ownGroups = await db.tournamentGroup.findMany({
@@ -55,8 +55,8 @@ export async function assignGroups(
     where: { id: { in: allTeamIds } },
     include: { slots: { where: { registrationId: { not: null } } } },
   });
-  if (teams.length !== allTeamIds.length || teams.some((x) => x.seasonId !== t.seasonId))
-    throw new TournamentError('TEAM_NOT_IN_SEASON', '存在不属于该赛季的队伍');
+  if (teams.length !== allTeamIds.length || teams.some((x) => x.tournamentId !== t.id))
+    throw new TournamentError('TEAM_NOT_IN_SEASON', '存在不属于该赛事的队伍');
 
   await db.$transaction(async (tx) => {
     // 重建参赛队快照（删旧 → 按当前 slots 重建）
@@ -105,7 +105,7 @@ export async function confirmGroups(
   });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
   if (t.status !== 'SETUP') throw new TournamentError('INVALID_STATE', '当前状态不允许确认分组');
-  await assertSeasonWritableBySeasonId(db, t.seasonId);
+  await assertTournamentWritable(db, t.id);
 
   const cfg = t.config as GroupKnockoutConfig;
   const groupStage = t.stages.find((s) => s.type === 'GROUP')!;

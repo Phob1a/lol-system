@@ -3,7 +3,7 @@ import { groupKnockout } from './templates/group-knockout';
 import { computeStandings } from './standings';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritableBySeasonId } from './guards';
+import { assertTournamentWritable } from './guards';
 import type { GroupKnockoutConfig } from './types';
 
 /** 收小组：校验全部完赛、出线名次无 tie，按 seedMap 填首轮，状态 → KNOCKOUT */
@@ -25,7 +25,7 @@ export async function closeGroupStage(
   });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
   if (t.status !== 'GROUP_STAGE') throw new TournamentError('INVALID_STATE', '当前状态不能收小组');
-  await assertSeasonWritableBySeasonId(db, t.seasonId);
+  await assertTournamentWritable(db, t.id);
 
   const cfg = t.config as GroupKnockoutConfig;
   const groupStage = t.stages.find((s) => s.type === 'GROUP')!;

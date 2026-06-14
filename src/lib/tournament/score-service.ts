@@ -1,7 +1,7 @@
 import type { Match, PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritable } from './guards';
+import { assertTournamentWritable } from './guards';
 import type { Db } from './types';
 
 /** 原子性地认领版本：updateMany WHERE id=matchId AND version=expectedVersion，count=0 则冲突 */
@@ -107,7 +107,7 @@ export async function recordGame(
 ): Promise<void> {
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion);
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
     if (match.status === 'CANCELED' || match.status === 'WALKOVER')
       throw new TournamentError('INVALID_STATE', '该比赛状态不允许录入');
     if (!match.teamAId && !match.teamBId)
@@ -137,7 +137,7 @@ export async function deleteGame(
 ): Promise<void> {
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion);
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
     await assertDownstreamClean(tx, match.id);
     const deleted = await tx.game.deleteMany({ where: { id: input.gameId, matchId: match.id } });
     if (deleted.count === 0)
@@ -156,7 +156,7 @@ export async function setWalkover(
 ): Promise<void> {
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion);
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
     if (!match.teamAId || !match.teamBId)
       throw new TournamentError('INVALID_STATE', '比赛双方未确定');
     if (![match.teamAId, match.teamBId].includes(input.winnerTeamId))
@@ -183,7 +183,7 @@ export async function cancelMatch(
 ): Promise<void> {
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion);
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
     await assertDownstreamClean(tx, match.id);
     await tx.match.update({
       where: { id: match.id },
