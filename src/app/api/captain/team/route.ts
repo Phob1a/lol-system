@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireCaptain } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { UpdateTeamProfileInput } from '@/lib/teams/team-schema';
 import { updateTeamProfile } from '@/lib/teams/team-service';
+
+const POST_DRAFT_STATUSES = ['GROUPING', 'GROUP_STAGE', 'KNOCKOUT', 'FINISHED'] as const;
 
 export async function PATCH(req: Request) {
   const guard = await requireCaptain();
@@ -23,13 +25,13 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const season = await getActiveSeason(prisma);
-  if (!season || season.status !== 'COMPLETED') {
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament || !(POST_DRAFT_STATUSES as readonly string[]).includes(tournament.status)) {
     return NextResponse.json({ error: '选秀尚未结束' }, { status: 409 });
   }
 
   const team = await prisma.team.findUnique({ where: { id: teamId } });
-  if (!team || team.seasonId !== season.id) {
+  if (!team || team.tournamentId !== tournament.id) {
     return NextResponse.json({ error: '无权操作该队伍' }, { status: 403 });
   }
 

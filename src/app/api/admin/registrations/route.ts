@@ -7,23 +7,23 @@ import {
   adminCreateRegistration,
   listSeasonRegistrations,
 } from '@/lib/registration/registration-service';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 
 export async function GET() {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ season: null, registrations: [] });
-  const registrations = await listSeasonRegistrations(prisma, season.id);
-  return NextResponse.json({ season, registrations });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ tournament: null, registrations: [] });
+  const registrations = await listSeasonRegistrations(prisma, tournament.id);
+  return NextResponse.json({ tournament, registrations });
 }
 
 export async function POST(req: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ error: '没有活跃赛事' }, { status: 409 });
 
   const json = await req.json().catch(() => null);
   const parsed = AdminRegistrationCreate.safeParse(json);
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const registration = await adminCreateRegistration(prisma, season.id, parsed.data);
+    const registration = await adminCreateRegistration(prisma, tournament.id, parsed.data);
     return NextResponse.json({ registration }, { status: 201 });
   } catch (e) {
     if (e instanceof RegistrationError) {

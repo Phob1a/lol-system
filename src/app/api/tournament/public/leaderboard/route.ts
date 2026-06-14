@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { computeLeaderboard, type LeaderboardGame } from '@/lib/tournament/leaderboard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ rows: [] });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ rows: [] });
   const games = await prisma.game.findMany({
-    where: { isDraft: false, match: { tournament: { seasonId: season.id } } },
+    where: { isDraft: false, match: { tournamentId: tournament.id } },
     include: { playerStats: { include: { registration: { select: { id: true, nickname: true, playerId: true } } } } },
   });
   const input: LeaderboardGame[] = games.map((g) => ({

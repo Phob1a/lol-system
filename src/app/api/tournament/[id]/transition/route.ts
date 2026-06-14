@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
-import { SeasonError } from '@/lib/season/errors';
-import { transitionSeason } from '@/lib/season/season-service';
+import { TournamentError } from '@/lib/tournament/errors';
+import { transitionTournament } from '@/lib/tournament/tournament-service';
+import { toResponse } from '@/lib/tournament/route-errors';
+import type { TournamentStatus } from '@prisma/client';
 
 const Body = z.object({
-  to: z.enum(['REGISTRATION', 'ROSTER_LOCKED']),
+  next: z.string().min(1),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,13 +23,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const season = await transitionSeason(prisma, id, parsed.data.to);
-    return NextResponse.json({ season });
+    const tournament = await transitionTournament(prisma, id, parsed.data.next as TournamentStatus);
+    return NextResponse.json({ tournament });
   } catch (e) {
-    if (e instanceof SeasonError) {
-      return NextResponse.json({ error: e.message, code: e.code }, { status: 409 });
-    }
-    console.error('season transition failed', e);
+    if (e instanceof TournamentError) return toResponse(e);
+    console.error('tournament transition failed', e);
     return NextResponse.json({ error: '状态变更失败' }, { status: 500 });
   }
 }

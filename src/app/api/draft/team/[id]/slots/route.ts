@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { rearrangeSlots, getDraftSnapshot, DraftStateError } from '@/lib/draft/engine';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { POSITIONS } from '@/lib/players/schema';
 import { publish } from '@/server/draft-bus';
 
@@ -27,8 +27,8 @@ export async function POST(
   const session = await getSession();
   if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ error: '没有活跃赛事' }, { status: 409 });
 
   const { id: teamId } = await params;
 
@@ -50,7 +50,7 @@ export async function POST(
 
   try {
     const result = await rearrangeSlots(teamId, parsed.data.slots, session.user.id);
-    const snapshot = await getDraftSnapshot(season.id);
+    const snapshot = await getDraftSnapshot(tournament.id);
     publish({ type: 'state.invalidated', seq: snapshot.seq });
     return NextResponse.json({ ...result, snapshot });
   } catch (e) {

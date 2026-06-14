@@ -6,9 +6,9 @@ import { renameTeam } from '@/lib/teams/team-service';
 
 const Body = z.object({ name: z.string().trim().min(2, '队名至少 2 字').max(30, '队名过长') });
 
-// Admin-only escape hatch for renaming a team in any season stage.
+// Admin-only escape hatch for renaming a team in any tournament stage.
 // Captains must use PATCH /api/captain/team, which enforces the
-// season.status === 'COMPLETED' product rule.
+// post-draft tournament status whitelist.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const guard = await requireAdmin();

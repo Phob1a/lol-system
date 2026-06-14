@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const season = await getActiveSeason(prisma);
+  const tournament = await getActiveTournament(prisma);
   return NextResponse.json({
-    open: season?.status === 'REGISTRATION',
-    seasonName: season?.name ?? null,
+    open: tournament?.status === 'REGISTRATION',
+    tournamentName: tournament?.name ?? null,
   });
 }

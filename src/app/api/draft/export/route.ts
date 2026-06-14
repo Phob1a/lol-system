@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-guards';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
@@ -21,8 +21,8 @@ export async function GET(req: Request) {
   const guard = await requireAdmin();
   if (guard.error) return guard.error;
 
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ error: '没有活跃赛事' }, { status: 409 });
 
   try {
     const url = new URL(req.url);
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     }
 
     const teams = await prisma.team.findMany({
-      where: { seasonId: season.id },
+      where: { tournamentId: tournament.id },
       include: {
         captain: {
           select: {
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     }
 
     // Verify there is an active or finished draft snapshot.
-    const snapshot = await getDraftSnapshot(season.id);
+    const snapshot = await getDraftSnapshot(tournament.id);
     if (!snapshot.session) {
       return NextResponse.json({ error: '尚未启动选秀' }, { status: 409 });
     }

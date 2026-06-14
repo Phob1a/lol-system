@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { submitPick, getDraftSnapshot, DraftStateError } from '@/lib/draft/engine';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { POSITIONS } from '@/lib/players/schema';
 import { publish } from '@/server/draft-bus';
 
@@ -21,8 +21,8 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
 
-  const season = await getActiveSeason(prisma);
-  if (!season) return NextResponse.json({ error: '没有活跃赛季' }, { status: 409 });
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ error: '没有活跃赛事' }, { status: 409 });
 
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
@@ -54,14 +54,14 @@ export async function POST(req: Request) {
 
   try {
     const result = await submitPick({
-      seasonId: season.id,
+      tournamentId: tournament.id,
       byCaptainId,
       registrationId: parsed.data.registrationId,
       position: parsed.data.position,
       expectedSeq: parsed.data.expectedSeq,
       actorUserId: session.user.id,
     });
-    const snapshot = await getDraftSnapshot(season.id);
+    const snapshot = await getDraftSnapshot(tournament.id);
     publish({ type: 'state.invalidated', seq: snapshot.seq });
     return NextResponse.json({ ...result, snapshot });
   } catch (e) {
