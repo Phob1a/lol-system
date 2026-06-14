@@ -14,7 +14,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
-      games: { orderBy: { index: 'asc' }, include: { _count: { select: { bans: true, playerStats: true } } } },
+      games: {
+        orderBy: { index: 'asc' },
+        include: {
+          bans: { orderBy: { order: 'asc' } },
+          playerStats: { orderBy: [{ teamId: 'asc' }, { registrationId: 'asc' }] },
+          _count: { select: { bans: true, playerStats: true } },
+        },
+      },
     },
   });
   if (!match) return NextResponse.json({ error: '比赛不存在' }, { status: 404 });
@@ -25,7 +32,34 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const shaped = {
     id: match.id, version: match.version, bestOf: match.bestOf, status: match.status,
     teamAId: match.teamAId, teamBId: match.teamBId, winnerTeamId: match.winnerTeamId,
-    games: match.games.map((g) => ({ id: g.id, index: g.index, isDraft: g.isDraft, winnerTeamId: g.winnerTeamId, hasBans: g._count.bans > 0, hasStats: g._count.playerStats === 10 })),
+    games: match.games.map((g) => ({
+      id: g.id,
+      index: g.index,
+      isDraft: g.isDraft,
+      winnerTeamId: g.winnerTeamId,
+      hasBans: g._count.bans > 0,
+      hasStats: g._count.playerStats === 10,
+      blueTeamId: g.blueTeamId,
+      durationSeconds: g.durationSeconds,
+      mvpRegistrationId: g.mvpRegistrationId,
+      bans: g.bans.map((b) => ({
+        teamId: b.teamId,
+        type: b.type,
+        championId: b.championId,
+        order: b.order,
+      })),
+      playerStats: g.playerStats.map((s) => ({
+        teamId: s.teamId,
+        registrationId: s.registrationId,
+        championId: s.championId,
+        kills: s.kills,
+        deaths: s.deaths,
+        assists: s.assists,
+        cs: s.cs,
+        damage: s.damage,
+        gold: s.gold,
+      })),
+    })),
     rosters: tt.map((x) => ({ teamId: x.teamId, players: x.players.map((p) => ({ registrationId: p.registrationId, nickname: p.registration.nickname })) })),
   };
   return NextResponse.json({ match: shaped });
