@@ -55,7 +55,7 @@ export async function seedTournamentWithTeams(n: number) {
  */
 export async function createTestTournament(
   db: typeof testDb,
-  input: { teamIds: string[]; config: GroupKnockoutConfig; actorUserId?: string },
+  input: { config: GroupKnockoutConfig; actorUserId?: string },
 ) {
   return createTournament(
     db,

@@ -1,13 +1,13 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import { assignGroups, confirmGroups } from './groups-service';
-import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, seedTournamentWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 async function setup() {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   return { t, teamIds, groups };
 }
@@ -57,25 +57,27 @@ it('confirmGroups 生成组内单循环并置 GROUP_STAGE；重复确认被拒',
 });
 
 it('assignGroups 跨赛事 groupId 被拒，且对方赛事的分组数据不受污染', async () => {
-  // Set up two independent tournaments (A and B)
-  const { seasonId: seasonIdA, teamIds: teamIdsA } = await seedSeasonWithTeams(8);
-  const tA = await createTestTournament(testDb, { seasonId: seasonIdA, teamIds: teamIdsA, config: CFG_2x4x2, actorUserId: 'u' });
+  // Set up two independent tournaments (A and B).
+  // createTournament archives the previous active tournament, so we restore tA to SETUP after creating tB.
+  const { tournamentId: tournamentIdA, teamIds: teamIdsA } = await seedTournamentWithTeams(8);
   const groupsA = await testDb.tournamentGroup.findMany({
-    where: { stage: { tournamentId: tA.id } },
+    where: { stage: { tournamentId: tournamentIdA } },
     orderBy: { name: 'asc' },
   });
 
-  const { seasonId: seasonIdB, teamIds: teamIdsB } = await seedSeasonWithTeams(8);
-  const tB = await createTestTournament(testDb, { seasonId: seasonIdB, teamIds: teamIdsB, config: CFG_2x4x2, actorUserId: 'u' });
+  const { tournamentId: tournamentIdB } = await seedTournamentWithTeams(8);
   const groupsB = await testDb.tournamentGroup.findMany({
-    where: { stage: { tournamentId: tB.id } },
+    where: { stage: { tournamentId: tournamentIdB } },
     orderBy: { name: 'asc' },
   });
+
+  // Restore tA to SETUP (it was archived when tB was created)
+  await testDb.tournament.update({ where: { id: tournamentIdA }, data: { status: 'SETUP', archivedAt: null } });
 
   // Try assigning tournament A's teams into tournament B's group
   await expect(
     assignGroups(testDb, {
-      tournamentId: tA.id,
+      tournamentId: tournamentIdA,
       assignments: [
         { groupId: groupsA[0].id, teamIds: teamIdsA.slice(0, 4) },
         { groupId: groupsB[0].id, teamIds: teamIdsA.slice(4) }, // groupB's id — cross-tournament!
@@ -85,7 +87,7 @@ it('assignGroups 跨赛事 groupId 被拒，且对方赛事的分组数据不受
   ).rejects.toThrow(/不属于该赛事/);
 
   // Tournament B's groups must remain empty
-  expect(await testDb.tournamentGroupTeam.count({ where: { group: { stage: { tournamentId: tB.id } } } })).toBe(0);
+  expect(await testDb.tournamentGroupTeam.count({ where: { group: { stage: { tournamentId: tournamentIdB } } } })).toBe(0);
 });
 
 it('assignGroups 分组重复（两条 assignment 使用同一个 groupId）被拒', async () => {
@@ -156,17 +158,19 @@ it('重新保存不同分组：快照被覆盖（仍 8 队，无残留）', asyn
 });
 
 it('季外队伍分组被拒，快照不被污染', async () => {
+  // Create a separate "other" tournament first; then setup() creates the main tournament (archiving the other).
+  // The "other" team still exists in the DB but belongs to a different tournament — perfect for cross-tournament rejection.
+  const { teamIds: otherTeamIds } = await seedTournamentWithTeams(1);
   const { t, teamIds, groups } = await setup();
-  const other = await seedSeasonWithTeams(1);
   await expect(
     assignGroups(testDb, {
       tournamentId: t.id,
       assignments: [
-        { groupId: groups[0].id, teamIds: [other.teamIds[0], teamIds[1], teamIds[2], teamIds[3]] },
+        { groupId: groups[0].id, teamIds: [otherTeamIds[0], teamIds[1], teamIds[2], teamIds[3]] },
         { groupId: groups[1].id, teamIds: teamIds.slice(4) },
       ],
       actorUserId: 'u',
     }),
-  ).rejects.toThrow(/不属于该赛季/);
+  ).rejects.toThrow(/不属于该赛事/);
   expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0);
 });

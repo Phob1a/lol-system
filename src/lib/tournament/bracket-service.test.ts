@@ -3,7 +3,7 @@ import { resetDb, testDb } from '@/lib/test/db';
 import { assignGroups, confirmGroups } from './groups-service';
 import { recordGame } from './score-service';
 import { closeGroupStage } from './bracket-service';
-import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
+import { CFG_2x4x2, seedTournamentWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
@@ -17,8 +17,8 @@ async function playAllGroupMatches(teamIds: string[]) {
 }
 
 async function setup() {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
     tournamentId: t.id,

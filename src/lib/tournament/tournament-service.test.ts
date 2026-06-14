@@ -10,7 +10,7 @@ import {
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
-import { CFG_2x4x2 } from './test-fixtures';
+import { CFG_2x4x2, seedTeamsForTournament } from './test-fixtures';
 
 beforeEach(resetDb);
 
@@ -29,7 +29,6 @@ const mk = (name = 'T1') =>
 async function toGroupStage() {
   // Create a single tournament, then seed teams into it
   const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
-  const { seedTeamsForTournament } = await import('./test-fixtures');
   const teamIds = await seedTeamsForTournament(t.id, 8);
   const groups = await testDb.tournamentGroup.findMany({
     where: { stage: { tournamentId: t.id } },
@@ -71,11 +70,39 @@ describe('transitionTournament', () => {
   });
 });
 
+describe('createTournament', () => {
+  it('建骨架：2 阶段 / 2 组 / 3 淘汰赛对阵 / 2 晋级边 / 0 快照 / 1 审计', async () => {
+    const t = await createTournament(testDb, { name: 'S1', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+    expect(t.status).toBe('SETUP');
+    expect(t.kind).toBe('正赛');
+    expect(await testDb.tournamentStage.count({ where: { tournamentId: t.id } })).toBe(2);
+    expect(await testDb.tournamentGroup.count()).toBe(2);
+    expect(await testDb.match.count({ where: { tournamentId: t.id } })).toBe(3);
+    expect(await testDb.matchAdvancementEdge.count()).toBe(2);
+    expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0);
+    expect(await testDb.auditLog.count({ where: { action: 'tournament.create' } })).toBe(1);
+  });
+
+  it('kind 透传（娱乐赛）', async () => {
+    const t = await createTournament(testDb, { name: 'S1', teamBudget: 1000, kind: '娱乐赛', config: CFG_2x4x2 }, 'u');
+    expect(t.kind).toBe('娱乐赛');
+  });
+
+  it('config 非法抛错（原子回滚：无赛事写入）', async () => {
+    await expect(
+      createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: { template: 'group-knockout', groupCount: 0 } as never }, 'u'),
+    ).rejects.toThrow();
+    expect(await testDb.tournament.count()).toBe(0);
+  });
+});
+
 describe('archiveActiveTournament', () => {
   it('keeps at most one non-archived tournament', async () => {
     const a = await mk('A');
     const b = await mk('B'); // creating B archives A
-    expect((await testDb.tournament.findUnique({ where: { id: a.id } }))!.status).toBe('ARCHIVED');
+    const found = (await testDb.tournament.findUnique({ where: { id: a.id } }))!;
+    expect(found.status).toBe('ARCHIVED');
+    expect(found.archivedAt).not.toBeNull();
     const active = await getActiveTournament(testDb);
     expect(active!.id).toBe(b.id);
   });
@@ -83,7 +110,6 @@ describe('archiveActiveTournament', () => {
 
 describe('updateTournamentConfig', () => {
   it('SETUP：改 config 重建骨架并清空快照/分组', async () => {
-    const { seedTeamsForTournament } = await import('./test-fixtures');
     const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
     const teamIds = await seedTeamsForTournament(t.id, 8);
     const groups = await testDb.tournamentGroup.findMany({

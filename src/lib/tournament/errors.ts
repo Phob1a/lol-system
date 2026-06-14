@@ -1,12 +1,11 @@
 export type TournamentErrorCode =
-  | 'SEASON_NOT_FOUND'
-  | 'TOURNAMENT_EXISTS'
   | 'TOURNAMENT_NOT_FOUND'
   | 'INVALID_CONFIG'
   | 'INVALID_STATE'
   | 'INVALID_TRANSITION'
   | 'FORBIDDEN'
-  | 'TEAM_NOT_IN_SEASON'
+  | 'TEAM_NOT_IN_TOURNAMENT'
+  | 'TEAM_NOT_IN_SEASON' // deferred: still used by schedule-service until its task lands
   | 'MATCH_NOT_FOUND'
   | 'VERSION_CONFLICT'
   | 'DOWNSTREAM_RECORDED'

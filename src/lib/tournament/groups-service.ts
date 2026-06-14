@@ -56,7 +56,7 @@ export async function assignGroups(
     include: { slots: { where: { registrationId: { not: null } } } },
   });
   if (teams.length !== allTeamIds.length || teams.some((x) => x.tournamentId !== t.id))
-    throw new TournamentError('TEAM_NOT_IN_SEASON', '存在不属于该赛事的队伍');
+    throw new TournamentError('TEAM_NOT_IN_TOURNAMENT', '存在不属于该赛事的队伍');
 
   await db.$transaction(async (tx) => {
     // 重建参赛队快照（删旧 → 按当前 slots 重建）
