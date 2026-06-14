@@ -96,33 +96,98 @@ model Tournament {
 - `model Registration`：`seasonId` → `tournamentId`；`season Season @relation(...)` → `tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)`；`@@unique([seasonId, playerId])` → `@@unique([tournamentId, playerId])`；`@@index([seasonId])` → `@@index([tournamentId])`。
 - `model Team`：`seasonId` → `tournamentId`；relation 同上；`@@index([seasonId])` → `@@index([tournamentId])`。
 - `model DraftSession`：`seasonId String @unique` → `tournamentId String @unique`；relation 同上。
+- `model Tournament`：旧快照关系 `teams TournamentTeam[]` **改名为** `tournamentTeams TournamentTeam[]`（让位给新增的直属 `teams Team[]`，原 Season 直属队伍）。此改名导致 `schedule-service.ts:21,30` 的 `t.teams`（快照）类型错——在 Task6 迁移（P1-3）。`TournamentGroup.teams`（组成员）不改。
 
 - [ ] **Step 4: 校验 schema**
 
 Run: `npx prisma validate`
 Expected: `The schema at prisma/schema.prisma is valid 🚀`
 
-- [ ] **Step 5: 重置迁移基线 + 重建 dev 库 + 生成 client**
+- [ ] **Step 5: 修测试基建 truncate 列表（P0-1，必须与 schema 同 Task）**
+
+`src/lib/test/db.ts:17`：`resetDb` 的 `TRUNCATE` 列表里**删掉 `"seasons"`**（该表已不存在，否则所有 `beforeEach(resetDb)` 用例在执行前即 relation-not-found）。`"tournaments"` 等保留。改后该行末尾为：`"team_slots", "teams", "registrations", "players", "users"`（去掉 `, "seasons"`）。
+
+- [ ] **Step 6: 非交互式重建迁移基线（P1-4，禁用 migrate dev 交互）**
 
 ```bash
-rm -rf prisma/migrations
-npx prisma migrate dev --name init_unified_tournament
+rm -rf prisma/migrations && mkdir -p prisma/migrations/00000000000000_init
+npx prisma migrate diff --from-empty \
+  --to-schema-datamodel prisma/schema.prisma \
+  --script > prisma/migrations/00000000000000_init/migration.sql
+# dev/test 库各自 drop+recreate 后套用新基线（非交互）：
+npx prisma migrate reset --force --skip-seed   # dev 库：drop→重建→应用 init
 npx prisma generate
 ```
-Expected: 新建 `prisma/migrations/<ts>_init_unified_tournament/`；dev 库重建；client 生成成功（`@prisma/client` 不再导出 `Season`/`SeasonStatus`）。
+Expected: 生成单一 `init/migration.sql`；dev 库重建为新 schema；client 生成成功（`@prisma/client` 不再导出 `Season`/`SeasonStatus`）。`TEST_DATABASE_URL` 指向的测试库同样需重建（`DATABASE_URL=$TEST_DATABASE_URL npx prisma migrate reset --force --skip-seed`）。
+> `migrate reset --force` 非交互；不要用 `migrate dev`（会提示 drift 等人工确认）。
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add prisma/schema.prisma prisma/migrations
-git commit -m "feat(schema): merge Season into Tournament, reset migration baseline"
+git add prisma/schema.prisma prisma/migrations src/lib/test/db.ts
+git commit -m "feat(schema): merge Season into Tournament, reset migration baseline, fix test truncate"
 ```
 
 > 注：此后 `npx tsc --noEmit` 全局报错（season-service / 各 seasonId 引用），属预期，后续 Task 逐步消除。
 
 ---
 
-## Task 2: tournament-service 吸收 season-service（创建 + 状态机）
+## Task 2: 归档只读守卫改读 tournament（P0-2：必须在 tournament-service 之前）
+
+> 顺序原因（codex P0-2）：旧 `tournament-service.ts` import `assertSeasonWritableBySeasonId`、`guards.ts` 读 `db.season`。Task1 生成新 client 后 `db.season` 不存在。先把 guard 切到 tournament，Task3 的 tournament-service 测试才不会卡在 guard 而非目标实现。guards.ts 不 import tournament-service，故本 Task 可独立编译/跑测试。
+
+**Files:**
+- Modify: `src/lib/tournament/guards.ts`, `src/lib/tournament/guards.test.ts`
+- Reference: spec §3.3, §4.3
+
+- [ ] **Step 1: 写失败测试**
+
+`guards.test.ts`：归档赛事下 `assertTournamentWritable` 抛错；活跃赛事通过。
+
+```typescript
+import { assertTournamentWritable } from './guards';
+it('rejects writes on ARCHIVED tournament', async () => {
+  const t = await testDb.tournament.create({ data: { name: 'X', kind: '正赛', config: {}, status: 'ARCHIVED', archivedAt: new Date() } });
+  await expect(assertTournamentWritable(testDb, t.id)).rejects.toThrow();
+});
+it('passes on active tournament', async () => {
+  const t = await testDb.tournament.create({ data: { name: 'Y', kind: '正赛', config: {}, status: 'GROUP_STAGE' } });
+  await expect(assertTournamentWritable(testDb, t.id)).resolves.toBeUndefined();
+});
+```
+
+- [ ] **Step 2: 运行验证失败**
+
+Run: `npx vitest run src/lib/tournament/guards.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: 改写 guards.ts（删 season 关系，直接读 tournament）**
+
+```typescript
+export async function assertTournamentWritable(db: Db, tournamentId: string): Promise<void> {
+  const t = await db.tournament.findUnique({ where: { id: tournamentId }, select: { status: true, archivedAt: true } });
+  if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
+  if (t.status === 'ARCHIVED' || t.archivedAt !== null)
+    throw new TournamentError('INVALID_STATE', '赛事已归档，不可修改');
+}
+```
+> 旧 `assertSeasonWritable` / `assertSeasonWritableBySeasonId` 两变体合一为 `assertTournamentWritable(db, tournamentId)`。本 Task 仅改 guards.ts + 测试；其它文件对旧名的 import 在各自 Task 切换（Task3 切 tournament-service、Task6 切赛制服务）。
+
+- [ ] **Step 4: 运行转绿**
+
+Run: `npx vitest run src/lib/tournament/guards.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/tournament/guards.ts src/lib/tournament/guards.test.ts
+git commit -m "feat(tournament): assertTournamentWritable reads tournament directly"
+```
+
+---
+
+## Task 3: tournament-service 吸收 season-service（创建 + 状态机）
 
 **Files:**
 - Create: `src/lib/tournament/tournament-schema.ts`
@@ -158,7 +223,8 @@ export type UpdateBudgetInput = z.infer<typeof UpdateBudgetInput>;
 import { createTournament, transitionTournament, getActiveTournament, archiveActiveTournament } from './tournament-service';
 import { testDb } from '@/lib/test/db';
 
-const CFG = { groupCount: 2, teamsPerGroup: 2, advancePerGroup: 1, groupBestOf: 1, knockoutBestOf: [1] };
+// 合法 GroupKnockoutConfig（types.ts:6-14：template + advancingPerGroup + knockoutBestOf 为 Record）
+const CFG = { template: 'group-knockout', groupCount: 2, teamsPerGroup: 2, advancingPerGroup: 1, groupBestOf: 1, knockoutBestOf: { FINAL: 1 } };
 const mk = (name = 'T1') =>
   createTournament(testDb, { name, teamBudget: 1000, kind: '正赛', config: CFG }, 'u');
 
@@ -250,18 +316,23 @@ export async function transitionTournament(db: Db, tournamentId: string, next: T
 }
 
 export async function createTournament(db: PrismaClient, input: CreateTournamentInput, actorUserId: string) {
+  const config = groupKnockout.validate(input.config); // 非法 config 在此抛 INVALID_CONFIG，整体不建
   return db.$transaction(async (tx) => {
     await archiveActiveTournament(tx);
     const t = await tx.tournament.create({
-      data: { name: input.name, teamBudget: input.teamBudget, kind: input.kind, config: input.config as Prisma.JsonObject, status: 'SETUP' },
+      data: { name: input.name, teamBudget: input.teamBudget, kind: input.kind, config, status: 'SETUP' },
     });
-    await buildTournamentSkeleton(tx, { tournamentId: t.id, config: input.config as GroupKnockoutConfig, actorUserId });
+    await createSkeletonRecords(tx, t.id, config); // 复用现有函数（建 stages/groups 占位/空位对阵/晋级边，不建快照）
+    await writeAudit(tx, {
+      userId: actorUserId, action: 'tournament.create', entity: 'Tournament', entityId: t.id,
+      payload: { name: input.name, config: config as object },
+    });
     return t;
   });
 }
 ```
 
-> `buildTournamentSkeleton` = 把旧 `createTournamentShell` 中"建 stages/groups 占位/淘汰赛空位对阵/晋级边、不建 TournamentTeam 快照"的部分原样改名落到 tournament-service（旧 shell 已是此形态）；其内部 `seasonId` 引用改 `tournamentId`，并前置 `assertTournamentWritable`（新建必非归档，见 Task 3）。`ARCHIVED` 不经 `transitionTournament`（由 archive 函数写），故不在 ALLOWED 内列 `(任意)→ARCHIVED`。
+> **P1-2 保留旧 shell 三件事**：`groupKnockout.validate` → `createSkeletonRecords` → `writeAudit('tournament.create')`，缺一不可（对照旧 `createTournamentShell` tournament-service.ts:55-71）。**不**在创建路径调 `assertTournamentWritable`（新建赛事必非归档，guard 是 update/reset 调用方的事，且会与 Task2 顺序冲突）。旧 shell 的 `seasonId` 唯一性检查（`TOURNAMENT_EXISTS`）**删除**——单一实体下不存在"一季两赛事"，`archiveActiveTournament` 已保证单活跃。`ARCHIVED` 不经 `transitionTournament`（由 archive 函数写），故不在 ALLOWED 内列 `(任意)→ARCHIVED`。旧 `createTournamentShell` / `assertSeasonWritableBySeasonId` 整体删除，`updateTournamentConfig` 内的 `assertSeasonWritableBySeasonId(db, t.seasonId)` 改 `assertTournamentWritable(db, t.id)`。
 
 - [ ] **Step 5: 删除 season 目录的所有文件**
 
@@ -282,59 +353,6 @@ Expected: PASS（transition/archive/create 全过；旧 shell 断言去掉 seaso
 ```bash
 git add src/lib/tournament src/lib/season
 git commit -m "feat(tournament): absorb season-service (createTournament, transitionTournament, 9-state machine)"
-```
-
----
-
-## Task 3: 归档只读守卫改读 tournament
-
-**Files:**
-- Modify: `src/lib/tournament/guards.ts`, `src/lib/tournament/guards.test.ts`
-- Reference: spec §3.3, §4.3
-
-- [ ] **Step 1: 写失败测试**
-
-`guards.test.ts`：归档赛事下 `assertTournamentWritable` 抛错；活跃赛事通过。
-
-```typescript
-import { assertTournamentWritable } from './guards';
-it('rejects writes on ARCHIVED tournament', async () => {
-  const t = await testDb.tournament.create({ data: { name: 'X', kind: '正赛', config: {}, status: 'ARCHIVED', archivedAt: new Date() } });
-  await expect(assertTournamentWritable(testDb, t.id)).rejects.toThrow();
-});
-it('passes on active tournament', async () => {
-  const t = await testDb.tournament.create({ data: { name: 'Y', kind: '正赛', config: {}, status: 'GROUP_STAGE' } });
-  await expect(assertTournamentWritable(testDb, t.id)).resolves.toBeUndefined();
-});
-```
-
-- [ ] **Step 2: 运行验证失败**
-
-Run: `npx vitest run src/lib/tournament/guards.test.ts`
-Expected: FAIL
-
-- [ ] **Step 3: 改写 guards.ts（删 season 关系，直接读 tournament）**
-
-```typescript
-export async function assertTournamentWritable(db: Db, tournamentId: string): Promise<void> {
-  const t = await db.tournament.findUnique({ where: { id: tournamentId }, select: { status: true, archivedAt: true } });
-  if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  if (t.status === 'ARCHIVED' || t.archivedAt !== null)
-    throw new TournamentError('INVALID_STATE', '赛事已归档，不可修改');
-}
-```
-> 旧 `assertSeasonWritable` / `assertSeasonWritableBySeasonId` 两变体合一为 `assertTournamentWritable(db, tournamentId)`。全仓 `assertSeasonWritable*` 调用点改名（grep 替换；调用方传的本就是 `match.tournamentId` 等）。
-
-- [ ] **Step 4: 运行转绿**
-
-Run: `npx vitest run src/lib/tournament/guards.test.ts`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/lib/tournament/guards.ts src/lib/tournament/guards.test.ts
-git commit -m "feat(tournament): assertTournamentWritable reads tournament directly"
 ```
 
 ---
@@ -472,7 +490,7 @@ if (t.status === 'ARCHIVED' || t.archivedAt !== null) return false;
 return t.status === 'GROUP_STAGE' || t.status === 'KNOCKOUT'; // 白名单，替换 !== SETUP && !== FINISHED
 ```
   `reserveMatch` 里 `status === 'SETUP' || status === 'FINISHED'` 抛错 → 改 `!(status === 'GROUP_STAGE' || status === 'KNOCKOUT')` 抛错。
-- `schedule-service.ts`：`addCustomMatch` 的 `=== 'FINISHED'` / `=== 'SETUP'` 两道反向排除 → `if (!(t.status === 'GROUP_STAGE' || t.status === 'KNOCKOUT')) throw new TournamentError('INVALID_STATE', '当前赛事状态不允许添加自定义比赛')`。
+- `schedule-service.ts`：① `addCustomMatch` 的 `=== 'FINISHED'` / `=== 'SETUP'` 两道反向排除 → `if (!(t.status === 'GROUP_STAGE' || t.status === 'KNOCKOUT')) throw new TournamentError('INVALID_STATE', '当前赛事状态不允许添加自定义比赛')`。② **快照关系改名（P1-3）**：schema 里 `Tournament` 的快照关系由旧 `teams`（`TournamentTeam[]`）改名为 `tournamentTeams`，而新增的 `teams`（`Team[]`，原 Season 直属队伍）会顶替这个名字。故 `schedule-service.ts:21` 的 `include: { teams: true, ... }` → `include: { tournamentTeams: true, ... }`、`:30` 的 `t.teams.map((x) => x.teamId)` → `t.tournamentTeams.map((x) => x.teamId)`。**注意**：`group.teams`（`TournamentGroup.teams = TournamentGroupTeam[]`，如 :38、bracket-service:41、read-model、groups-service:119）**不改**，那是小组成员关系。实现前先 `grep -rn "\.teams\b\|teams: true" src/lib/tournament src/app` 把"赛事级快照 teams"与"组级成员 teams"逐处分类，仅前者改名。
 - `groups-service.ts`：assignGroups（line 17）/ confirmGroups（line 107）的 `t.status !== 'SETUP'` → `!== 'GROUPING'`；confirmGroups 成功后把状态推进到 `GROUP_STAGE`（保持原写法：直接 `update` 到 `'GROUP_STAGE'`，或经 `transitionTournament(tx, id, 'GROUP_STAGE')`）。
 - `tournament-service.ts`（updateTournamentConfig，line 99）：config 闸 `t.status !== 'SETUP'` → `if (wantsConfig && ['GROUP_STAGE','KNOCKOUT','FINISHED','ARCHIVED'].includes(t.status)) throw ...`（即仅 `< GROUP_STAGE` 可改）；name/kind 闸 `=== 'FINISHED'`（line 97）保持。
 - `score-service.ts`：`syncFinalStatus`（line 91-101）已操作 tournament、FINISHED↔KNOCKOUT 物化，**无需改逻辑**，仅确认 `seasonId` 无残留。
@@ -645,6 +663,7 @@ Run: `npx prisma db seed`（或现有 admin 初始化脚本）
 
 ## Self-Review 记录
 
-- **spec 覆盖**：§2 模型→T1；§2.2 枚举→T1；§3.1 状态边→T2；§3.2 门禁→T4/T5/T6；§3.3 callsite 映射→T4/T6/T7/T8；§4.1 createTournament→T2；§4.2 退役→T2；§4.3 守卫→T3；§4.4 引擎→T4；§5 路由→T7；§6 UI→T8；§7 迁移→T1/T10；§8 测试→各 Task + T9。无遗漏。
+- **spec 覆盖**：§2 模型→T1；§2.2 枚举→T1；§3.1 状态边→T3；§3.2 门禁→T4/T5/T6；§3.3 callsite 映射→T4/T6/T7/T8；§4.1 createTournament→T3；§4.2 退役→T3；§4.3 守卫→T2（提前于 tournament-service，P0-2）；§4.4 引擎→T4；§5 路由→T7；§6 UI→T8；§7 迁移→T1/T10；§8 测试→各 Task + T9。无遗漏。
+- **codex plan 复审 rev.2 闭合**：P0-1 test/db.ts truncate 去 seasons（T1 Step5）；P0-2 guards 提前到 T2；P1-1 合法 CFG；P1-2 createTournament 保留 validate+skeleton+audit、删 guard/exists-check；P1-3 快照关系 teams→tournamentTeams 调用点迁移（T6）；P1-4 非交互 migrate（T1 Step6）。
 - **类型一致性**：`createTournament`/`transitionTournament`/`getActiveTournament`/`archiveActiveTournament`/`updateTournamentBudget`/`assertTournamentWritable`/`CreateTournamentInput`/`seedTournamentWithTeams` 跨 Task 命名统一。
 - **无占位符**：关键逻辑（ALLOWED 边、白名单闸、GROUPING 断言、createTournament）均给实代码；机械改名给精确规则 + 验证命令。
