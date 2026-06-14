@@ -54,7 +54,12 @@ export function parseNonNegativeInteger(value: string): number | null {
 }
 
 export function parseKda(value: string): Kda | null {
-  const parts = value.trim().split(/[\s/-]+/);
+  const trimmed = value.trim();
+  const parts = trimmed.includes('/')
+    ? trimmed.split('/')
+    : trimmed.includes('-')
+      ? trimmed.split('-')
+      : trimmed.split(/\s+/);
   if (parts.length !== 3) return null;
 
   const [kills, deaths, assists] = parts.map(parseNonNegativeInteger);

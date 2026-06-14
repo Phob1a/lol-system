@@ -37,6 +37,8 @@ describe('game detail entry utils', () => {
     expect(parseKda('12/3')).toBeNull();
     expect(parseKda('a/b/c')).toBeNull();
     expect(parseKda('')).toBeNull();
+    expect(parseKda('1/-2/3')).toBeNull();
+    expect(parseKda('1 -2 3')).toBeNull();
   });
 
   it('detects pristine, partial, and complete stats', () => {

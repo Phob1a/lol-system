@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
 const { requireAdminMock, findUniqueMock, findManyMock } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
@@ -69,7 +70,7 @@ describe('admin match detail route', () => {
     findManyMock.mockResolvedValueOnce([]);
 
     const { GET } = await import('@/app/api/tournament/admin/matches/[id]/route');
-    const res = await GET(new Request('http://localhost/api'), { params: Promise.resolve({ id: 'match-1' }) });
+    const res = await GET(new NextRequest('http://localhost/api'), { params: Promise.resolve({ id: 'match-1' }) });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -132,7 +133,7 @@ describe('admin match detail route', () => {
     findManyMock.mockResolvedValueOnce([]);
 
     const { GET } = await import('@/app/api/tournament/admin/matches/[id]/route');
-    const res = await GET(new Request('http://localhost/api'), { params: Promise.resolve({ id: 'match-1' }) });
+    const res = await GET(new NextRequest('http://localhost/api'), { params: Promise.resolve({ id: 'match-1' }) });
 
     expect(res.status).toBe(200);
     const game = (await res.json()).match.games[0];
