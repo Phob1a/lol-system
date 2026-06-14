@@ -121,7 +121,7 @@ export async function createTournament(
 /**
  * 修改赛事配置。
  * - name/kind：status ≠ FINISHED 可改。
- * - config：仅 status = SETUP；清空结构后按新 config 重建骨架（快照同被清空）。
+ * - config：status < GROUP_STAGE（即 SETUP/REGISTRATION/ROSTER_LOCKED/DRAFTING/GROUPING）可改；GROUP_STAGE 起锁定。清空结构后按新 config 重建骨架（快照同被清空）。
  */
 export async function updateTournamentConfig(
   db: PrismaClient,

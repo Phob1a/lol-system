@@ -12,7 +12,7 @@ it('全流程：建赛事(带配置) → 造队 → 分组 → 确认 → 录分
   const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
   const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
 
-  const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
+  const groups = await testDb.tournamentGroup.findMany({ where: { stage: { tournamentId } }, orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
     tournamentId: t.id,
     assignments: [

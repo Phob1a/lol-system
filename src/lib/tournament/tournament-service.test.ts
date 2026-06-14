@@ -148,6 +148,22 @@ describe('updateTournamentConfig', () => {
     expect(await testDb.auditLog.count({ where: { action: 'tournament.config.update' } })).toBe(1);
   });
 
+  it('REGISTRATION：改 config 重建骨架（pre-GROUP_STAGE 允许路径）', async () => {
+    const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+    await transitionTournament(testDb, t.id, 'REGISTRATION');
+    // Change to a different valid config (4 groups × 2 teams × 1 advancing → SF + FINAL)
+    const newCfg = {
+      template: 'group-knockout' as const,
+      groupCount: 4, teamsPerGroup: 2, advancingPerGroup: 1,
+      groupBestOf: 1 as const, knockoutBestOf: { SF: 3 as const, FINAL: 5 as const },
+    };
+    await updateTournamentConfig(testDb, { tournamentId: t.id, config: newCfg, actorUserId: 'u' });
+    const after = (await testDb.tournament.findUnique({ where: { id: t.id } }))!;
+    expect((after.config as typeof newCfg).groupCount).toBe(4);
+    expect(after.status).toBe('REGISTRATION'); // status unchanged
+    expect(await testDb.tournamentGroup.count()).toBe(4);
+  });
+
   it('GROUP_STAGE 以后：改 config 被拒，但改 kind 允许', async () => {
     const { t } = await toGroupStage();
     await expect(

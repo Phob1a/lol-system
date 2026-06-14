@@ -148,7 +148,7 @@ export async function getPublicMatchDetail(db: Db, matchId: string) {
   const match = await db.match.findUnique({
     where: { id: matchId },
     include: {
-      tournament: { select: { id: true, status: true, archivedAt: true } },
+      tournament: { select: { id: true } },
       teamA: { select: { id: true, name: true } },
       teamB: { select: { id: true, name: true } },
       games: {

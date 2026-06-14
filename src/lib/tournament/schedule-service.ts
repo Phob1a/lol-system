@@ -29,7 +29,7 @@ export async function addCustomMatch(
 
   const snapshot = new Set(t.tournamentTeams.map((x) => x.teamId));
   if (!snapshot.has(input.teamAId) || !snapshot.has(input.teamBId))
-    throw new TournamentError('TEAM_NOT_IN_SEASON', '队伍不在参赛名单');
+    throw new TournamentError('TEAM_NOT_IN_TOURNAMENT', '队伍不在参赛名单');
 
   let stageId: string;
   if (input.groupId) {

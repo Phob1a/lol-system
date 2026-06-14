@@ -5,7 +5,6 @@ export type TournamentErrorCode =
   | 'INVALID_TRANSITION'
   | 'FORBIDDEN'
   | 'TEAM_NOT_IN_TOURNAMENT'
-  | 'TEAM_NOT_IN_SEASON' // deferred: still used by schedule-service until its task lands
   | 'MATCH_NOT_FOUND'
   | 'VERSION_CONFLICT'
   | 'DOWNSTREAM_RECORDED'
