@@ -26,14 +26,7 @@ type MatchRef = {
   bestOf: number;
 };
 
-type Game = {
-  id: string;
-  index: number;
-  isDraft: boolean;
-  winnerTeamId: string | null;
-  hasBans: boolean;
-  hasStats: boolean;
-};
+type Game = GameDetailInitial;
 
 type RosterPlayer = { registrationId: string; nickname: string };
 type Roster = { teamId: string; players: RosterPlayer[] };
@@ -168,16 +161,8 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
   }
 
   function openDetailForGame(game: Game) {
-    const initial: GameDetailInitial = {
-      id: game.id,
-      index: game.index,
-      isDraft: game.isDraft,
-      winnerTeamId: game.winnerTeamId,
-      hasBans: game.hasBans,
-      hasStats: game.hasStats,
-    };
     setDetailGameId(game.id);
-    setDetailInitial(initial);
+    setDetailInitial(game);
     setDetailOpen(true);
   }
 
