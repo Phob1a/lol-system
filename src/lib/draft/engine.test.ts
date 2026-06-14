@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { testDb } from '@/lib/test/db';
 import { appointCaptain } from '@/lib/captains/captain-service';
 import { adminCreateRegistration } from '@/lib/registration/registration-service';
-import { createSeason, transitionSeason } from '@/lib/season/season-service';
+import { createTournament, transitionTournament } from '@/lib/tournament/tournament-service';
 import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
 
 const T = { kind: '正赛', config: CFG_2x4x2 };
@@ -34,66 +34,66 @@ function registrationInput(gameId: string, nickname: string, cost = 10) {
 }
 
 async function openSeason(name: string) {
-  const season = await createSeason(testDb, { name, teamBudget: 1000, tournament: T }, 'u');
-  await transitionSeason(testDb, season.id, 'REGISTRATION');
-  return season;
+  const tournament = await createTournament(testDb, { name, teamBudget: 1000, kind: T.kind, config: T.config }, 'u');
+  await transitionTournament(testDb, tournament.id, 'REGISTRATION');
+  return tournament;
 }
 
 async function prepareDraftWithArchivedSeasonRegistration() {
-  const oldSeason = await openSeason('S1');
+  const oldTournament = await openSeason('S1');
   const oldRegistration = await adminCreateRegistration(
     testDb,
-    oldSeason.id,
+    oldTournament.id,
     registrationInput('old-player', '旧赛季选手'),
   );
 
-  const currentSeason = await openSeason('S2');
-  const captain = await adminCreateRegistration(testDb, currentSeason.id, {
+  const currentTournament = await openSeason('S2');
+  const captain = await adminCreateRegistration(testDb, currentTournament.id, {
     ...registrationInput('captain', '当前队长', 0),
     primaryPositions: ['MID'],
     willingToCaptain: true,
   });
-  await transitionSeason(testDb, currentSeason.id, 'ROSTER_LOCKED');
+  await transitionTournament(testDb, currentTournament.id, 'ROSTER_LOCKED');
   await appointCaptain(testDb, captain.id);
-  await startDraft(currentSeason.id, actorUserId);
+  await startDraft(currentTournament.id, actorUserId);
 
-  return { currentSeason, captain, oldRegistration };
+  return { currentTournament, captain, oldRegistration };
 }
 
 describe('draft engine season boundaries', () => {
   it('normalizes budget after debiting a decimal captain cost', async () => {
-    const season = await createSeason(testDb, { name: 'decimal-budget', teamBudget: 33.5, tournament: T }, 'u');
-    await transitionSeason(testDb, season.id, 'REGISTRATION');
-    const captain = await adminCreateRegistration(testDb, season.id, {
+    const tournament = await createTournament(testDb, { name: 'decimal-budget', teamBudget: 33.5, kind: T.kind, config: T.config }, 'u');
+    await transitionTournament(testDb, tournament.id, 'REGISTRATION');
+    const captain = await adminCreateRegistration(testDb, tournament.id, {
       ...registrationInput('decimal-captain', '小数队长', 33.4),
       primaryPositions: ['MID'],
       willingToCaptain: true,
     });
-    await transitionSeason(testDb, season.id, 'ROSTER_LOCKED');
+    await transitionTournament(testDb, tournament.id, 'ROSTER_LOCKED');
     const { teamId } = await appointCaptain(testDb, captain.id);
 
-    await startDraft(season.id, actorUserId);
+    await startDraft(tournament.id, actorUserId);
 
     const team = await testDb.team.findUniqueOrThrow({ where: { id: teamId } });
     expect(team.budgetLeft).toBe(0.1);
   });
 
   it('rejects submitPick when registration belongs to another season', async () => {
-    const { currentSeason, captain, oldRegistration } =
+    const { currentTournament, captain, oldRegistration } =
       await prepareDraftWithArchivedSeasonRegistration();
     await startRound({
-      seasonId: currentSeason.id,
+      tournamentId: currentTournament.id,
       mode: 'ADMIN_ORDER',
       adminProvidedOrder: [captain.id],
       actorUserId,
     });
     const session = await testDb.draftSession.findUniqueOrThrow({
-      where: { seasonId: currentSeason.id },
+      where: { tournamentId: currentTournament.id },
     });
 
     await expect(
       submitPick({
-        seasonId: currentSeason.id,
+        tournamentId: currentTournament.id,
         byCaptainId: captain.id,
         registrationId: oldRegistration.id,
         position: 'TOP',
@@ -108,12 +108,12 @@ describe('draft engine season boundaries', () => {
   });
 
   it('rejects MANUAL assignments when registration belongs to another season', async () => {
-    const { currentSeason, captain, oldRegistration } =
+    const { currentTournament, captain, oldRegistration } =
       await prepareDraftWithArchivedSeasonRegistration();
 
     await expect(
       startRound({
-        seasonId: currentSeason.id,
+        tournamentId: currentTournament.id,
         mode: 'MANUAL',
         manualAssignments: [
           {

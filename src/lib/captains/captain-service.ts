@@ -29,10 +29,10 @@ export async function appointCaptain(
 ): Promise<AppointResult> {
   const reg = await db.registration.findUnique({
     where: { id: registrationId },
-    include: { season: true },
+    include: { tournament: true },
   });
   if (!reg) throw new CaptainError('NOT_FOUND', '报名记录不存在');
-  if (reg.season.status !== 'ROSTER_LOCKED') {
+  if (reg.tournament.status !== 'ROSTER_LOCKED') {
     throw new CaptainError('WRONG_SEASON_STATE', '仅在名册锁定阶段可任命队长');
   }
   if (reg.isCaptain) throw new CaptainError('ALREADY_CAPTAIN', '该选手已是队长');
@@ -51,7 +51,7 @@ export async function appointCaptain(
     });
     return tx.team.create({
       data: {
-        seasonId: reg.seasonId,
+        tournamentId: reg.tournamentId,
         name: `${reg.nickname} 队`,
         captainId: registrationId,
         userId: account.id,
@@ -72,13 +72,13 @@ export async function revokeCaptain(
 ): Promise<void> {
   const reg = await db.registration.findUnique({
     where: { id: registrationId },
-    include: { season: { include: { draftSession: true } }, teamAsCaptain: true },
+    include: { tournament: { include: { draftSession: true } }, teamAsCaptain: true },
   });
   if (!reg) throw new CaptainError('NOT_FOUND', '报名记录不存在');
   if (!reg.isCaptain || !reg.teamAsCaptain) {
     throw new CaptainError('NOT_A_CAPTAIN', '该选手不是队长');
   }
-  if (reg.season.draftSession) {
+  if (reg.tournament.draftSession) {
     throw new CaptainError('DRAFT_ALREADY_STARTED', '选秀已开始，无法撤销队长');
   }
 

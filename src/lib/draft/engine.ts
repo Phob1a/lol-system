@@ -15,7 +15,7 @@ export class DraftStateError extends Error {
 /** All error codes the draft engine can raise. */
 export type DraftStateErrorCode =
   | 'WRONG_SEASON_STATE'
-  | 'NO_SEASON'
+  | 'NO_TOURNAMENT'
   | 'ALREADY_RUNNING'
   | 'NO_CAPTAINS'
   | 'NO_SESSION'
@@ -43,41 +43,41 @@ export type DraftStateErrorCode =
   | 'PLAYER_SET_MISMATCH';
 
 /**
- * Start the draft for a season.
+ * Start the draft for a tournament.
  *
  * Transactional contract:
- *   - Refuses unless the season is ROSTER_LOCKED.
+ *   - Refuses unless the tournament is ROSTER_LOCKED.
  *   - Refuses if a session is already IN_PROGRESS (idempotent guard).
  *   - Creates one DraftSession (status=IN_PROGRESS, currentRound=0, seq=1).
  *   - Teams already exist (created at captain appointment). For each team,
- *     sets budgetLeft = season.teamBudget - captain.cost, creates 5 TeamSlots,
+ *     sets budgetLeft = tournament.teamBudget - captain.cost, creates 5 TeamSlots,
  *     and auto-places the captain in the slot matching the first of their
  *     primaryPositions in enum order.
- *   - Transitions the season to DRAFTING.
+ *   - Transitions the tournament to DRAFTING.
  *   - Appends DRAFT_STARTED event with seq=1.
  *
  * @returns the freshly-created session id
  */
 export async function startDraft(
-  seasonId: string,
+  tournamentId: string,
   actorUserId: string,
 ): Promise<{ sessionId: string }> {
   return prisma.$transaction(async (tx) => {
-    const season = await tx.season.findUnique({ where: { id: seasonId } });
-    if (!season) throw new DraftStateError('NO_SEASON', '赛季不存在');
-    if (season.status !== 'ROSTER_LOCKED') {
-      throw new DraftStateError('WRONG_SEASON_STATE', '赛季未处于名册锁定阶段');
+    const tournament = await tx.tournament.findUnique({ where: { id: tournamentId } });
+    if (!tournament) throw new DraftStateError('NO_TOURNAMENT', '赛事不存在');
+    if (tournament.status !== 'ROSTER_LOCKED') {
+      throw new DraftStateError('WRONG_SEASON_STATE', '赛事未处于名册锁定阶段');
     }
 
     const existing = await tx.draftSession.findFirst({
-      where: { seasonId, status: 'IN_PROGRESS' },
+      where: { tournamentId, status: 'IN_PROGRESS' },
     });
     if (existing) {
       throw new DraftStateError('ALREADY_RUNNING', '已有进行中的选秀');
     }
 
     const captains = await tx.registration.findMany({
-      where: { seasonId, isCaptain: true, status: 'ACTIVE' },
+      where: { tournamentId, isCaptain: true, status: 'ACTIVE' },
     });
     if (captains.length === 0) {
       throw new DraftStateError('NO_CAPTAINS', '至少需要一名现役队长才能开启选秀');
@@ -85,7 +85,7 @@ export async function startDraft(
 
     const session = await tx.draftSession.create({
       data: {
-        seasonId,
+        tournamentId,
         status: 'IN_PROGRESS',
         currentRound: 0,
         seq: 1,
@@ -96,14 +96,14 @@ export async function startDraft(
     // Teams already exist (created at captain appointment). Initialize each:
     // set budget, create slots, place the captain.
     const teams = await tx.team.findMany({
-      where: { seasonId },
+      where: { tournamentId },
       include: { captain: true },
     });
     for (const team of teams) {
       const captainSlot = pickCaptainSlot(team.captain);
       await tx.team.update({
         where: { id: team.id },
-        data: { budgetLeft: debitCost(season.teamBudget, team.captain.cost) },
+        data: { budgetLeft: debitCost(tournament.teamBudget, team.captain.cost) },
       });
       // Create 5 slots; captain occupies the matching one.
       await tx.teamSlot.createMany({
@@ -123,13 +123,13 @@ export async function startDraft(
         seq: 1,
         payload: {
           captainCount: captains.length,
-          teamBudget: season.teamBudget,
+          teamBudget: tournament.teamBudget,
         },
       },
     });
 
-    await tx.season.update({
-      where: { id: seasonId },
+    await tx.tournament.update({
+      where: { id: tournamentId },
       data: { status: 'DRAFTING' },
     });
 
@@ -138,32 +138,32 @@ export async function startDraft(
 }
 
 /**
- * Reset the draft for a season.
+ * Reset the draft for a tournament.
  *
- * Wipes the season's DraftSession / DraftRound / DraftPick / DraftEvent records
- * (cascade), deletes the season's TeamSlot rows, and resets each
+ * Wipes the tournament's DraftSession / DraftRound / DraftPick / DraftEvent records
+ * (cascade), deletes the tournament's TeamSlot rows, and resets each
  * Team.budgetLeft to 0. Teams themselves, Registrations, Players and Users are
- * preserved. The season is moved back to ROSTER_LOCKED so the admin can restart.
+ * preserved. The tournament is moved back to ROSTER_LOCKED so the admin can restart.
  *
  * Note: this is destructive by design. The audit trail of the just-deleted
  * draft is not preserved. Per the planner R1 discussion, reset is the "nuke
  * everything" operation; revoke/rewind are the surgical alternatives.
  */
-export async function resetDraft(seasonId: string): Promise<void> {
+export async function resetDraft(tournamentId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // DraftSession cascades to rounds/picks/events via Prisma onDelete: Cascade.
-    // Scoped to this season's single session (seasonId is @unique on DraftSession).
-    await tx.draftSession.deleteMany({ where: { seasonId } });
+    // Scoped to this tournament's single session (tournamentId is @unique on DraftSession).
+    await tx.draftSession.deleteMany({ where: { tournamentId } });
 
-    // Delete all slot rows for the season's teams so startDraft can re-create them.
-    await tx.teamSlot.deleteMany({ where: { team: { seasonId } } });
+    // Delete all slot rows for the tournament's teams so startDraft can re-create them.
+    await tx.teamSlot.deleteMany({ where: { team: { tournamentId } } });
     await tx.team.updateMany({
-      where: { seasonId },
+      where: { tournamentId },
       data: { budgetLeft: 0 },
     });
 
-    await tx.season.update({
-      where: { id: seasonId },
+    await tx.tournament.update({
+      where: { id: tournamentId },
       data: { status: 'ROSTER_LOCKED' },
     });
   });
@@ -198,9 +198,9 @@ function toRegistrationRef(r: RegistrationRow): RegistrationRef {
   };
 }
 
-export async function getDraftSnapshot(seasonId: string): Promise<DraftSnapshot> {
+export async function getDraftSnapshot(tournamentId: string): Promise<DraftSnapshot> {
   const session = await prisma.draftSession.findFirst({
-    where: { seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+    where: { tournamentId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -215,7 +215,7 @@ export async function getDraftSnapshot(seasonId: string): Promise<DraftSnapshot>
   }
 
   const teams = await prisma.team.findMany({
-    where: { seasonId },
+    where: { tournamentId },
     include: {
       captain: { select: registrationRefSelect },
       slots: { include: { registration: { select: registrationRefSelect } } },
@@ -302,7 +302,7 @@ export type ManualAssignment = {
 };
 
 export type StartRoundInput = {
-  seasonId: string;
+  tournamentId: string;
   mode: RoundMode;
   adminProvidedOrder?: string[];
   manualAssignments?: ManualAssignment[];
@@ -333,7 +333,7 @@ export type StartRoundResult = {
  */
 export async function startRound(input: StartRoundInput): Promise<StartRoundResult> {
   return prisma.$transaction(async (tx) => {
-    const session = await tx.draftSession.findFirst({ where: { seasonId: input.seasonId, status: 'IN_PROGRESS' } });
+    const session = await tx.draftSession.findFirst({ where: { tournamentId: input.tournamentId, status: 'IN_PROGRESS' } });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
 
     const nextRoundNo = session.currentRound + 1;
@@ -349,7 +349,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
     }
 
     const teams = await tx.team.findMany({
-      where: { seasonId: session.seasonId },
+      where: { tournamentId: session.tournamentId },
       select: { id: true, captainId: true, budgetLeft: true },
     });
     const captains: CaptainSnapshot[] = teams.map((t) => ({
@@ -419,7 +419,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
       for (let i = 0; i < assignments.length; i++) {
         const a = assignments[i];
         await applyPick(tx, {
-          seasonId: session.seasonId,
+          tournamentId: session.tournamentId,
           sessionId: session.id,
           round,
           pickIndex: i,
@@ -451,7 +451,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
     });
 
     if (finishedDraft) {
-      await tx.season.update({ where: { id: session.seasonId }, data: { status: 'COMPLETED' } });
+      await tx.tournament.update({ where: { id: session.tournamentId }, data: { status: 'GROUPING' } });
     }
 
     void roundStatusFinal;
@@ -461,7 +461,7 @@ export async function startRound(input: StartRoundInput): Promise<StartRoundResu
 }
 
 export type SubmitPickInput = {
-  seasonId: string;
+  tournamentId: string;
   byCaptainId: string;
   registrationId: string;
   position: Position;
@@ -486,11 +486,11 @@ export type SubmitPickResult = {
  */
 export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
   return prisma.$transaction(async (tx) => {
-    // Row lock on the in-progress session, scoped to this season.
+    // Row lock on the in-progress session, scoped to this tournament.
     const locked = await tx.$queryRaw<{ id: string; seq: number; on_the_clock: string | null; current_round: number }[]>`
       SELECT id, seq, "onTheClock" AS on_the_clock, "currentRound" AS current_round
       FROM "draft_sessions"
-      WHERE "seasonId" = ${input.seasonId} AND status = 'IN_PROGRESS'
+      WHERE "tournamentId" = ${input.tournamentId} AND status = 'IN_PROGRESS'
       FOR UPDATE
     `;
     if (locked.length === 0) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
@@ -514,7 +514,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 
     const newSeq = lockedSession.seq + 1;
     const pickResult = await applyPick(tx, {
-      seasonId: input.seasonId,
+      tournamentId: input.tournamentId,
       sessionId: lockedSession.id,
       round,
       pickIndex,
@@ -554,9 +554,9 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     });
 
     if (finishedDraft) {
-      const sess = await tx.draftSession.findUnique({ where: { id: lockedSession.id }, select: { seasonId: true } });
+      const sess = await tx.draftSession.findUnique({ where: { id: lockedSession.id }, select: { tournamentId: true } });
       if (sess) {
-        await tx.season.update({ where: { id: sess.seasonId }, data: { status: 'COMPLETED' } });
+        await tx.tournament.update({ where: { id: sess.tournamentId }, data: { status: 'GROUPING' } });
       }
     }
 
@@ -571,7 +571,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 // ──────────────────────────────────────────────────────────────────────
 
 type ApplyPickArgs = {
-  seasonId: string;
+  tournamentId: string;
   sessionId: string;
   round: { id: string; pickOrder: Prisma.JsonValue };
   pickIndex: number;
@@ -603,7 +603,7 @@ async function applyPick(
   args: ApplyPickArgs,
 ): Promise<{ pickId: string }> {
   const registration = await tx.registration.findFirst({
-    where: { id: args.registrationId, seasonId: args.seasonId },
+    where: { id: args.registrationId, tournamentId: args.tournamentId },
   });
   if (!registration) {
     throw new DraftStateError('NO_REGISTRATION', `报名不存在: ${args.registrationId}`);
@@ -616,7 +616,7 @@ async function applyPick(
   }
 
   const team = await tx.team.findFirst({
-    where: { seasonId: args.seasonId, captainId: args.captainId },
+    where: { tournamentId: args.tournamentId, captainId: args.captainId },
   });
   if (!team) throw new DraftStateError('NO_TEAM', `队长无对应战队: ${args.captainId}`);
 
@@ -779,7 +779,7 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
       },
     });
 
-    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
+    await tx.tournament.update({ where: { id: session.tournamentId }, data: { status: 'DRAFTING' } });
 
     await tx.draftEvent.create({
       data: {
@@ -813,10 +813,10 @@ export async function revokePick(pickId: string, actorUserId: string): Promise<R
  * Hard-deletes the entire current round (cascades its picks), refunds budgets,
  * frees slots, decrements currentRound, clears onTheClock, returns to IN_PROGRESS.
  */
-export async function rewindRound(seasonId: string, actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
+export async function rewindRound(tournamentId: string, actorUserId: string): Promise<{ newSeq: number; newCurrentRound: number }> {
   return prisma.$transaction(async (tx) => {
     const session = await tx.draftSession.findFirst({
-      where: { seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      where: { tournamentId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
       orderBy: { createdAt: 'desc' },
     });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
@@ -852,7 +852,7 @@ export async function rewindRound(seasonId: string, actorUserId: string): Promis
       },
     });
 
-    await tx.season.update({ where: { id: session.seasonId }, data: { status: 'DRAFTING' } });
+    await tx.tournament.update({ where: { id: session.tournamentId }, data: { status: 'DRAFTING' } });
 
     await tx.draftEvent.create({
       data: {
@@ -898,7 +898,7 @@ export async function rearrangeSlots(
     if (!team) throw new DraftStateError('NO_TEAM', '战队不存在');
 
     const session = await tx.draftSession.findFirst({
-      where: { seasonId: team.seasonId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
+      where: { tournamentId: team.tournamentId, status: { in: ['IN_PROGRESS', 'FINISHED'] } },
       orderBy: { createdAt: 'desc' },
     });
     if (!session) throw new DraftStateError('NO_SESSION', '没有进行中的选秀');
