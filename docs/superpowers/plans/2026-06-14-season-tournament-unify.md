@@ -351,7 +351,7 @@ Expected: PASS（transition/archive/create 全过；旧 shell 断言去掉 seaso
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/tournament src/lib/season
+git add -A src/lib/tournament src/lib/season   # -A 以容纳 season 目录的删除（codex 提示：pathspec 不存在时普通 add 可能报错）
 git commit -m "feat(tournament): absorb season-service (createTournament, transitionTournament, 9-state machine)"
 ```
 
