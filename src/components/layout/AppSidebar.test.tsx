@@ -18,5 +18,7 @@ describe('AppSidebar', () => {
       'aria-current',
       'page',
     );
+    expect(screen.queryAllByRole('link', { name: '系统配置', hidden: true })).toHaveLength(0);
+    expect(screen.getAllByRole('link', { name: '赛事管理', hidden: true })).toHaveLength(2);
   });
 });
