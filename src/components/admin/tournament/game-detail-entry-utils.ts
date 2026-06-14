@@ -81,7 +81,7 @@ export function isStatsPristine(rows: StatRowDraft[]): boolean {
 
 function isStatComplete(row: StatRowDraft): boolean {
   return (
-    row.championId !== null &&
+    !!row.championId &&
     parseKda(row.kda) !== null &&
     parseNonNegativeInteger(row.cs) !== null &&
     parseNonNegativeInteger(row.damage) !== null &&
@@ -127,11 +127,14 @@ export function buildBansPayload({
 }): BanPickPayload[] {
   const picks = useDerivedPicks ? derivedPicks : legacyPicks;
   const rows = [
-    ...banRows.map((row) => ({
-      teamId: row.teamId,
-      type: 'BAN' as const,
-      championId: row.championId ?? '',
-    })),
+    ...banRows.map((row) => {
+      if (!row.championId) throw new Error('BAN row missing champion');
+      return {
+        teamId: row.teamId,
+        type: 'BAN' as const,
+        championId: row.championId,
+      };
+    }),
     ...picks,
   ];
 

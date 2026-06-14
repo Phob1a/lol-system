@@ -51,6 +51,7 @@ describe('game detail entry utils', () => {
     expect(isStatsPristine(partial)).toBe(false);
     expect(isStatsAllComplete(completeA, completeB)).toBe(true);
     expect(isStatsAllComplete(completeA, completeB.slice(0, 4))).toBe(false);
+    expect(isStatsAllComplete([stat('a1', '')], completeB)).toBe(false);
   });
 
   it('derives 10 PICK rows from complete stats with team ownership', () => {
@@ -102,6 +103,25 @@ describe('game detail entry utils', () => {
       { teamId: teamB, type: 'PICK', championId: 'Legacy1', order: 2 },
       { teamId: teamA, type: 'PICK', championId: 'Legacy2', order: 3 },
     ]);
+  });
+
+  it('rejects missing BAN champions instead of manufacturing empty payload ids', () => {
+    expect(() =>
+      buildBansPayload({
+        banRows: [{ teamId: teamA, championId: null }],
+        derivedPicks: [],
+        legacyPicks: [],
+        useDerivedPicks: false,
+      }),
+    ).toThrow('BAN row missing champion');
+    expect(() =>
+      buildBansPayload({
+        banRows: [{ teamId: teamA, championId: '' }],
+        derivedPicks: [],
+        legacyPicks: [],
+        useDerivedPicks: false,
+      }),
+    ).toThrow('BAN row missing champion');
   });
 
   it('detects duplicate champions across ban and pick segments', () => {

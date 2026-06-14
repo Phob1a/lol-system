@@ -27,7 +27,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!match) return NextResponse.json({ error: '比赛不存在' }, { status: 404 });
   const tt = await prisma.tournamentTeam.findMany({
     where: { tournamentId: match.tournamentId, teamId: { in: [match.teamAId, match.teamBId].filter(Boolean) as string[] } },
-    include: { players: { include: { registration: { select: { id: true, nickname: true } } } } },
+    include: {
+      players: {
+        orderBy: { registrationId: 'asc' },
+        include: { registration: { select: { id: true, nickname: true } } },
+      },
+    },
   });
   const shaped = {
     id: match.id, version: match.version, bestOf: match.bestOf, status: match.status,

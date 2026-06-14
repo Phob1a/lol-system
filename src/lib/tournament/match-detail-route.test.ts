@@ -67,7 +67,15 @@ describe('admin match detail route', () => {
         },
       ],
     });
-    findManyMock.mockResolvedValueOnce([]);
+    findManyMock.mockResolvedValueOnce([
+      {
+        teamId: 'team-a',
+        players: [
+          { registrationId: 'reg-a2', registration: { id: 'reg-a2', nickname: 'Beta' } },
+          { registrationId: 'reg-a1', registration: { id: 'reg-a1', nickname: 'Alpha' } },
+        ],
+      },
+    ]);
 
     const { GET } = await import('@/app/api/tournament/admin/matches/[id]/route');
     const res = await GET(new NextRequest('http://localhost/api'), { params: Promise.resolve({ id: 'match-1' }) });
@@ -102,6 +110,23 @@ describe('admin match detail route', () => {
         },
       ],
     });
+    expect(findManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      include: {
+        players: {
+          orderBy: { registrationId: 'asc' },
+          include: { registration: { select: { id: true, nickname: true } } },
+        },
+      },
+    }));
+    expect(body.match.rosters).toEqual([
+      {
+        teamId: 'team-a',
+        players: [
+          { registrationId: 'reg-a2', nickname: 'Beta' },
+          { registrationId: 'reg-a1', nickname: 'Alpha' },
+        ],
+      },
+    ]);
   });
 
   it('returns empty arrays and null scalars for games without detail', async () => {
