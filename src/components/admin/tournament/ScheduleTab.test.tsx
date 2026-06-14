@@ -1,7 +1,19 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminState } from '@/hooks/useTournamentState';
 import { ScheduleTab } from './ScheduleTab';
+
+const { toastErrorMock, toastSuccessMock } = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: toastErrorMock,
+    success: toastSuccessMock,
+  },
+}));
 
 function state(): NonNullable<AdminState> {
   return {
@@ -47,6 +59,12 @@ function match(
 }
 
 describe('ScheduleTab', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    toastErrorMock.mockReset();
+    toastSuccessMock.mockReset();
+  });
+
   it('does not expose the retired planner entry while batch scheduling is disabled', () => {
     render(<ScheduleTab teams={[]} state={state()} refetch={vi.fn()} />);
 
@@ -109,5 +127,50 @@ describe('ScheduleTab', () => {
     render(<ScheduleTab teams={[]} state={state()} refetch={vi.fn()} />);
 
     expect(screen.getByText('暂无已预约比赛，可点击创建预约')).toBeInTheDocument();
+  });
+
+  it('opens manual knockout seeding draft instead of posting retired close-groups route', async () => {
+    const s = state();
+    s.matches = [
+      match({
+        id: 'group-done',
+        status: 'FINISHED',
+        winnerTeamId: 'team-a',
+      }),
+    ];
+    const draft = {
+      tournamentId: 'tour-1',
+      candidates: [
+        { teamId: 'team-a', teamName: '红队', seedLabel: 'A1', groupName: 'A', rank: 1 },
+        { teamId: 'team-b', teamName: '蓝队', seedLabel: 'A2', groupName: 'A', rank: 2 },
+      ],
+      slots: [
+        { matchId: 'sf1', matchLabel: '半决赛 1', roundKey: 'SF', slot: 'A', teamId: null },
+        { matchId: 'sf1', matchLabel: '半决赛 1', roundKey: 'SF', slot: 'B', teamId: null },
+      ],
+      defaultSlots: [
+        { matchId: 'sf1', slot: 'A', teamId: 'team-a' },
+        { matchId: 'sf1', slot: 'B', teamId: 'team-b' },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ draft }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ScheduleTab teams={[]} state={s} refetch={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '收小组进淘汰赛' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/tournament/admin/knockout-seeding?tournamentId=tour-1',
+    ));
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/api/tournament/admin/close-groups'),
+      ),
+    ).toBe(false);
+    expect(await screen.findByText('淘汰赛排位')).toBeInTheDocument();
   });
 });

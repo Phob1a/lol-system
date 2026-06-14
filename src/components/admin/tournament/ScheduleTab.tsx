@@ -34,6 +34,10 @@ import {
 } from '@/components/ui/table';
 import { ScoreDialog } from './ScoreDialog';
 import { ReservationDialog } from './ReservationDialog';
+import {
+  KnockoutSeedingDialog,
+  type KnockoutSeedingDraft,
+} from './KnockoutSeedingDialog';
 import type { AdminState } from '@/hooks/useTournamentState';
 
 type Team = { id: string; name: string };
@@ -342,6 +346,8 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
   const [walkoverMatch, setWalkoverMatch] = useState<MatchRow | null>(null);
   const [walkoverBusy, setWalkoverBusy] = useState(false);
   const [closingGroups, setClosingGroups] = useState(false);
+  const [seedingDraft, setSeedingDraft] = useState<KnockoutSeedingDraft | null>(null);
+  const [seedingOpen, setSeedingOpen] = useState(false);
   const [addMatchOpen, setAddMatchOpen] = useState(false);
   const [reservationOpen, setReservationOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<MatchRow | null>(null);
@@ -449,31 +455,29 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
     }
   }
 
-  async function handleCloseGroups() {
+  async function handleOpenKnockoutSeeding() {
     if (!tournament) return;
-    if (!window.confirm('确认收小组进淘汰赛？将根据积分排名生成淘汰赛对阵。')) return;
     setClosingGroups(true);
     try {
-      const res = await fetch('/api/tournament/admin/close-groups', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tournamentId: tournament.id }),
-      });
+      const res = await fetch(
+        `/api/tournament/admin/knockout-seeding?tournamentId=${encodeURIComponent(tournament.id)}`,
+      );
       if (res.ok) {
-        toast.success('小组赛已结束，淘汰赛对阵已生成');
-        await refetch();
+        const data = (await res.json()) as { draft: KnockoutSeedingDraft };
+        setSeedingDraft(data.draft);
+        setSeedingOpen(true);
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({})) as { code?: string; error?: string };
         if (res.status === 409 && data.code === 'STANDINGS_TIED') {
           toast.error(
             `积分并列：${data.error ?? '存在积分相同队伍，请先安排加赛决出排名'}`,
           );
         } else {
-          toast.error(data.error ?? '操作失败');
+          toast.error(data.error ?? '加载淘汰赛排位失败');
         }
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '操作失败');
+      toast.error(e instanceof Error ? e.message : '加载淘汰赛排位失败');
     } finally {
       setClosingGroups(false);
     }
@@ -500,7 +504,11 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
         )}
 
         {showCloseGroups && (
-          <Button size="sm" disabled={closingGroups} onClick={() => void handleCloseGroups()}>
+          <Button
+            size="sm"
+            disabled={closingGroups}
+            onClick={() => void handleOpenKnockoutSeeding()}
+          >
             <LoadingButtonContent loading={closingGroups} loadingText="处理中…">
               收小组进淘汰赛
             </LoadingButtonContent>
@@ -655,6 +663,13 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
         tournament={tournament}
         teams={teams}
         standings={standings}
+        refetch={refetch}
+      />
+
+      <KnockoutSeedingDialog
+        open={seedingOpen}
+        draft={seedingDraft}
+        onClose={() => setSeedingOpen(false)}
         refetch={refetch}
       />
     </div>
