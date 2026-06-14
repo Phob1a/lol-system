@@ -38,13 +38,14 @@ export async function seedTeamsForTournament(tournamentId: string, n: number): P
   return teamIds;
 }
 
-/** 造一个 tournament(SETUP) + n 支队（每队 1 个队长报名 + user），返回 ids */
+/** 造一个 tournament(GROUPING) + n 支队（每队 1 个队长报名 + user），返回 ids */
 export async function seedTournamentWithTeams(n: number) {
   const t = await createTournament(
     testDb,
     { name: 'T-test', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 },
     'u',
   );
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: 'GROUPING' } });
   const teamIds = await seedTeamsForTournament(t.id, n);
   return { tournamentId: t.id, teamIds };
 }

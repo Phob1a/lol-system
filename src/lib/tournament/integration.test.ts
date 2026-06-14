@@ -1,22 +1,16 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createSeason } from '@/lib/season/season-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
 import { getPublicTournamentState } from './read-model';
-import { CFG_2x4x2, seedTeamsForSeason } from './test-fixtures';
+import { seedTournamentWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
-it('全流程：建赛季(带配置) → 造队 → 分组 → 确认 → 录分 → 冠军', async () => {
-  const season = await createSeason(
-    testDb,
-    { name: 'S1', teamBudget: 1000, tournament: { kind: '正赛', config: CFG_2x4x2 } },
-    'u',
-  );
-  const t = (await testDb.tournament.findUnique({ where: { seasonId: season.id } }))!;
-  const teamIds = await seedTeamsForSeason(season.id, 8);
+it('全流程：建赛事(带配置) → 造队 → 分组 → 确认 → 录分 → 冠军', async () => {
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
 
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, {
@@ -51,7 +45,7 @@ it('全流程：建赛季(带配置) → 造队 → 分组 → 确认 → 录分
   const final = (await testDb.match.findFirst({ where: { roundKey: 'FINAL' } }))!;
   expect(final.winnerTeamId).toBe(final.teamAId);
 
-  const state = (await getPublicTournamentState(testDb, season.id))!;
+  const state = (await getPublicTournamentState(testDb, t.id))!;
   expect(state.matches.length).toBe(12 + 3);
   expect(state.standings).toHaveLength(2);
   expect(state.bracket.map((r) => r.roundKey)).toEqual(['SF', 'FINAL']);

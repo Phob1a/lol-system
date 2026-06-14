@@ -1,7 +1,7 @@
 import type { Match, PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritableBySeasonId } from './guards';
+import { assertTournamentWritable } from './guards';
 
 export async function addCustomMatch(
   db: PrismaClient,
@@ -18,16 +18,16 @@ export async function addCustomMatch(
 ): Promise<Match> {
   const t = await db.tournament.findUnique({
     where: { id: input.tournamentId },
-    include: { teams: true, stages: { include: { groups: { include: { teams: true } } } } },
+    include: { tournamentTeams: true, stages: { include: { groups: { include: { teams: true } } } } },
   });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  await assertSeasonWritableBySeasonId(db, t.seasonId);
-  if (t.status === 'FINISHED') throw new TournamentError('INVALID_STATE', '赛事已结束');
-  if (t.status === 'SETUP') throw new TournamentError('INVALID_STATE', '分组确认前不能添加自定义比赛');
+  await assertTournamentWritable(db, t.id);
+  if (!(t.status === 'GROUP_STAGE' || t.status === 'KNOCKOUT'))
+    throw new TournamentError('INVALID_STATE', '当前赛事状态不允许添加自定义比赛');
   if (input.teamAId === input.teamBId) throw new TournamentError('VALIDATION', '双方不能相同');
   if (![1, 3, 5].includes(input.bestOf)) throw new TournamentError('VALIDATION', 'BO 数非法');
 
-  const snapshot = new Set(t.teams.map((x) => x.teamId));
+  const snapshot = new Set(t.tournamentTeams.map((x) => x.teamId));
   if (!snapshot.has(input.teamAId) || !snapshot.has(input.teamBId))
     throw new TournamentError('TEAM_NOT_IN_SEASON', '队伍不在参赛名单');
 

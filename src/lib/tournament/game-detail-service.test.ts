@@ -275,9 +275,9 @@ it('CAS：错误 expectedVersion → VERSION_CONFLICT', async () => {
   ).rejects.toThrow(/VERSION_CONFLICT|刷新/);
 });
 
-it('归档赛季 → 拒绝', async () => {
+it('归档赛事 → 拒绝', async () => {
   const { t, final } = await toFinalWithRosters();
-  await testDb.season.update({ where: { id: t.seasonId }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
   await expect(
     saveGameDetail(testDb, { matchId: final.id, expectedVersion: final.version, detail: { winnerTeamId: final.teamAId }, actorUserId: 'u' }),
   ).rejects.toThrow(/归档/);

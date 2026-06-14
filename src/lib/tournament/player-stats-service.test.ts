@@ -44,7 +44,7 @@ it('汇总 + 逐场明细；MVP 标记', async () => {
     actorUserId: 'u',
   });
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
-  const res = (await getPlayerSeasonStats(testDb, reg.playerId, t.seasonId))!;
+  const res = (await getPlayerSeasonStats(testDb, reg.playerId, t.id))!;
   expect(res.summary.games).toBe(1);
   expect(res.summary.mvpCount).toBe(1);
   expect(res.games).toHaveLength(1);
@@ -55,7 +55,7 @@ it('汇总 + 逐场明细；MVP 标记', async () => {
   expect(res.games[0].championId).toBeTruthy();
 });
 
-it('两季隔离：仅取指定赛季的数据', async () => {
+it('跨赛事隔离：仅取指定赛事的数据', async () => {
   const { t, final } = await finalWithRosters();
   const a = await expandRosterTo5(t.id, final.teamAId!);
   const b = await expandRosterTo5(t.id, final.teamBId!);
@@ -65,7 +65,7 @@ it('两季隔离：仅取指定赛季的数据', async () => {
     actorUserId: 'u',
   });
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
-  const other = await testDb.season.create({ data: { name: 'S2', status: 'COMPLETED', teamBudget: 1000 } });
-  const res = await getPlayerSeasonStats(testDb, reg.playerId, other.id);
+  // Query with a non-existent tournament ID — player has no registration there, so games = 0
+  const res = await getPlayerSeasonStats(testDb, reg.playerId, 'nonexistent-tournament-id');
   expect(res?.summary.games ?? 0).toBe(0);
 });

@@ -14,7 +14,7 @@ export async function assignGroups(
 ): Promise<void> {
   const t = await db.tournament.findUnique({ where: { id: input.tournamentId } });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  if (t.status !== 'SETUP') throw new TournamentError('INVALID_STATE', '当前状态不允许调整分组');
+  if (t.status !== 'GROUPING') throw new TournamentError('INVALID_STATE', '当前状态不允许调整分组');
   await assertTournamentWritable(db, t.id);
 
   // 本赛事的合法 groupId 集合
@@ -104,7 +104,7 @@ export async function confirmGroups(
     },
   });
   if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  if (t.status !== 'SETUP') throw new TournamentError('INVALID_STATE', '当前状态不允许确认分组');
+  if (t.status !== 'GROUPING') throw new TournamentError('INVALID_STATE', '当前状态不允许确认分组');
   await assertTournamentWritable(db, t.id);
 
   const cfg = t.config as GroupKnockoutConfig;

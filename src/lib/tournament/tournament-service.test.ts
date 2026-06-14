@@ -30,6 +30,8 @@ async function toGroupStage() {
   // Create a single tournament, then seed teams into it
   const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
   const teamIds = await seedTeamsForTournament(t.id, 8);
+  // assignGroups now requires GROUPING state
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: 'GROUPING' } });
   const groups = await testDb.tournamentGroup.findMany({
     where: { stage: { tournamentId: t.id } },
     orderBy: { name: 'asc' },
@@ -109,9 +111,11 @@ describe('archiveActiveTournament', () => {
 });
 
 describe('updateTournamentConfig', () => {
-  it('SETUP：改 config 重建骨架并清空快照/分组', async () => {
+  it('GROUPING：改 config 重建骨架并清空快照/分组', async () => {
     const t = await createTournament(testDb, { name: 'x', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
     const teamIds = await seedTeamsForTournament(t.id, 8);
+    // assignGroups requires GROUPING state
+    await testDb.tournament.update({ where: { id: t.id }, data: { status: 'GROUPING' } });
     const groups = await testDb.tournamentGroup.findMany({
       where: { stage: { tournamentId: t.id } },
       orderBy: { name: 'asc' },
@@ -126,7 +130,7 @@ describe('updateTournamentConfig', () => {
     });
     expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(8);
 
-    // 改为 4 组 × 2 队 × 1 出线（出线 4 → SF/FINAL）
+    // 改为 4 组 × 2 队 × 1 出线（出线 4 → SF/FINAL）；config editable in GROUPING per new window
     const newCfg = {
       template: 'group-knockout' as const,
       groupCount: 4, teamsPerGroup: 2, advancingPerGroup: 1,
@@ -136,7 +140,7 @@ describe('updateTournamentConfig', () => {
 
     const after = (await testDb.tournament.findUnique({ where: { id: t.id } }))!;
     expect((after.config as typeof newCfg).groupCount).toBe(4);
-    expect(after.status).toBe('SETUP');
+    expect(after.status).toBe('GROUPING'); // status unchanged by updateTournamentConfig
     expect(await testDb.tournamentGroup.count()).toBe(4);
     expect(await testDb.tournamentTeam.count({ where: { tournamentId: t.id } })).toBe(0); // 快照清空
     expect(await testDb.tournamentGroupTeam.count()).toBe(0); // 分组清空
@@ -144,11 +148,11 @@ describe('updateTournamentConfig', () => {
     expect(await testDb.auditLog.count({ where: { action: 'tournament.config.update' } })).toBe(1);
   });
 
-  it('非 SETUP：改 config 被拒，但改 kind 允许', async () => {
+  it('GROUP_STAGE 以后：改 config 被拒，但改 kind 允许', async () => {
     const { t } = await toGroupStage();
     await expect(
       updateTournamentConfig(testDb, { tournamentId: t.id, config: CFG_2x4x2, actorUserId: 'u' }),
-    ).rejects.toThrow(/SETUP|状态/);
+    ).rejects.toThrow(/小组赛|状态/);
     await updateTournamentConfig(testDb, { tournamentId: t.id, kind: '娱乐赛', actorUserId: 'u' });
     expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.kind).toBe('娱乐赛');
   });

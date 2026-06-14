@@ -2,23 +2,26 @@ import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import { assignGroups, confirmGroups } from './groups-service';
 import { addCustomMatch } from './schedule-service';
-import { CFG_2x4x2, createTestTournament, seedSeasonWithTeams } from './test-fixtures';
+import { seedTournamentWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
 async function setup() {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-  const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  const groups = await testDb.tournamentGroup.findMany({
+    where: { stage: { tournamentId } },
+    orderBy: { name: 'asc' },
+  });
   await assignGroups(testDb, {
-    tournamentId: t.id,
+    tournamentId,
     assignments: [
       { groupId: groups[0].id, teamIds: teamIds.slice(0, 4) },
       { groupId: groups[1].id, teamIds: teamIds.slice(4) },
     ],
     actorUserId: 'u',
   });
-  await confirmGroups(testDb, { tournamentId: t.id, actorUserId: 'u' });
+  await confirmGroups(testDb, { tournamentId, actorUserId: 'u' });
+  const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
   return { t, teamIds, groups };
 }
 
@@ -78,15 +81,38 @@ it('自定义比赛创建时不写预约时间', async () => {
   expect(m.scheduledAt).toBeNull();
 });
 
-it('SETUP 期添加自定义比赛被拒', async () => {
-  const { seasonId, teamIds } = await seedSeasonWithTeams(8);
-  const t = await createTestTournament(testDb, { seasonId, teamIds, config: CFG_2x4x2, actorUserId: 'u' });
-  // 仍处于 SETUP（未 confirmGroups）
+it('GROUPING 状态添加自定义比赛被拒', async () => {
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  // Still in GROUPING (no confirmGroups called)
   await expect(
     addCustomMatch(testDb, {
-      tournamentId: t.id, groupId: null,
+      tournamentId, groupId: null,
       teamAId: teamIds[0], teamBId: teamIds[1],
       bestOf: 1, label: 'x', countsForStandings: false, actorUserId: 'u',
     }),
-  ).rejects.toThrow(/分组确认前/);
+  ).rejects.toThrow(/状态/);
+});
+
+it('DRAFTING 状态添加自定义比赛被拒', async () => {
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  await testDb.tournament.update({ where: { id: tournamentId }, data: { status: 'DRAFTING' } });
+  await expect(
+    addCustomMatch(testDb, {
+      tournamentId, groupId: null,
+      teamAId: teamIds[0], teamBId: teamIds[1],
+      bestOf: 1, label: 'x', countsForStandings: false, actorUserId: 'u',
+    }),
+  ).rejects.toThrow(/状态/);
+});
+
+it('GROUP_STAGE 状态添加自定义比赛成功', async () => {
+  const { t, teamIds } = await setup();
+  // setup() already calls confirmGroups which sets GROUP_STAGE
+  expect(t.status).toBe('GROUP_STAGE');
+  const m = await addCustomMatch(testDb, {
+    tournamentId: t.id, groupId: null,
+    teamAId: teamIds[0], teamBId: teamIds[4],
+    bestOf: 1, label: '表演赛', countsForStandings: false, actorUserId: 'u',
+  });
+  expect(m.source).toBe('CUSTOM');
 });

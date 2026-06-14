@@ -71,8 +71,8 @@ it('assignGroups 跨赛事 groupId 被拒，且对方赛事的分组数据不受
     orderBy: { name: 'asc' },
   });
 
-  // Restore tA to SETUP (it was archived when tB was created)
-  await testDb.tournament.update({ where: { id: tournamentIdA }, data: { status: 'SETUP', archivedAt: null } });
+  // Restore tA to GROUPING (it was archived when tB was created)
+  await testDb.tournament.update({ where: { id: tournamentIdA }, data: { status: 'GROUPING', archivedAt: null } });
 
   // Try assigning tournament A's teams into tournament B's group
   await expect(

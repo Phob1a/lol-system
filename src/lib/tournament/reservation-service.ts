@@ -1,9 +1,9 @@
 import type { Match, Prisma, PrismaClient, StageType } from '@prisma/client';
-import { getActiveSeason } from '@/lib/season/season-service';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritable } from './guards';
+import { assertTournamentWritable } from './guards';
 import { claimMatch } from './score-service';
+import { getActiveTournament } from './tournament-service';
 import type { Db } from './types';
 
 export type ReservationActor =
@@ -57,16 +57,10 @@ function captainMatchWhere(teamId: string) {
 }
 
 async function canListReservableMatches(db: Db, tournamentId: string): Promise<boolean> {
-  const tournament = await db.tournament.findUnique({
-    where: { id: tournamentId },
-    select: {
-      status: true,
-      season: { select: { status: true, archivedAt: true } },
-    },
-  });
-  if (!tournament) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-  if (tournament.season.status === 'ARCHIVED' || tournament.season.archivedAt !== null) return false;
-  return tournament.status !== 'SETUP' && tournament.status !== 'FINISHED';
+  const t = await db.tournament.findUnique({ where: { id: tournamentId }, select: { status: true, archivedAt: true } });
+  if (!t) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
+  if (t.status === 'ARCHIVED' || t.archivedAt !== null) return false;
+  return t.status === 'GROUP_STAGE' || t.status === 'KNOCKOUT';
 }
 
 function assertCandidate(match: Match, actor: ReservationActor): void {
@@ -113,14 +107,14 @@ export async function reserveMatch(
 ): Promise<void> {
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion);
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
 
     const tournament = await tx.tournament.findUnique({
       where: { id: match.tournamentId },
       select: { status: true },
     });
     if (!tournament) throw new TournamentError('TOURNAMENT_NOT_FOUND', '赛事不存在');
-    if (tournament.status === 'SETUP' || tournament.status === 'FINISHED')
+    if (!(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT'))
       throw new TournamentError('INVALID_STATE', '当前赛事状态不允许预约');
 
     assertCandidate(match, input.actor);
@@ -148,13 +142,7 @@ export async function listCaptainReservationState(
   db: PrismaClient,
   input: { teamId: string },
 ): Promise<CaptainReservationState> {
-  const season = await getActiveSeason(db);
-  if (!season) return { tournamentId: null, scheduled: [], candidates: [] };
-
-  const tournament = await db.tournament.findUnique({
-    where: { seasonId: season.id },
-    select: { id: true },
-  });
+  const tournament = await getActiveTournament(db);
   if (!tournament) return { tournamentId: null, scheduled: [], candidates: [] };
 
   const scheduled = await db.match.findMany({

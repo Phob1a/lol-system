@@ -1,6 +1,5 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { createSeason } from '@/lib/season/season-service';
 import { assignGroups, confirmGroups } from './groups-service';
 import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
@@ -8,16 +7,15 @@ import { saveGameDetail } from './game-detail-service';
 import { getPublicTournamentState, getPublicMatchDetail } from './read-model';
 import { getPlayerSeasonStats } from './player-stats-service';
 import { computeLeaderboard, type LeaderboardGame } from './leaderboard';
-import { CFG_2x4x2, seedTeamsForSeason, expandRosterTo5 } from './test-fixtures';
+import { seedTournamentWithTeams, expandRosterTo5 } from './test-fixtures';
 import { getChampions } from './champions';
 
 beforeEach(resetDb);
 const C = getChampions().map((c) => c.key);
 
-it('M2 全流程：建赛季→分组→快录+详细→决赛 FINISHED→数据榜/详情/选手页', async () => {
-  const season = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: { kind: '正赛', config: CFG_2x4x2 } }, 'u');
-  const t = (await testDb.tournament.findUnique({ where: { seasonId: season.id } }))!;
-  const teamIds = await seedTeamsForSeason(season.id, 8);
+it('M2 全流程：建赛事→分组→快录+详细→决赛 FINISHED→数据榜/详情/选手页', async () => {
+  const { tournamentId, teamIds } = await seedTournamentWithTeams(8);
+  const t = (await testDb.tournament.findUnique({ where: { id: tournamentId } }))!;
   const groups = await testDb.tournamentGroup.findMany({ orderBy: { name: 'asc' } });
   await assignGroups(testDb, { tournamentId: t.id, assignments: [{ groupId: groups[0].id, teamIds: teamIds.slice(0, 4) }, { groupId: groups[1].id, teamIds: teamIds.slice(4) }], actorUserId: 'u' });
   await confirmGroups(testDb, { tournamentId: t.id, actorUserId: 'u' });
@@ -58,7 +56,7 @@ it('M2 全流程：建赛季→分组→快录+详细→决赛 FINISHED→数据
   expect((await testDb.tournament.findUnique({ where: { id: t.id } }))!.status).toBe('FINISHED');
 
   // 公开 state：无 config
-  const state = (await getPublicTournamentState(testDb, season.id))!;
+  const state = (await getPublicTournamentState(testDb, t.id))!;
   expect((state.tournament as Record<string, unknown>).config).toBeUndefined();
 
   // 比赛详情：FINAL 3 局完整明细
@@ -68,7 +66,7 @@ it('M2 全流程：建赛季→分组→快录+详细→决赛 FINISHED→数据
   expect(detail.games[0].players[0].playerId).toBeTruthy();
 
   // 数据榜：a[0] 3 场 3 胜 3 MVP
-  const games = await testDb.game.findMany({ where: { isDraft: false, match: { tournament: { seasonId: season.id } } }, include: { playerStats: { include: { registration: { select: { playerId: true } } } } } });
+  const games = await testDb.game.findMany({ where: { isDraft: false, match: { tournamentId: t.id } }, include: { playerStats: { include: { registration: { select: { playerId: true } } } } } });
   const lb = computeLeaderboard(games.map((g): LeaderboardGame => ({ isDraft: g.isDraft, winnerTeamId: g.winnerTeamId, mvpRegistrationId: g.mvpRegistrationId, playerStats: g.playerStats.map((s) => ({ registrationId: s.registrationId, playerId: s.registration.playerId, teamId: s.teamId, championId: s.championId, kills: s.kills, deaths: s.deaths, assists: s.assists, cs: s.cs, damage: s.damage, gold: s.gold })) })));
   const lbRow = lb.find((r) => r.registrationId === a[0])!;
   expect(lbRow.games).toBe(3);
@@ -77,7 +75,7 @@ it('M2 全流程：建赛季→分组→快录+详细→决赛 FINISHED→数据
 
   // 选手页
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
-  const ps = (await getPlayerSeasonStats(testDb, reg.playerId, season.id))!;
+  const ps = (await getPlayerSeasonStats(testDb, reg.playerId, t.id))!;
   expect(ps.summary.games).toBe(3);
   expect(ps.summary.mvpCount).toBe(3);
   expect(ps.games).toHaveLength(3);

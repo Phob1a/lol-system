@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
-import { assertSeasonWritable } from './guards';
+import { assertTournamentWritable } from './guards';
 import { isChampionKey } from './champions';
 import { assertDownstreamClean, claimMatch, resettleMatch } from './score-service';
 
@@ -30,7 +30,7 @@ export async function saveGameDetail(
   const d = input.detail;
   return db.$transaction(async (tx) => {
     const match = await claimMatch(tx, input.matchId, input.expectedVersion); // CAS（version+1）
-    await assertSeasonWritable(tx, match.tournamentId);
+    await assertTournamentWritable(tx, match.tournamentId);
     if (match.status === 'CANCELED' || match.status === 'WALKOVER')
       throw new TournamentError('INVALID_STATE', '该比赛状态不允许录入');
     if (!match.teamAId || !match.teamBId)

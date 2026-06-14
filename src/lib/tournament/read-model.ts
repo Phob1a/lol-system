@@ -1,13 +1,13 @@
-import { getActiveSeason } from '@/lib/season/season-service';
 import { championName } from './champions';
 import { computeStandings } from './standings';
 import { buildBracket } from './bracket';
+import { getActiveTournament } from './tournament-service';
 import type { Db } from './types';
 
 /** 公开页完整读模型：赛程 + 各组积分榜 + 对阵树。null = 无赛事 */
-export async function getPublicTournamentState(db: Db, seasonId: string) {
+export async function getPublicTournamentState(db: Db, tournamentId: string) {
   const t = await db.tournament.findUnique({
-    where: { seasonId },
+    where: { id: tournamentId },
     include: {
       stages: {
         orderBy: { order: 'asc' },
@@ -70,9 +70,9 @@ export async function getPublicTournamentState(db: Db, seasonId: string) {
 }
 
 /** 管理端读模型：公开形状 + version + config + 每局摘要（isDraft/hasBans/hasStats）。null = 无赛事 */
-export async function getAdminTournamentState(db: Db, seasonId: string) {
+export async function getAdminTournamentState(db: Db, tournamentId: string) {
   const t = await db.tournament.findUnique({
-    where: { seasonId },
+    where: { id: tournamentId },
     include: {
       stages: {
         orderBy: { order: 'asc' },
@@ -143,12 +143,12 @@ export async function getAdminTournamentState(db: Db, seasonId: string) {
   };
 }
 
-/** 公开比赛详情：非草稿局完整明细（禁用、数据、MVP）+ 解析映射。null = 非活跃赛季或比赛不存在 */
+/** 公开比赛详情：非草稿局完整明细（禁用、数据、MVP）+ 解析映射。null = 无活跃赛事或比赛不存在 */
 export async function getPublicMatchDetail(db: Db, matchId: string) {
   const match = await db.match.findUnique({
     where: { id: matchId },
     include: {
-      tournament: { select: { seasonId: true } },
+      tournament: { select: { id: true, status: true, archivedAt: true } },
       teamA: { select: { id: true, name: true } },
       teamB: { select: { id: true, name: true } },
       games: {
@@ -167,8 +167,9 @@ export async function getPublicMatchDetail(db: Db, matchId: string) {
   });
   if (!match) return null;
 
-  const active = await getActiveSeason(db);
-  if (!active || match.tournament.seasonId !== active.id) return null;
+  // Require this match to belong to the active (non-archived) tournament
+  const active = await getActiveTournament(db);
+  if (!active || match.tournament.id !== active.id) return null;
 
   return {
     id: match.id, label: match.label, roundKey: match.roundKey, bestOf: match.bestOf,

@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from 'vitest';
 import { MatchStatus, TournamentStatus } from '@prisma/client';
 import { resetDb, testDb } from '@/lib/test/db';
 import { setupGroupStage } from './score-service.test-helpers';
+import { seedTournamentWithTeams } from './test-fixtures';
 import {
   listCaptainReservationState,
   listReservableMatches,
@@ -50,6 +51,20 @@ it('captain candidates are limited to own team matches', async () => {
   expect(result.every((m) => m.teamA?.id === teamIds[0] || m.teamB?.id === teamIds[0])).toBe(true);
 });
 
+it('rejects reservation listing during pre-bracket states', async () => {
+  const { tournamentId } = await seedTournamentWithTeams(2);
+  for (const st of ['REGISTRATION', 'ROSTER_LOCKED', 'DRAFTING', 'GROUPING'] as const) {
+    await testDb.tournament.update({ where: { id: tournamentId }, data: { status: st } });
+    expect(await listReservableMatches(testDb, { tournamentId, actor: { role: 'ADMIN' } })).toEqual([]);
+  }
+});
+
+it('allows listing during GROUP_STAGE', async () => {
+  const { tournamentId } = await seedTournamentWithTeams(2);
+  await testDb.tournament.update({ where: { id: tournamentId }, data: { status: 'GROUP_STAGE' } });
+  await expect(listReservableMatches(testDb, { tournamentId, actor: { role: 'ADMIN' } })).resolves.toBeDefined();
+});
+
 it.each([TournamentStatus.SETUP, TournamentStatus.FINISHED])(
   'listReservableMatches returns empty candidates when tournament is %s',
   async (status) => {
@@ -65,9 +80,9 @@ it.each([TournamentStatus.SETUP, TournamentStatus.FINISHED])(
   },
 );
 
-it('listReservableMatches returns empty candidates when season is archived', async () => {
-  const { t, seasonId } = await setupGroupStage();
-  await testDb.season.update({ where: { id: seasonId }, data: { status: 'ARCHIVED' } });
+it('listReservableMatches returns empty when tournament is archived', async () => {
+  const { t } = await setupGroupStage();
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
 
   const result = await listReservableMatches(testDb, {
     tournamentId: t.id,
@@ -290,10 +305,10 @@ it('rejects version conflicts without writing scheduledAt', async () => {
   expect(stored.scheduledAt).toBeNull();
 });
 
-it('rejects archived seasons', async () => {
-  const { t, seasonId } = await setupGroupStage();
+it('reserveMatch rejects archived tournament', async () => {
+  const { t } = await setupGroupStage();
   const match = await testDb.match.findFirstOrThrow({ where: { tournamentId: t.id } });
-  await testDb.season.update({ where: { id: seasonId }, data: { status: 'ARCHIVED' } });
+  await testDb.tournament.update({ where: { id: t.id }, data: { status: 'ARCHIVED', archivedAt: new Date() } });
 
   await expect(
     reserveMatch(testDb, {

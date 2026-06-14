@@ -16,11 +16,11 @@ export type PlayerSeasonStats = {
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** 指定赛季内该选手的统计；签名按 seasonId 参数化（跨赛季汇总为后续扩展，零表改动）。 */
-export async function getPlayerSeasonStats(db: Db, playerId: string, seasonId: string): Promise<PlayerSeasonStats | null> {
+/** 指定赛事内该选手的统计；签名按 tournamentId 参数化（跨赛事汇总为后续扩展，零表改动）。 */
+export async function getPlayerSeasonStats(db: Db, playerId: string, tournamentId: string): Promise<PlayerSeasonStats | null> {
   const player = await db.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
-  const reg = await db.registration.findFirst({ where: { playerId, seasonId } }); // @@unique([seasonId, playerId])
+  const reg = await db.registration.findFirst({ where: { playerId, tournamentId } }); // @@unique([tournamentId, playerId])
   const empty: PlayerSeasonStats = {
     playerId, nickname: player.nickname,
     summary: { games: 0, wins: 0, avgKills: 0, avgDeaths: 0, avgAssists: 0, kda: 0, avgCs: 0, avgDamage: 0, avgGold: 0, mvpCount: 0 },
@@ -29,7 +29,7 @@ export async function getPlayerSeasonStats(db: Db, playerId: string, seasonId: s
   if (!reg) return empty;
 
   const stats = await db.gamePlayerStat.findMany({
-    where: { registrationId: reg.id, game: { isDraft: false, match: { tournament: { seasonId } } } },
+    where: { registrationId: reg.id, game: { isDraft: false, match: { tournamentId } } },
     include: {
       game: { include: { match: { include: { teamA: { select: { id: true, name: true } }, teamB: { select: { id: true, name: true } } } } } },
     },

@@ -137,8 +137,8 @@ export async function updateTournamentConfig(
 
   if ((wantsName || wantsKind) && t.status === 'FINISHED')
     throw new TournamentError('INVALID_STATE', '赛事已结束，不能修改');
-  if (wantsConfig && t.status !== 'SETUP')
-    throw new TournamentError('INVALID_STATE', '仅 SETUP 状态可修改赛制配置');
+  if (wantsConfig && ['GROUP_STAGE', 'KNOCKOUT', 'FINISHED', 'ARCHIVED'].includes(t.status))
+    throw new TournamentError('INVALID_STATE', '小组赛开始后不能修改赛制配置');
 
   const validated = wantsConfig ? groupKnockout.validate(input.config!) : null;
 
