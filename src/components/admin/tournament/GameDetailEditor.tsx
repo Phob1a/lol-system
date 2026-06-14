@@ -29,6 +29,7 @@ import {
   derivePicksFromStats,
   findChampionDuplicate,
   isStatsAllComplete,
+  isStatsPristine,
   parseKda,
   parseNonNegativeInteger,
 } from './game-detail-entry-utils';
@@ -99,6 +100,9 @@ type StatRow = {
   gold: string;
 };
 
+type FieldKey = 'championId' | 'kda' | 'cs' | 'damage' | 'gold';
+type StatErrorMap = Record<string, Partial<Record<FieldKey, string>>>;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function blankStatRow(p: RosterPlayer): StatRow {
@@ -147,6 +151,22 @@ function populateStatRow(p: RosterPlayer, existing: RawStat | undefined): StatRo
   };
 }
 
+function buildStatErrors(rows: StatRow[]): StatErrorMap {
+  const errors: StatErrorMap = {};
+
+  for (const row of rows) {
+    const rowErrors: Partial<Record<FieldKey, string>> = {};
+    if (!row.championId) rowErrors.championId = '请选择英雄';
+    if (parseKda(row.kda) === null) rowErrors.kda = 'KDA 格式错误';
+    if (parseNonNegativeInteger(row.cs) === null) rowErrors.cs = '请输入非负整数';
+    if (parseNonNegativeInteger(row.damage) === null) rowErrors.damage = '请输入非负整数';
+    if (parseNonNegativeInteger(row.gold) === null) rowErrors.gold = '请输入非负整数';
+    if (Object.keys(rowErrors).length > 0) errors[row.registrationId] = rowErrors;
+  }
+
+  return errors;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function GameDetailEditor({
@@ -187,6 +207,8 @@ export function GameDetailEditor({
   const [statsB, setStatsB] = useState<StatRow[]>([]);
   const [statsTouched, setStatsTouched] = useState(false);
   const [statsCleared, setStatsCleared] = useState(false);
+  const [statErrors, setStatErrors] = useState<StatErrorMap>({});
+  const [statErrorMessage, setStatErrorMessage] = useState<string | null>(null);
 
   const [mvp, setMvp] = useState<string | null>(null);
   const [mvpTouched, setMvpTouched] = useState(false);
@@ -234,6 +256,8 @@ export function GameDetailEditor({
     );
     setStatsTouched(false);
     setStatsCleared(false);
+    setStatErrors({});
+    setStatErrorMessage(null);
 
     setMvp(initial?.mvpRegistrationId ?? null);
     setMvpTouched(false);
@@ -310,6 +334,8 @@ export function GameDetailEditor({
     }
     setStatsTouched(true);
     setStatsCleared(false);
+    setStatErrors({});
+    setStatErrorMessage(null);
   }
 
   function clearStats() {
@@ -317,6 +343,8 @@ export function GameDetailEditor({
     setStatsB(playersB.map(blankStatRow));
     setStatsTouched(true);
     setStatsCleared(true);
+    setStatErrors({});
+    setStatErrorMessage(null);
     setMvp(null);
     setMvpTouched(true);
   }
@@ -426,9 +454,21 @@ export function GameDetailEditor({
       if (duplicate) return `同局英雄不可重复：${duplicate.championId}`;
     }
 
-    if (statsTouched && !statsCleared && !statsAllComplete) {
-      return '双方选手数据须完整填写（各 5 人，所有字段非负整数）';
+    const statsPristine = isStatsPristine(statsA) && isStatsPristine(statsB);
+    if (statsTouched && !statsCleared && !statsPristine && !statsAllComplete) {
+      const errors = { ...buildStatErrors(statsA), ...buildStatErrors(statsB) };
+      const message = '选手数据需双方各 5 人填齐才会保存；如只想存其他字段，请整段清空选手数据';
+      setStatErrors(errors);
+      setStatErrorMessage(message);
+      queueMicrotask(() => {
+        const first = document.querySelector('[data-invalid="true"], [aria-invalid="true"]') as HTMLElement | null;
+        first?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+        first?.focus?.();
+      });
+      return message;
     }
+    setStatErrors({});
+    setStatErrorMessage(null);
 
     if (durationTouched && (durationMin !== '' || durationSec !== '')) {
       const s = minSecToSeconds(durationMin, durationSec);
@@ -672,15 +712,24 @@ export function GameDetailEditor({
           >
             <div className="space-y-4">
               <StatsTable
+                tableKey="A"
                 teamName={match.teamA.name}
                 rows={statsA}
+                errors={statErrors}
                 onUpdate={(i, patch) => updateStatRow('A', i, patch)}
               />
               <StatsTable
+                tableKey="B"
                 teamName={match.teamB.name}
                 rows={statsB}
+                errors={statErrors}
                 onUpdate={(i, patch) => updateStatRow('B', i, patch)}
               />
+              {statErrorMessage && (
+                <p className="text-sm text-destructive">
+                  {statErrorMessage}
+                </p>
+              )}
             </div>
           </Section>
 
@@ -798,12 +847,16 @@ const STAT_COLS: Array<{ key: 'kda' | 'cs' | 'damage' | 'gold'; label: string }>
 ];
 
 function StatsTable({
+  tableKey,
   teamName,
   rows,
+  errors,
   onUpdate,
 }: {
+  tableKey: 'A' | 'B';
   teamName: string;
   rows: StatRow[];
+  errors: StatErrorMap;
   onUpdate: (idx: number, patch: Partial<StatRow>) => void;
 }) {
   if (rows.length === 0) {
@@ -836,18 +889,36 @@ function StatsTable({
           <span className="truncate text-sm" title={row.nickname}>
             {row.nickname}
           </span>
-          <ChampionSelect
-            value={row.championId}
-            onChange={(k) => onUpdate(idx, { championId: k })}
-          />
+          <div
+            data-testid={`stat-champion-cell-${tableKey}-${idx}`}
+            data-invalid={errors[row.registrationId]?.championId ? 'true' : 'false'}
+            tabIndex={-1}
+            className={errors[row.registrationId]?.championId ? 'rounded-md border border-destructive' : undefined}
+          >
+            <ChampionSelect
+              value={row.championId}
+              onChange={(k) => onUpdate(idx, { championId: k })}
+            />
+          </div>
           {STAT_COLS.map((c) => (
             <Input
               key={c.key}
               aria-label={c.label}
+              aria-invalid={errors[row.registrationId]?.[c.key] ? 'true' : 'false'}
               inputMode="numeric"
               value={row[c.key]}
               onChange={(e) => onUpdate(idx, { [c.key]: e.target.value })}
-              className="h-10"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const next = document.querySelector<HTMLInputElement>(
+                    `[data-stat-input="${tableKey}-${c.key}-${idx + 1}"]`,
+                  );
+                  next?.focus();
+                }
+              }}
+              data-stat-input={`${tableKey}-${c.key}-${idx}`}
+              className={errors[row.registrationId]?.[c.key] ? 'h-10 border-destructive' : 'h-10'}
             />
           ))}
         </div>

@@ -266,3 +266,65 @@ describe('GameDetailEditor BP payload', () => {
     expect(body.detail.playerStats).toBeUndefined();
   });
 });
+
+describe('GameDetailEditor stat entry', () => {
+  it('does not send playerStats when stats are completely empty', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail.playerStats).toBeUndefined();
+  });
+
+  it('blocks save and marks cells when stats are partially filled', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    fireEvent.change(screen.getAllByLabelText('KDA')[0], { target: { value: '1/2/3' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
+    expect(screen.getByText(/选手数据需双方各 5 人填齐/)).toBeInTheDocument();
+    expect(screen.getByTestId('stat-champion-cell-A-0')).toHaveAttribute('data-invalid', 'true');
+  });
+
+  it('parses KDA input into kills deaths and assists payload fields', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    chooseStatChampions();
+    for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '12/3/7' } });
+    for (const input of screen.getAllByLabelText('CS')) fireEvent.change(input, { target: { value: '100' } });
+    for (const input of screen.getAllByLabelText('伤害')) fireEvent.change(input, { target: { value: '10000' } });
+    for (const input of screen.getAllByLabelText('金币')) fireEvent.change(input, { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail.playerStats[0]).toEqual(expect.objectContaining({
+      kills: 12,
+      deaths: 3,
+      assists: 7,
+      cs: 100,
+      damage: 10000,
+      gold: 9000,
+    }));
+  });
+
+  it('moves Enter from a stat cell to the next row in the same team table', () => {
+    render(<GameDetailEditor {...props()} />);
+
+    const kdaInputs = screen.getAllByLabelText('KDA');
+    kdaInputs[0].focus();
+    fireEvent.keyDown(kdaInputs[0], { key: 'Enter' });
+    expect(kdaInputs[1]).toHaveFocus();
+
+    const teamBFirst = kdaInputs[5];
+    teamBFirst.focus();
+    fireEvent.keyDown(teamBFirst, { key: 'Enter' });
+    expect(kdaInputs[6]).toHaveFocus();
+  });
+});
