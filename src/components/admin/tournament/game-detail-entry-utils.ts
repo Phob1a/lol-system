@@ -19,7 +19,7 @@ export type Kda = {
   assists: number;
 };
 
-export type PickPayloadDraft = {
+export type PickDraft = {
   teamId: string;
   type: 'PICK';
   championId: string;
@@ -32,8 +32,8 @@ export type BanPickPayload = {
   order: number;
 };
 
-export type ChampionDuplicateCandidate = {
-  source: 'ban' | 'pick';
+export type ChampionDuplicateInput = {
+  source: 'ban' | 'pick' | 'stat';
   label: string;
   championId: string | null;
 };
@@ -98,7 +98,7 @@ export function derivePicksFromStats(
   statsB: StatRowDraft[],
   teamAId: string,
   teamBId: string,
-): PickPayloadDraft[] {
+): PickDraft[] {
   return [
     ...statsA.flatMap((row) =>
       row.championId ? [{ teamId: teamAId, type: 'PICK' as const, championId: row.championId }] : [],
@@ -116,8 +116,8 @@ export function buildBansPayload({
   useDerivedPicks,
 }: {
   banRows: BanRowDraft[];
-  derivedPicks: PickPayloadDraft[];
-  legacyPicks: PickPayloadDraft[];
+  derivedPicks: PickDraft[];
+  legacyPicks: PickDraft[];
   useDerivedPicks: boolean;
 }): BanPickPayload[] {
   const picks = useDerivedPicks ? derivedPicks : legacyPicks;
@@ -134,7 +134,7 @@ export function buildBansPayload({
 }
 
 export function findChampionDuplicate(
-  rows: ChampionDuplicateCandidate[],
+  rows: ChampionDuplicateInput[],
 ): ChampionDuplicate | null {
   const seen = new Map<string, string>();
 

@@ -8,6 +8,8 @@ import {
   isStatsPristine,
   parseKda,
   type BanRowDraft,
+  type ChampionDuplicateInput,
+  type PickDraft,
   type StatRowDraft,
 } from './game-detail-entry-utils';
 
@@ -105,6 +107,17 @@ describe('game detail entry utils', () => {
       { source: 'ban', label: 'BAN 1', championId: 'Ahri' },
       { source: 'pick', label: 'PICK 1', championId: 'Ahri' },
     ])).toEqual({ championId: 'Ahri', firstLabel: 'BAN 1', secondLabel: 'PICK 1' });
+  });
+
+  it('exposes approved pick and duplicate input contracts', () => {
+    const pick: PickDraft = { teamId: teamA, type: 'PICK', championId: 'Ahri' };
+    const statDuplicate: ChampionDuplicateInput = { source: 'stat', label: 'STAT 1', championId: 'Ahri' };
+
+    expect(pick).toEqual({ teamId: teamA, type: 'PICK', championId: 'Ahri' });
+    expect(findChampionDuplicate([
+      { source: 'ban', label: 'BAN 1', championId: 'Ahri' },
+      statDuplicate,
+    ])).toEqual({ championId: 'Ahri', firstLabel: 'BAN 1', secondLabel: 'STAT 1' });
   });
 
   it('builds a blue-red alternating standard ban template', () => {
