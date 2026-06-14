@@ -1,6 +1,6 @@
 # 赛季-赛事物理合一设计（消灭赛季概念）
 
-日期：2026-06-14 ｜ 状态：rev.2（codex 复审补 5 项 P1）｜ 前置：赛季-赛事逻辑合一（2026-06-12，已上线）
+日期：2026-06-14 ｜ 状态：rev.3（codex PASS；补 2 条实现约束）｜ 前置：赛季-赛事逻辑合一（2026-06-12，已上线）
 
 本设计**推翻**前一版"逻辑合一保留两表"的折中：用户确认要彻底消除"赛季"概念，物理上合并为单一实体"赛事"。前提条件已由用户拍板：**数据全部不保留**（含生产库活跃的大王杯 S），因此不做在线回填迁移，直接重设计 schema + 删库重建。
 
@@ -106,6 +106,10 @@ KNOCKOUT      → FINISHED
 **门禁硬规则（codex P1）**：合并后 `TournamentStatus` 新增了 `REGISTRATION/ROSTER_LOCKED/DRAFTING/GROUPING` 四个赛前态，旧代码里凡是 `status !== 'SETUP'`、`!== 'SETUP' && !== 'FINISHED'` 之类**反向排除**写法**一律改为显式白名单**，否则赛前态会被错误当成"赛制进行中"放行。逐处见 §3.3 重写清单。
 
 **config 在 GROUPING 改写会清掉已分组数据（codex P1，澄清非新破绽）**：`assignGroups` 在 `GROUPING` 创建 `TournamentTeam`/`TournamentGroupTeam` 快照，而 `updateTournamentConfig` 重建骨架会清空这些快照（`tournament-service.ts:74-77,104-108`）。此风险在旧模型已存在（彼时 assignGroups 与 config 编辑都在 tournament `SETUP`），处理方式**原样保留**：config 在 GROUPING 仍可改并清空已分组，UI 沿用既有「已保存的分组将清空」二次确认提示（旧 merge spec §3.2 已有）。**不**引入额外的 `GROUPS_ASSIGNED` 态——那会改变已上线行为且增复杂度，收益不抵成本。
+
+实现期两条硬约束（codex rev.2 复审补充，避免写偏）：
+1. `GROUPING` 下保存 config **必须继续弹**「已保存的分组将清空」二次确认（旧 UI 证据 `SetupTab.tsx:73-75`，迁移后保留）。
+2. service 测试**保留/迁移既有断言**：已 `assignGroups` 后改 config → 清空 `TournamentTeam`/`TournamentGroupTeam` 快照 + 按新 config 重建骨架（既有契约，不得回归丢失）。
 
 ### 3.3 旧 `season.status` 调用点 → 统一态映射（codex P1）
 
