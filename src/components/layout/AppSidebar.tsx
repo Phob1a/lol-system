@@ -15,11 +15,10 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/admin', label: '概览' },
-  { href: '/admin/season', label: '赛季管理' },
+  { href: '/admin/tournament', label: '赛事管理' },
   { href: '/admin/registrations', label: '报名管理' },
   { href: '/admin/teams', label: '队伍账号' },
   { href: '/admin/draft', label: '选秀控制台' },
-  { href: '/admin/tournament', label: '赛事' },
   { href: '/admin/audit', label: '审计日志' },
   { href: '/admin/config', label: '系统配置' },
 ];

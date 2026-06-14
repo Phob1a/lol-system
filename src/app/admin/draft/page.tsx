@@ -1,21 +1,21 @@
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { DraftControl } from '@/components/admin/DraftControl';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DraftConsolePage() {
-  const season = await getActiveSeason(prisma);
-  if (!season) return <div className="text-muted-foreground">请先创建赛季</div>;
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return <div className="text-muted-foreground">请先创建赛事</div>;
 
   const [snapshot, captainCount, pool] = await Promise.all([
-    getDraftSnapshot(season.id),
+    getDraftSnapshot(tournament.id),
     prisma.registration.count({
-      where: { seasonId: season.id, isCaptain: true, status: 'ACTIVE' },
+      where: { tournamentId: tournament.id, isCaptain: true, status: 'ACTIVE' },
     }),
     prisma.registration.findMany({
-      where: { seasonId: season.id, isCaptain: false, status: 'ACTIVE' },
+      where: { tournamentId: tournament.id, isCaptain: false, status: 'ACTIVE' },
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
@@ -27,10 +27,10 @@ export default async function DraftConsolePage() {
 
   return (
     <DraftControl
-      season={season}
+      tournament={tournament}
       initialSnapshot={snapshot}
       activeCaptainCount={captainCount}
-      teamBudget={season.teamBudget}
+      teamBudget={tournament.teamBudget}
       pool={pool.map((r) => ({
         id: r.id, gameId: r.player.gameId, nickname: r.nickname, cost: r.cost,
         primaryPositions: r.primaryPositions, secondaryPositions: r.secondaryPositions,

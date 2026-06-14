@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Season, SeasonStatus } from '@prisma/client';
+import type { Tournament, TournamentStatus } from '@prisma/client';
 import type { RegistrationWithPlayer } from '@/lib/registration/registration-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,14 +40,14 @@ import { Eye, EyeOff } from 'lucide-react';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-// Mirror of registration-service `ROSTER_EDITABLE_STATUSES`. Once a season
-// reaches DRAFTING, the backend rejects roster mutations with SEASON_LOCKED;
+// Mirror of registration-service `ROSTER_EDITABLE_STATUSES`. Once a tournament
+// reaches DRAFTING, the backend rejects roster mutations;
 // disabling the controls here keeps the UI honest.
-const ROSTER_EDITABLE: ReadonlySet<SeasonStatus> = new Set([
+const ROSTER_EDITABLE: ReadonlySet<TournamentStatus> = new Set([
   'SETUP',
   'REGISTRATION',
   'ROSTER_LOCKED',
-]);
+] as TournamentStatus[]);
 
 const POSITION_LABELS: Record<string, string> = {
   TOP: '上单',
@@ -261,7 +261,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── main component ───────────────────────────────────────────────────────────
 
 type Props = {
-  season: Season;
+  season: Tournament;
   initialRegistrations: RegistrationWithPlayer[];
 };
 
@@ -510,7 +510,7 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
 
       {!rosterEditable && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          当前赛季状态为 <span className="font-mono">{season.status}</span>，名册已锁定；如需调整请先回退赛季阶段。
+          当前赛事状态为 <span className="font-mono">{season.status}</span>，名册已锁定；如需调整请先回退赛事阶段。
         </div>
       )}
 

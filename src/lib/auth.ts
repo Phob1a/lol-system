@@ -19,16 +19,16 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { username: credentials.username },
-          include: { team: { include: { season: true } } },
+          include: { team: { include: { tournament: true } } },
         });
         if (!user) return null;
 
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) return null;
 
-        // Team accounts of an archived season cannot log in.
+        // Team accounts of an archived tournament cannot log in.
         if (user.role === 'CAPTAIN') {
-          if (!user.team || user.team.season.status === 'ARCHIVED') return null;
+          if (!user.team || user.team.tournament.status === 'ARCHIVED') return null;
         }
 
         return {
@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           mustChangePwd: user.mustChangePwd,
           teamId: user.team?.id ?? null,
-          seasonId: user.team?.seasonId ?? null,
+          tournamentId: user.team?.tournamentId ?? null,
         };
       },
     }),
@@ -50,7 +50,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.mustChangePwd = user.mustChangePwd;
         token.teamId = user.teamId;
-        token.seasonId = user.seasonId;
+        token.tournamentId = user.tournamentId;
       }
       if (trigger === 'update' && session?.mustChangePwd === false) {
         token.mustChangePwd = false;
@@ -64,7 +64,7 @@ export const authOptions: NextAuthOptions = {
         role: token.role,
         mustChangePwd: token.mustChangePwd,
         teamId: token.teamId,
-        seasonId: token.seasonId,
+        tournamentId: token.tournamentId,
       };
       return session;
     },

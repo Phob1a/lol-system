@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { testDb } from '@/lib/test/db';
-import { createSeason, transitionSeason } from '@/lib/season/season-service';
+import { createTournament, transitionTournament } from '@/lib/tournament/tournament-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { getAdminOverviewStats } from './overview-stats';
 import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
 
-const T = { kind: '正赛', config: CFG_2x4x2 };
-
 describe('getAdminOverviewStats', () => {
   it('counts willing captain registrations as captain intentions', async () => {
-    const season = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
-    await transitionSeason(testDb, season.id, 'REGISTRATION');
+    const tournament = await createTournament(testDb, { name: 'S1', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+    await transitionTournament(testDb, tournament.id, 'REGISTRATION');
 
     await submitPublicRegistration(testDb, {
       gameId: 'faker',
@@ -31,7 +29,7 @@ describe('getAdminOverviewStats', () => {
       willingToCaptain: false,
     });
 
-    await expect(getAdminOverviewStats(testDb, season.id)).resolves.toMatchObject({
+    await expect(getAdminOverviewStats(testDb, tournament.id)).resolves.toMatchObject({
       registrationCount: 2,
       captainIntentionCount: 1,
     });

@@ -9,12 +9,12 @@ import { ScheduleTab } from './ScheduleTab';
 type Team = { id: string; name: string };
 
 type Props = {
-  seasonId: string;
+  tournamentId: string;
   teams: Team[];
 };
 
-export function TournamentAdmin({ seasonId, teams }: Props) {
-  const { state, loaded, refetch } = useAdminTournamentState(seasonId);
+export function TournamentAdmin({ tournamentId, teams }: Props) {
+  const { state, loaded, refetch } = useAdminTournamentState(tournamentId);
 
   if (!loaded) {
     return <div className="text-muted-foreground text-sm">加载中…</div>;
@@ -39,7 +39,7 @@ export function TournamentAdmin({ seasonId, teams }: Props) {
         </TabsList>
 
         <TabsContent value="setup">
-          <SetupTab seasonId={seasonId} state={state} refetch={refetch} />
+          <SetupTab tournamentId={tournamentId} state={state} refetch={refetch} />
         </TabsContent>
 
         <TabsContent value="groups">

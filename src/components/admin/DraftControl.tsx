@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import type { Season, Position } from '@prisma/client';
+import type { Tournament, Position } from '@prisma/client';
 import type { DraftSnapshot } from '@/lib/draft/types';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import { PlayerPool } from '@/components/draft/PlayerPool';
@@ -28,14 +28,14 @@ type PoolPlayer = {
 };
 
 type Props = {
-  season: Season;
+  tournament: Tournament;
   initialSnapshot: DraftSnapshot;
   activeCaptainCount: number;
   teamBudget: number;
   pool: PoolPlayer[];
 };
 
-export function DraftControl({ season, initialSnapshot, activeCaptainCount, teamBudget, pool }: Props) {
+export function DraftControl({ tournament, initialSnapshot, activeCaptainCount, teamBudget, pool }: Props) {
   const { snapshot, connected, reload } = useDraftStream(initialSnapshot);
   const [acting, setActing] = useState<'start' | 'reset' | 'rewind' | null>(null);
   const [revokingPickId, setRevokingPickId] = useState<string | null>(null);
@@ -263,7 +263,7 @@ export function DraftControl({ season, initialSnapshot, activeCaptainCount, team
           <TeamGrid
             teams={snapshot?.teams ?? []}
             onTheClockId={onTheClockId}
-            maxBudget={season.teamBudget}
+            maxBudget={tournament.teamBudget}
           />
         }
         pool={<PlayerPool players={decoratedPool} />}

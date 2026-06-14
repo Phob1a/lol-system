@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
@@ -10,13 +10,7 @@ export default async function TournamentLayout({
 }: {
   children: ReactNode;
 }) {
-  const season = await getActiveSeason(prisma);
-  const tournament = season
-    ? await prisma.tournament.findUnique({
-        where: { seasonId: season.id },
-        select: { name: true, kind: true },
-      })
-    : null;
+  const tournament = await getActiveTournament(prisma);
 
   return (
     <div className="min-h-screen bg-background">

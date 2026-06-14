@@ -8,7 +8,7 @@ import { TournamentConfigForm, type TournamentConfigValue } from './TournamentCo
 import type { AdminState } from '@/hooks/useTournamentState';
 
 type Props = {
-  seasonId: string;
+  tournamentId: string;
   state: AdminState;
   refetch: () => Promise<void>;
 };
@@ -45,7 +45,7 @@ function tournamentToConfigValue(t: {
   };
 }
 
-export function SetupTab({ seasonId, state, refetch }: Props) {
+export function SetupTab({ tournamentId, state, refetch }: Props) {
   // ── create form state (no-tournament path) ────────────────────────────────
   const [createValue, setCreateValue] = useState<TournamentConfigValue>(DEFAULT_CONFIG);
   const [createValid, setCreateValid] = useState(false);
@@ -64,13 +64,16 @@ export function SetupTab({ seasonId, state, refetch }: Props) {
     const t = state.tournament;
     const isSetup = t.status === 'SETUP';
     const isFinished = t.status === 'FINISHED';
+    // Config is editable (and clears groups) whenever not in late/completed stages.
+    const CONFIG_CLEAR_STATUSES = new Set(['GROUP_STAGE', 'KNOCKOUT', 'FINISHED', 'ARCHIVED']);
+    const configWillClear = !CONFIG_CLEAR_STATUSES.has(t.status);
 
     // Lazy-initialise edit form value from tournament on first render.
     const currentEditValue = editValue ?? tournamentToConfigValue(t);
 
     async function handleSaveConfig() {
       if (!state?.tournament) return;
-      const confirmed = isSetup
+      const confirmed = configWillClear
         ? window.confirm('修改赛制将清空已保存的分组与参赛名单，确定继续？')
         : true;
       if (!confirmed) return;
@@ -216,7 +219,7 @@ export function SetupTab({ seasonId, state, refetch }: Props) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          seasonId,
+          tournamentId,
           name: createValue.name.trim(),
           kind: createValue.kind,
           config: createValue.config,

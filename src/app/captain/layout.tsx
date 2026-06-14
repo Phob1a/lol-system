@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { CaptainNav } from '@/components/layout/CaptainNav';
+
+const TEAM_MGMT_OPEN = ['GROUPING', 'GROUP_STAGE', 'KNOCKOUT', 'FINISHED'];
 
 export default async function CaptainLayout({
   children,
@@ -15,8 +17,8 @@ export default async function CaptainLayout({
     redirect('/access-denied');
   }
 
-  const season = await getActiveSeason(prisma);
-  const showTeamManagement = season?.status === 'COMPLETED';
+  const tournament = await getActiveTournament(prisma);
+  const showTeamManagement = tournament ? TEAM_MGMT_OPEN.includes(tournament.status) : false;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

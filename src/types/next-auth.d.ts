@@ -8,7 +8,7 @@ declare module 'next-auth' {
       role: Role;
       mustChangePwd: boolean;
       teamId: string | null;
-      seasonId: string | null;
+      tournamentId: string | null;
     };
   }
   interface User {
@@ -17,7 +17,7 @@ declare module 'next-auth' {
     role: Role;
     mustChangePwd: boolean;
     teamId: string | null;
-    seasonId: string | null;
+    tournamentId: string | null;
   }
 }
 
@@ -28,6 +28,6 @@ declare module 'next-auth/jwt' {
     role: Role;
     mustChangePwd: boolean;
     teamId: string | null;
-    seasonId: string | null;
+    tournamentId: string | null;
   }
 }

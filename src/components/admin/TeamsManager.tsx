@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Season } from '@prisma/client';
+import type { Tournament } from '@prisma/client';
 import type { TeamWithRefs } from '@/lib/teams/team-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,7 @@ import {
 // ─── props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  season: Season;
+  season: Tournament;
   initialTeams: TeamWithRefs[];
 };
 

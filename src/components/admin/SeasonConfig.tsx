@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Season } from '@prisma/client';
+import type { Tournament } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,9 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { BUDGET_EDITABLE_STATUSES } from '@/lib/season/season-service';
+import { BUDGET_EDITABLE_STATUSES } from '@/lib/tournament/tournament-service';
 
-type Props = { season: Season | null };
+type Props = { season: Tournament | null };
 
 export function SeasonConfig({ season }: Props) {
   const router = useRouter();
@@ -32,7 +32,7 @@ export function SeasonConfig({ season }: Props) {
         <h1 className="text-xl font-semibold">系统配置</h1>
         <Card>
           <CardContent className="py-8 text-sm text-muted-foreground">
-            当前没有进行中的赛季。请先在「赛季管理」中创建赛季。
+            当前没有进行中的赛事。请先在「赛事管理」中创建赛事。
           </CardContent>
         </Card>
       </div>
@@ -50,7 +50,7 @@ export function SeasonConfig({ season }: Props) {
       return;
     }
     setSaving(true);
-    const res = await fetch(`/api/seasons/${season.id}`, {
+    const res = await fetch(`/api/tournament/${season.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ teamBudget: value }),
@@ -72,12 +72,12 @@ export function SeasonConfig({ season }: Props) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            当前赛季
+            当前赛事
             <Badge variant="outline">{season.name}</Badge>
             <Badge variant="secondary">{season.status}</Badge>
           </CardTitle>
           <CardDescription>
-            队伍总费用是本赛季每支队伍的初始预算。选秀开始后该值会被锁定，因为各队的剩余预算已基于它计算。
+            队伍总费用是本赛事每支队伍的初始预算。选秀开始后该值会被锁定，因为各队的剩余预算已基于它计算。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

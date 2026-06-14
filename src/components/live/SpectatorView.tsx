@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Season } from '@prisma/client';
+import type { Tournament } from '@prisma/client';
 import type { DraftSnapshot } from '@/lib/draft/types';
 import type { RegistrationForPool } from '@/lib/filters';
 import { useDraftStream } from '@/hooks/useDraftStream';
@@ -21,15 +21,15 @@ import { formatCost } from '@/lib/costs';
 type PoolEntry = Omit<RegistrationForPool, 'isPicked'>;
 
 type Props = {
-  seasons: Season[];
-  selectedSeason: Season;
+  tournaments: Tournament[];
+  selectedTournament: Tournament;
   initialSnapshot: DraftSnapshot;
   poolRegistrations: PoolEntry[];
 };
 
-export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRegistrations }: Props) {
-  const stateUrl = `/api/live/${selectedSeason.id}/state`;
-  const streamUrl = `/api/live/${selectedSeason.id}/stream`;
+export function SpectatorView({ tournaments, selectedTournament, initialSnapshot, poolRegistrations }: Props) {
+  const stateUrl = `/api/live/${selectedTournament.id}/state`;
+  const streamUrl = `/api/live/${selectedTournament.id}/stream`;
 
   // Always call useDraftStream unconditionally (Rules of Hooks).
   // For COMPLETED/ARCHIVED seasons the SSE yields nothing new — that is fine.
@@ -119,7 +119,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
       {/* Season selector header row */}
       <div className="mb-4 flex items-center justify-between">
         <span className="text-lg font-semibold text-foreground">Live Draft</span>
-        <SeasonSelector seasons={seasons} selectedId={selectedSeason.id} />
+        <SeasonSelector tournaments={tournaments} selectedId={selectedTournament.id} />
       </div>
 
       <BroadcastLayout
@@ -129,7 +129,7 @@ export function SpectatorView({ seasons, selectedSeason, initialSnapshot, poolRe
           <TeamGrid
             teams={live.teams}
             onTheClockId={onTheClockId}
-            maxBudget={selectedSeason.teamBudget}
+            maxBudget={selectedTournament.teamBudget}
           />
         }
         pool={<PlayerPool players={decoratedPool} />}

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { RegistrationForm } from '@/components/registration/RegistrationForm';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 export const dynamic = 'force-dynamic';
 
 export default async function RegisterPage() {
-  const season = await getActiveSeason(prisma);
-  if (season?.status !== 'REGISTRATION') {
+  const tournament = await getActiveTournament(prisma);
+  if (tournament?.status !== 'REGISTRATION') {
     return (
       <AuthCard
         title="报名未开放"
-        description={season ? '本赛季报名已截止或未开放。' : '当前没有开放报名的赛季。'}
+        description={tournament ? '本赛事报名已截止或未开放。' : '当前没有开放报名的赛事。'}
         centered={false}
       >
         <div className="space-y-4">
@@ -27,5 +27,5 @@ export default async function RegisterPage() {
       </AuthCard>
     );
   }
-  return <RegistrationForm seasonName={season.name} />;
+  return <RegistrationForm seasonName={tournament.name} />;
 }

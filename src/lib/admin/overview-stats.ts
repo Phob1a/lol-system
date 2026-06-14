@@ -10,14 +10,14 @@ export type AdminOverviewStats = {
 
 export async function getAdminOverviewStats(
   db: Db,
-  seasonId: string,
+  tournamentId: string,
 ): Promise<AdminOverviewStats> {
   const [registrationCount, captainIntentionCount, draftSession] = await Promise.all([
-    db.registration.count({ where: { seasonId, status: 'ACTIVE' } }),
+    db.registration.count({ where: { tournamentId, status: 'ACTIVE' } }),
     db.registration.count({
-      where: { seasonId, status: 'ACTIVE', willingToCaptain: true },
+      where: { tournamentId, status: 'ACTIVE', willingToCaptain: true },
     }),
-    db.draftSession.findUnique({ where: { seasonId } }),
+    db.draftSession.findUnique({ where: { tournamentId } }),
   ]);
 
   return {

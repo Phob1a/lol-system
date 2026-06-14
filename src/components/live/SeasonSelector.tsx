@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { Season } from '@prisma/client';
+import type { Tournament } from '@prisma/client';
 import {
   Select,
   SelectContent,
@@ -11,11 +11,11 @@ import {
 } from '@/components/ui/select';
 
 type Props = {
-  seasons: Season[];
+  tournaments: Tournament[];
   selectedId: string;
 };
 
-export function SeasonSelector({ seasons, selectedId }: Props) {
+export function SeasonSelector({ tournaments, selectedId }: Props) {
   const router = useRouter();
 
   return (
@@ -27,9 +27,9 @@ export function SeasonSelector({ seasons, selectedId }: Props) {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {seasons.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
-            {s.name}
+        {tournaments.map((t) => (
+          <SelectItem key={t.id} value={t.id}>
+            {t.name}
           </SelectItem>
         ))}
       </SelectContent>

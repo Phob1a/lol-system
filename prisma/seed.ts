@@ -18,14 +18,20 @@ async function main() {
     update: {},
   });
 
-  // Dev convenience: a sample season open for registration.
+  // Dev convenience: a sample tournament open for registration.
   if (process.env.SEED_SAMPLE_SEASON === '1') {
-    const existing = await prisma.season.findFirst({ where: { status: { not: 'ARCHIVED' } } });
+    const existing = await prisma.tournament.findFirst({ where: { status: { not: 'ARCHIVED' } } });
     if (!existing) {
-      await prisma.season.create({
-        data: { name: 'S1 测试赛季', status: 'REGISTRATION', teamBudget: 1000 },
+      await prisma.tournament.create({
+        data: {
+          name: 'S1 测试赛事',
+          status: 'REGISTRATION',
+          teamBudget: 1000,
+          kind: '正赛',
+          config: { template: 'group-knockout', groupCount: 2, teamsPerGroup: 4, advancingPerGroup: 2, groupBestOf: 1, knockoutBestOf: { SF: 3, FINAL: 5 } },
+        },
       });
-      console.log('  Sample season "S1 测试赛季" created (REGISTRATION).');
+      console.log('  Sample tournament "S1 测试赛事" created (REGISTRATION).');
     }
   }
 

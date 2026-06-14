@@ -1,10 +1,6 @@
-import { prisma } from '@/lib/db';
-import { listSeasons } from '@/lib/season/season-service';
-import { SeasonManager } from '@/components/admin/SeasonManager';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default async function AdminSeasonPage() {
-  const seasons = await listSeasons(prisma);
-  return <SeasonManager initialSeasons={seasons} />;
+// Merged into /admin/tournament — redirect for backwards compat.
+export default function AdminSeasonPage() {
+  redirect('/admin/tournament');
 }

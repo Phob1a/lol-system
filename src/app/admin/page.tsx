@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getAdminOverviewStats } from '@/lib/admin/overview-stats';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,19 +9,19 @@ import { Button } from '@/components/ui/button';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminHomePage() {
-  const season = await getActiveSeason(prisma);
+  const tournament = await getActiveTournament(prisma);
 
-  const overviewStats = season
-    ? await getAdminOverviewStats(prisma, season.id)
+  const overviewStats = tournament
+    ? await getAdminOverviewStats(prisma, tournament.id)
     : { registrationCount: 0, captainIntentionCount: 0, draftStatus: 'NOT_STARTED' };
 
-  if (!season) {
+  if (!tournament) {
     return (
       <div className="space-y-6">
         <PageHeader title="概览" description="赛事总览" />
-        <p className="text-muted-foreground">尚无赛季 · 点击创建</p>
+        <p className="text-muted-foreground">尚无赛事 · 点击创建</p>
         <Button asChild variant="outline">
-          <Link href="/admin/season">前往赛季管理</Link>
+          <Link href="/admin/tournament">前往赛事管理</Link>
         </Button>
       </div>
     );
@@ -29,9 +29,9 @@ export default async function AdminHomePage() {
 
   const statCards = [
     {
-      label: 'SEASON',
-      value: `${season.name} · ${season.status} · 预算 ${season.teamBudget} CR`,
-      href: '/admin/season',
+      label: 'TOURNAMENT',
+      value: `${tournament.name} · ${tournament.status} · 预算 ${tournament.teamBudget} CR`,
+      href: '/admin/tournament',
     },
     {
       label: 'REGISTRATIONS',

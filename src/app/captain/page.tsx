@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { computeTeamPreviews } from '@/lib/teams/preview';
 import { CaptainDashboard } from '@/components/draft/CaptainDashboard';
@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function CaptainPage() {
   const session = await getSession();
-  const season = await getActiveSeason(prisma);
-  if (!season) return <div className="text-muted-foreground">暂无进行中的赛季</div>;
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return <div className="text-muted-foreground">暂无进行中的赛事</div>;
 
   const ownTeam = session?.user.teamId
     ? await prisma.team.findUnique({
@@ -21,7 +21,7 @@ export default async function CaptainPage() {
 
   const [pool, captains, snapshot] = await Promise.all([
     prisma.registration.findMany({
-      where: { seasonId: season.id, isCaptain: false, status: 'ACTIVE' },
+      where: { tournamentId: tournament.id, isCaptain: false, status: 'ACTIVE' },
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
@@ -30,7 +30,7 @@ export default async function CaptainPage() {
       orderBy: { registeredAt: 'asc' },
     }),
     prisma.registration.findMany({
-      where: { seasonId: season.id, isCaptain: true, status: 'ACTIVE' },
+      where: { tournamentId: tournament.id, isCaptain: true, status: 'ACTIVE' },
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
@@ -38,7 +38,7 @@ export default async function CaptainPage() {
       },
       orderBy: { registeredAt: 'asc' },
     }),
-    getDraftSnapshot(season.id),
+    getDraftSnapshot(tournament.id),
   ]);
 
   const flat = (r: (typeof pool)[number]) => ({
@@ -50,9 +50,9 @@ export default async function CaptainPage() {
     <CaptainDashboard
       initialSnapshot={snapshot}
       pool={pool.map(flat)}
-      virtualTeams={computeTeamPreviews(captains.map(flat), season.teamBudget)}
+      virtualTeams={computeTeamPreviews(captains.map(flat), tournament.teamBudget)}
       ownCaptainId={ownTeam?.captainId ?? null}
-      teamBudget={season.teamBudget}
+      teamBudget={tournament.teamBudget}
     />
   );
 }

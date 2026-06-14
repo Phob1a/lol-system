@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { getActiveSeason } from '@/lib/season/season-service';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
   Table,
@@ -25,18 +25,18 @@ const EVENT_LABEL: Record<string, string> = {
 };
 
 export default async function AuditPage() {
-  const season = await getActiveSeason(prisma);
+  const tournament = await getActiveTournament(prisma);
 
-  if (!season) {
+  if (!tournament) {
     return (
       <div>
-        <p className="text-muted-foreground">暂无赛季</p>
+        <p className="text-muted-foreground">暂无赛事</p>
       </div>
     );
   }
 
   const events = await prisma.draftEvent.findMany({
-    where: { session: { seasonId: season.id } },
+    where: { session: { tournamentId: tournament.id } },
     orderBy: { seq: 'desc' },
     take: 200,
   });

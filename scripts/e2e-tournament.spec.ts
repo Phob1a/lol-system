@@ -64,7 +64,7 @@ async function apiPut(page: Page, url: string, body: unknown) {
 
 async function captainUsernameForTeam(teamName: string): Promise<string> {
   const team = await prisma.team.findFirstOrThrow({
-    where: { name: teamName, season: { name: 'E2E 测试赛季' } },
+    where: { name: teamName, tournament: { name: 'E2E 测试赛事' } },
     include: { account: true },
   });
   return team.account.username;
