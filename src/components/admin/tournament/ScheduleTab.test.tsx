@@ -53,6 +53,40 @@ describe('ScheduleTab', () => {
     expect(screen.queryByRole('button', { name: '排期' })).not.toBeInTheDocument();
   });
 
+  it('shows 创建预约 and 自定义比赛 buttons in GROUP_STAGE', () => {
+    render(<ScheduleTab teams={[]} state={state()} refetch={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /创建预约/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /自定义比赛/ })).toBeInTheDocument();
+  });
+
+  it('shows 创建预约 and 自定义比赛 buttons in KNOCKOUT', () => {
+    const s = state();
+    s.tournament!.status = 'KNOCKOUT';
+    render(<ScheduleTab teams={[]} state={s} refetch={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /创建预约/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /自定义比赛/ })).toBeInTheDocument();
+  });
+
+  it('hides entry buttons in pre-bracket states (e.g. GROUPING)', () => {
+    const s = state();
+    s.tournament!.status = 'GROUPING';
+    render(<ScheduleTab teams={[]} state={s} refetch={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /创建预约/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /自定义比赛/ })).not.toBeInTheDocument();
+  });
+
+  it('hides entry buttons in SETUP', () => {
+    const s = state();
+    s.tournament!.status = 'SETUP';
+    render(<ScheduleTab teams={[]} state={s} refetch={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /创建预约/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /自定义比赛/ })).not.toBeInTheDocument();
+  });
+
   it('shows only reserved matches in the schedule table', () => {
     const s = state();
     s.matches = [

@@ -485,14 +485,14 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
     <div className="space-y-4 pt-4">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center gap-2">
-        {tournament.status !== 'SETUP' && tournament.status !== 'FINISHED' && (
+        {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
           <Button size="sm" onClick={() => setReservationOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
             创建预约
           </Button>
         )}
 
-        {tournament.status !== 'SETUP' && (
+        {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
           <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
             自定义比赛

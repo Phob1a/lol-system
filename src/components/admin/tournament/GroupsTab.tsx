@@ -56,7 +56,7 @@ export function GroupsTab({ teams, state, refetch }: Props) {
 
   const tournament = state?.tournament ?? null;
   const standings = useMemo(() => state?.standings ?? [], [state?.standings]);
-  const isSetup = tournament?.status === 'SETUP';
+  const isGrouping = tournament?.status === 'GROUPING';
 
   const config = tournament?.config as GroupKnockoutConfig | null | undefined;
   const groupCount = config?.groupCount ?? (standings.length > 0 ? standings.length : 2);
@@ -78,7 +78,7 @@ export function GroupsTab({ teams, state, refetch }: Props) {
     );
   }
 
-  if (!isSetup) {
+  if (!isGrouping) {
     return (
       <div className="space-y-4 pt-4">
         <p className="text-sm text-muted-foreground">分组已锁定（状态：{tournament.status}）。</p>

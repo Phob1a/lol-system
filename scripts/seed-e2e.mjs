@@ -1,13 +1,12 @@
 /**
- * Seed script for E2E test: creates a COMPLETED season with 8 teams,
+ * Seed script for E2E test: creates a ROSTER_LOCKED tournament with 8 teams,
  * each with 5 players (1 captain + 4 members) so the GameDetailEditor
  * shows stats rows for all 10 players.
  * Usage: node scripts/seed-e2e.mjs
  *
- * The tournament service requires teams belonging to a season.
- * getActiveSeason() returns the first non-ARCHIVED season.
- * We archive the existing non-e2e season and create a fresh COMPLETED
- * season with 8 teams so tournament creation can proceed.
+ * The tournament service requires teams belonging to a tournament.
+ * We archive any existing non-e2e tournament and create a fresh ROSTER_LOCKED
+ * tournament with 8 teams so tournament creation can proceed.
  */
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -17,53 +16,64 @@ const CAPTAIN_PASSWORD = 'lol2026';
 
 const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
-async function main() {
-  // Check existing non-archived seasons
-  const existing = await prisma.season.findFirst({ where: { status: { not: 'ARCHIVED' } } });
-  console.log('Existing active season:', existing?.name, existing?.status);
+const E2E_CONFIG = {
+  template: 'group-knockout',
+  groupCount: 2,
+  teamsPerGroup: 4,
+  advancingPerGroup: 2,
+  groupBestOf: 1,
+  knockoutBestOf: { SF: 3, FINAL: 5 },
+};
 
-  // Archive the existing non-e2e season if it exists. E2E must be the active season.
-  if (existing && existing.name !== 'E2E 测试赛季') {
-    console.log('Archiving existing season:', existing.name);
-    await prisma.season.update({
+async function main() {
+  // Check existing non-archived tournaments
+  const existing = await prisma.tournament.findFirst({ where: { status: { not: 'ARCHIVED' } } });
+  console.log('Existing active tournament:', existing?.name, existing?.status);
+
+  // Archive the existing non-e2e tournament if it exists. E2E must be the active tournament.
+  if (existing && existing.name !== 'E2E 测试赛事') {
+    console.log('Archiving existing tournament:', existing.name);
+    await prisma.tournament.update({
       where: { id: existing.id },
       data: { status: 'ARCHIVED', archivedAt: new Date() },
     });
   }
 
-  // Check if there's already an e2e season with enough players
-  const e2eSeason = await prisma.season.findFirst({ where: { name: 'E2E 测试赛季' } });
-  if (e2eSeason) {
-    await prisma.season.update({
-      where: { id: e2eSeason.id },
-      data: { status: 'COMPLETED', archivedAt: null },
+  // Check if there's already an e2e tournament with enough players
+  const e2eTournament = await prisma.tournament.findFirst({ where: { name: 'E2E 测试赛事' } });
+  if (e2eTournament) {
+    await prisma.tournament.update({
+      where: { id: e2eTournament.id },
+      data: { status: 'ROSTER_LOCKED', archivedAt: null },
     });
-    const teams = await prisma.team.count({ where: { seasonId: e2eSeason.id } });
-    console.log('E2E season already exists:', e2eSeason.id, 'with', teams, 'teams');
+    const teams = await prisma.team.count({ where: { tournamentId: e2eTournament.id } });
+    console.log('E2E tournament already exists:', e2eTournament.id, 'with', teams, 'teams');
     if (teams >= 8) {
       // Check if teams have 5 slots each
-      const slots = await prisma.teamSlot.count({ where: { team: { seasonId: e2eSeason.id } } });
+      const slots = await prisma.teamSlot.count({ where: { team: { tournamentId: e2eTournament.id } } });
       if (slots >= 40) {
         const passwordHash = await bcrypt.hash(CAPTAIN_PASSWORD, 10);
         await prisma.user.updateMany({
-          where: { team: { seasonId: e2eSeason.id } },
+          where: { team: { tournamentId: e2eTournament.id } },
           data: { passwordHash, mustChangePwd: false },
         });
-        console.log('E2E season already has enough teams and players. Done.');
+        console.log('E2E tournament already has enough teams and players. Done.');
         return;
       }
     }
   }
 
-  // Create a new COMPLETED season (getActiveSeason returns any non-ARCHIVED season)
-  const season = await prisma.season.create({
+  // Create a new ROSTER_LOCKED tournament (ready for draft/grouping)
+  const tournament = await prisma.tournament.create({
     data: {
-      name: 'E2E 测试赛季',
-      status: 'COMPLETED',
+      name: 'E2E 测试赛事',
+      kind: '正赛',
+      status: 'ROSTER_LOCKED',
       teamBudget: 1000,
+      config: E2E_CONFIG,
     },
   });
-  console.log('Created season:', season.id, season.name);
+  console.log('Created tournament:', tournament.id, tournament.name);
 
   const teamNames = [
     '天地不仁队', '风云变幻队', '龙腾虎跃队', '星火燎原队',
@@ -86,7 +96,7 @@ async function main() {
       });
       const reg = await prisma.registration.create({
         data: {
-          seasonId: season.id,
+          tournamentId: tournament.id,
           playerId: player.id,
           nickname: `E2E${suffix}`,
           primaryPositions: [POSITIONS[j]],
@@ -114,7 +124,7 @@ async function main() {
 
     const team = await prisma.team.create({
       data: {
-        seasonId: season.id,
+        tournamentId: tournament.id,
         name: teamNames[i],
         captainId: captainReg.id,
         userId: user.id,
@@ -132,9 +142,9 @@ async function main() {
     console.log(`Created team: ${team.name} (${team.id}) with ${regs.length} players`);
   }
 
-  const teams = await prisma.team.findMany({ where: { seasonId: season.id } });
+  const teams = await prisma.team.findMany({ where: { tournamentId: tournament.id } });
   console.log('\nSeed complete!');
-  console.log('Season ID:', season.id);
+  console.log('Tournament ID:', tournament.id);
   console.log('Teams:', teams.map(t => t.name).join(', '));
 }
 

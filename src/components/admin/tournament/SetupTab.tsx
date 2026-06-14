@@ -62,11 +62,11 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
   // ── with tournament ────────────────────────────────────────────────────────
   if (state?.tournament) {
     const t = state.tournament;
-    const isSetup = t.status === 'SETUP';
     const isFinished = t.status === 'FINISHED';
     // Config is editable (and clears groups) whenever not in late/completed stages.
     const CONFIG_CLEAR_STATUSES = new Set(['GROUP_STAGE', 'KNOCKOUT', 'FINISHED', 'ARCHIVED']);
     const configWillClear = !CONFIG_CLEAR_STATUSES.has(t.status);
+    const isConfigEditable = configWillClear;
 
     // Lazy-initialise edit form value from tournament on first render.
     const currentEditValue = editValue ?? tournamentToConfigValue(t);
@@ -80,7 +80,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
 
       setSaving(true);
       try {
-        const body = isSetup
+        const body = isConfigEditable
           ? {
               tournamentId: state.tournament.id,
               name: currentEditValue.name,
@@ -177,7 +177,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               onChange={(v) => setEditValue(v)}
               onValidityChange={setEditValid}
               showNameField
-              showStructure={isSetup}
+              showStructure={isConfigEditable}
             />
             <Button
               disabled={!editValid || saving}

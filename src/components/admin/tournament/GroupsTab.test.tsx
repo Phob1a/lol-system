@@ -16,7 +16,7 @@ function stateWithGroups(groupTeams: Array<Record<string, string>> = [{}, {}]): 
       id: 'tour-1',
       name: 'Summer',
       kind: 'STANDARD',
-      status: 'SETUP',
+      status: 'GROUPING',
       config: {
         template: 'group-knockout',
         groupCount: 2,
@@ -90,5 +90,17 @@ describe('GroupsTab', () => {
       }),
     });
     await waitFor(() => expect(refetch).toHaveBeenCalled());
+  });
+
+  it('renders locked read-only view when status is not GROUPING (e.g. GROUP_STAGE)', () => {
+    const s = stateWithGroups([{ t1: 'Alpha', t2: 'Bravo' }, { t3: 'Charlie', t4: 'Delta' }])!;
+    s.tournament!.status = 'GROUP_STAGE';
+
+    render(<GroupsTab teams={teams} state={s} refetch={vi.fn()} />);
+
+    expect(screen.getByText(/分组已锁定/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /保存分组/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /确认分组/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('group-team-pool')).not.toBeInTheDocument();
   });
 });
