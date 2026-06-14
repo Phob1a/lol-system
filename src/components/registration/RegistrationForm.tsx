@@ -75,9 +75,9 @@ function PositionCheckboxGroup({ label, fieldName, idPrefix, form }: PositionChe
   );
 }
 
-type Props = { seasonName: string };
+type Props = { tournamentName: string };
 
-export function RegistrationForm({ seasonName }: Props) {
+export function RegistrationForm({ tournamentName }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -127,7 +127,7 @@ export function RegistrationForm({ seasonName }: Props) {
 
   return (
     <Form {...form}>
-      <p className="mb-4 text-sm text-muted-foreground">赛季：{seasonName}</p>
+      <p className="mb-4 text-sm text-muted-foreground">赛事：{tournamentName}</p>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         {/* Game ID */}
         <FormField

@@ -99,7 +99,7 @@ export function useTournamentState() {
   return { state, loaded, refetch };
 }
 
-export function useAdminTournamentState(seasonId: string): {
+export function useAdminTournamentState(tournamentId: string): {
   state: AdminState;
   loaded: boolean;
   refetch: () => Promise<void>;
@@ -108,11 +108,11 @@ export function useAdminTournamentState(seasonId: string): {
   const [loaded, setLoaded] = useState(false);
 
   const refetch = useCallback(async () => {
-    const res = await fetch('/api/tournament/admin/state?seasonId=' + seasonId);
+    const res = await fetch('/api/tournament/admin/state?tournamentId=' + tournamentId);
     const body = await res.json().catch(() => ({ state: null }));
     setState(body.state ?? null);
     setLoaded(true);
-  }, [seasonId]);
+  }, [tournamentId]);
 
   useEffect(() => {
     void refetch();
@@ -131,7 +131,7 @@ export function useAdminTournamentState(seasonId: string): {
     });
 
     return () => es.close();
-  }, [refetch, seasonId]);
+  }, [refetch, tournamentId]);
 
   return { state, loaded, refetch };
 }

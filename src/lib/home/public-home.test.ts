@@ -42,7 +42,7 @@ describe('public homepage view model', () => {
 
   it('uses season status text without exposing private details', () => {
     expect(getSeasonStatusText(ctx()).headline).toBe('夏季赛报名开放中');
-    expect(getSeasonStatusText({ season: null, tournament: null }).headline).toBe('暂无开放赛季');
+    expect(getSeasonStatusText({ season: null, tournament: null }).headline).toBe('暂无开放赛事');
   });
 
   it('renders tournament status as Chinese text, not the raw enum', () => {

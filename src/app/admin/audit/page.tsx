@@ -50,7 +50,7 @@ export default async function AuditPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="审计日志" description="当前赛季选秀事件流" />
+      <PageHeader title="审计日志" description="当前赛事选秀事件流" />
 
       {events.length === 0 ? (
         <p className="text-muted-foreground">暂无事件 · 启动选秀后将在此记录</p>

@@ -25,7 +25,7 @@ describe('PublicHomePage', () => {
 
   it('keeps only login as the action when no active season exists', () => {
     render(<PublicHomePage context={{ season: null, tournament: null }} />);
-    expect(screen.getByRole('heading', { name: '暂无开放赛季' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '暂无开放赛事' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /登录后台/ })).toHaveAttribute('href', '/login');
     expect(screen.queryByRole('link', { name: /赛事报名/ })).not.toBeInTheDocument();
   });

@@ -119,8 +119,8 @@ export function getSeasonStatusText(context: PublicHomeContext): {
 } {
   if (!context.season) {
     return {
-      headline: '暂无开放赛季',
-      description: '当前没有活跃赛季。管理员可以登录后台创建赛季。',
+      headline: '暂无开放赛事',
+      description: '当前没有活跃赛事。管理员可以登录后台创建赛事。',
     };
   }
 

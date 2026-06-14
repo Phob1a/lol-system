@@ -13,7 +13,7 @@ export function PublicTournamentView() {
   if (loaded && !state) {
     return (
       <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">本赛季暂未创建赛事</p>
+        <p className="text-muted-foreground text-sm">暂未创建赛事</p>
       </div>
     );
   }

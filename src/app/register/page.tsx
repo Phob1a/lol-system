@@ -27,5 +27,5 @@ export default async function RegisterPage() {
       </AuthCard>
     );
   }
-  return <RegistrationForm seasonName={tournament.name} />;
+  return <RegistrationForm tournamentName={tournament.name} />;
 }
