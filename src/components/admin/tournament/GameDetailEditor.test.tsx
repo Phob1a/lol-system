@@ -81,6 +81,33 @@ function chooseStatChampions() {
   });
 }
 
+function completePlayerStats() {
+  return [
+    ...players('A').map((player, i) => ({
+      teamId: 'team-a',
+      registrationId: player.registrationId,
+      championId: `Champion${i}`,
+      kills: 1,
+      deaths: 2,
+      assists: 3,
+      cs: 100,
+      damage: 10000,
+      gold: 9000,
+    })),
+    ...players('B').map((player, i) => ({
+      teamId: 'team-b',
+      registrationId: player.registrationId,
+      championId: `Champion${i + 5}`,
+      kills: 1,
+      deaths: 2,
+      assists: 3,
+      cs: 100,
+      damage: 10000,
+      gold: 9000,
+    })),
+  ];
+}
+
 describe('GameDetailEditor BP payload', () => {
   it('shows only BAN rows and no manual PICK selector', () => {
     render(<GameDetailEditor {...props()} initial={{
@@ -209,5 +236,33 @@ describe('GameDetailEditor BP payload', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith('同局英雄不可重复：Ahri');
+  });
+
+  it('does not rewrite BP when complete preloaded stats are untouched', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props({
+      gameId: 'game-1',
+      initial: {
+        id: 'game-1',
+        index: 1,
+        isDraft: false,
+        winnerTeamId: 'team-a',
+        hasBans: true,
+        hasStats: true,
+        durationSeconds: 90,
+        bans: [{ teamId: 'team-a', type: 'BAN', championId: 'Lux', order: 1 }],
+        playerStats: completePlayerStats(),
+      },
+    })} />);
+
+    fireEvent.change(screen.getByPlaceholderText('分'), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText('秒'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail).toMatchObject({ durationSeconds: 130 });
+    expect(body.detail.bans).toBeUndefined();
+    expect(body.detail.playerStats).toBeUndefined();
   });
 });

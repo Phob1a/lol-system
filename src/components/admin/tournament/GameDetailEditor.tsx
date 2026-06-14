@@ -341,7 +341,7 @@ export function GameDetailEditor({
       const secs = minSecToSeconds(durationMin, durationSec);
       detail.durationSeconds = secs;
     }
-    if (bansTouched || statsComplete) {
+    if (bansTouched || statsTouched) {
       if (bansCleared) {
         detail.bans = null;
       } else {
@@ -398,7 +398,7 @@ export function GameDetailEditor({
   // ── Client-side validation before save ──────────────────────────────────
 
   function validate(): string | null {
-    const willWriteBans = !bansCleared && (bansTouched || statsAllComplete);
+    const willWriteBans = !bansCleared && (bansTouched || statsTouched);
 
     if (willWriteBans) {
       for (let i = 0; i < bans.length; i++) {
