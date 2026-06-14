@@ -1,9 +1,10 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import { assignGroups, confirmGroups } from './groups-service';
-import { recordGame } from './score-service';
+import { cancelMatch, recordGame } from './score-service';
 import { closeGroupStage } from './bracket-service';
-import { CFG_2x4x2, seedTournamentWithTeams } from './test-fixtures';
+import { confirmKnockoutSeeding, getKnockoutSeedingDraft } from './knockout-seeding-service';
+import { seedTournamentWithTeams } from './test-fixtures';
 
 beforeEach(resetDb);
 
@@ -37,18 +38,45 @@ it('小组未赛完不能收', async () => {
   await expect(closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' })).rejects.toThrow(/未完成/);
 });
 
-it('收小组：按名次交叉填入首轮，状态 → KNOCKOUT', async () => {
+it('countable canceled group match cannot be closed through compatibility helper', async () => {
   const { t, teamIds } = await setup();
   await playAllGroupMatches(teamIds);
-  await closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' });
+  const match = await testDb.match.findFirstOrThrow({
+    where: {
+      countsForStandings: true,
+      groupId: { not: null },
+      OR: [
+        { teamAId: teamIds[2], teamBId: teamIds[3] },
+        { teamAId: teamIds[3], teamBId: teamIds[2] },
+      ],
+    },
+  });
+  const fresh = (await testDb.match.findUnique({ where: { id: match.id } }))!;
+  await cancelMatch(testDb, { matchId: match.id, expectedVersion: fresh.version, actorUserId: 'u' });
+
+  await expect(closeGroupStage(testDb, { tournamentId: t.id, actorUserId: 'u' })).rejects.toThrow(/未完成/);
+});
+
+it('manual seeding fills arbitrary first-round pairs and moves to KNOCKOUT', async () => {
+  const { t, teamIds } = await setup();
+  await playAllGroupMatches(teamIds);
+  const draft = await getKnockoutSeedingDraft(testDb, t.id);
+  await confirmKnockoutSeeding(testDb, {
+    tournamentId: t.id,
+    slots: [
+      { matchId: draft.slots[0].matchId, slot: draft.slots[0].slot, teamId: teamIds[5] },
+      { matchId: draft.slots[1].matchId, slot: draft.slots[1].slot, teamId: teamIds[0] },
+      { matchId: draft.slots[2].matchId, slot: draft.slots[2].slot, teamId: teamIds[1] },
+      { matchId: draft.slots[3].matchId, slot: draft.slots[3].slot, teamId: teamIds[4] },
+    ],
+    actorUserId: 'u',
+  });
 
   const status = (await testDb.tournament.findUnique({ where: { id: t.id } }))!.status;
   expect(status).toBe('KNOCKOUT');
 
-  // A 组 = teamIds[0..3]（0 全胜 → A1, 1 → A2）；B 组 = teamIds[4..7]
   const sfs = await testDb.match.findMany({ where: { roundKey: 'SF' }, orderBy: { label: 'asc' } });
   const pairs = sfs.map((m) => [m.teamAId, m.teamBId]);
-  // 交叉：A1–B2 与 B1–A2
-  expect(pairs).toContainEqual([teamIds[0], teamIds[5]]);
-  expect(pairs).toContainEqual([teamIds[4], teamIds[1]]);
+  expect(pairs).toContainEqual([teamIds[5], teamIds[0]]);
+  expect(pairs).toContainEqual([teamIds[1], teamIds[4]]);
 });

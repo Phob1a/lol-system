@@ -1,5 +1,7 @@
+import type { PrismaClient } from '@prisma/client';
 import { groupKnockout } from './templates/group-knockout';
 import { computeStandings } from './standings';
+import { writeAudit } from './audit';
 import { TournamentError } from './errors';
 import { assertTournamentWritable } from './guards';
 import type { Db, GroupKnockoutConfig } from './types';
@@ -34,6 +36,8 @@ export type KnockoutSeedingDraft = {
   slots: KnockoutSeedSlot[];
   defaultSlots: KnockoutSeedAssignment[];
 };
+
+type TransactionalDb = Db & Pick<PrismaClient, '$transaction'>;
 
 async function loadTournamentForSeeding(db: Db, tournamentId: string) {
   return db.tournament.findUnique({
@@ -198,4 +202,108 @@ export async function getKnockoutSeedingDraft(db: Db, tournamentId: string): Pro
     slots,
     defaultSlots,
   };
+}
+
+function slotKey(slot: Pick<KnockoutSeedAssignment, 'matchId' | 'slot'>): string {
+  return `${slot.matchId}:${slot.slot}`;
+}
+
+function validateSeedAssignments(
+  draft: KnockoutSeedingDraft,
+  submittedSlots: KnockoutSeedAssignment[],
+): KnockoutSeedAssignment[] {
+  const expectedSlotKeys = new Set(draft.slots.map(slotKey));
+  const submittedByKey = new Map<string, KnockoutSeedAssignment>();
+  for (const submitted of submittedSlots) {
+    const key = slotKey(submitted);
+    if (submittedByKey.has(key)) throw new TournamentError('VALIDATION', '淘汰赛席位重复提交');
+    submittedByKey.set(key, submitted);
+  }
+
+  for (const key of submittedByKey.keys()) {
+    if (!expectedSlotKeys.has(key)) throw new TournamentError('VALIDATION', '淘汰赛席位不属于首轮');
+  }
+  for (const key of expectedSlotKeys) {
+    if (!submittedByKey.has(key)) throw new TournamentError('VALIDATION', '淘汰赛席位未覆盖');
+  }
+
+  const qualifiedTeamIds = new Set(draft.candidates.map((candidate) => candidate.teamId));
+  for (const submitted of submittedSlots) {
+    if (!qualifiedTeamIds.has(submitted.teamId)) {
+      throw new TournamentError('TEAM_NOT_IN_TOURNAMENT', '只能分配已出线队伍');
+    }
+  }
+
+  const seenTeamIds = new Set<string>();
+  for (const submitted of submittedSlots) {
+    if (seenTeamIds.has(submitted.teamId)) throw new TournamentError('VALIDATION', '出线队伍重复分配');
+    seenTeamIds.add(submitted.teamId);
+  }
+
+  return draft.slots.map((slot) => submittedByKey.get(slotKey(slot))!);
+}
+
+async function assertFirstRoundMatchesPristine(db: Db, draft: KnockoutSeedingDraft): Promise<void> {
+  const matchIds = [...new Set(draft.slots.map((slot) => slot.matchId))];
+  const matches = await db.match.findMany({
+    where: { id: { in: matchIds } },
+    include: { _count: { select: { games: true } } },
+  });
+  if (matches.length !== matchIds.length) {
+    throw new TournamentError('INVALID_STATE', '淘汰赛首轮比赛已开始或已被修改，不能重新排位');
+  }
+
+  for (const match of matches) {
+    if (
+      match.status !== 'SCHEDULED' ||
+      match.teamAId !== null ||
+      match.teamBId !== null ||
+      match.winnerTeamId !== null ||
+      match._count.games > 0
+    ) {
+      throw new TournamentError('INVALID_STATE', '淘汰赛首轮比赛已开始或已被修改，不能重新排位');
+    }
+  }
+}
+
+async function claimKnockoutSeedingStatus(db: Db, tournamentId: string): Promise<void> {
+  const claimed = await db.tournament.updateMany({
+    where: { id: tournamentId, status: 'GROUP_STAGE' },
+    data: { status: 'KNOCKOUT' },
+  });
+  if (claimed.count !== 1) {
+    throw new TournamentError('INVALID_STATE', '当前状态不能进行淘汰赛排位');
+  }
+}
+
+export async function confirmKnockoutSeeding(
+  db: TransactionalDb,
+  input: { tournamentId: string; slots: KnockoutSeedAssignment[]; actorUserId: string },
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    const draft = await getKnockoutSeedingDraft(tx, input.tournamentId);
+    const assignments = validateSeedAssignments(draft, input.slots);
+    await claimKnockoutSeedingStatus(tx, input.tournamentId);
+    await assertFirstRoundMatchesPristine(tx, draft);
+
+    for (const assignment of assignments) {
+      await tx.match.update({
+        where: { id: assignment.matchId },
+        data: assignment.slot === 'A' ? { teamAId: assignment.teamId } : { teamBId: assignment.teamId },
+      });
+    }
+    await writeAudit(tx, {
+      userId: input.actorUserId,
+      action: 'tournament.knockout.seed.confirm',
+      entity: 'Tournament',
+      entityId: input.tournamentId,
+      payload: {
+        slots: assignments,
+        candidates: draft.candidates.map((candidate) => ({
+          seedLabel: candidate.seedLabel,
+          teamId: candidate.teamId,
+        })),
+      },
+    });
+  });
 }
