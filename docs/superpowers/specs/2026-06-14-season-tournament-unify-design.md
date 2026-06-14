@@ -198,9 +198,10 @@ dev 库：`prisma migrate reset`（执行新基线 + seed）即可。
 1. `pm2 stop lol-system`（进入维护窗口，确保应用不在旧 schema 上运行）。
 2. `sudo -u postgres pg_dump lol_system | gzip > /root/db-backups/lol_system_pre_unify_20260614.sql.gz`，**记录 dump 路径**（留痕，非回填用）。
 3. drop + recreate 库：`sudo -u postgres psql -c 'DROP DATABASE lol_system;'` → `CREATE DATABASE lol_system;`（连带清掉旧 `_prisma_migrations`）。
+3b. **【必备前置，2026-06-14 部署实测】** 以 postgres 超级用户重建库后，`public` schema 归属回 postgres，app 用户（`.env` DATABASE_URL 中的用户，当前 `lol`）无建表权限 → 第 6 步 `migrate deploy` 会报 `permission denied for schema public`。**drop/recreate 后、migrate 前必须补**：`sudo -u postgres psql -c 'ALTER DATABASE lol_system OWNER TO "lol";'` 且 `sudo -u postgres psql lol_system -c 'GRANT ALL ON SCHEMA public TO "lol"; ALTER SCHEMA public OWNER TO "lol";'`。
 4. 部署新代码（本地直推 tmp 分支 → 服务器 `git reset --hard`，见运维笔记）。
 5. `npm ci`。
-6. `npx prisma migrate deploy`（只跑新 `init` 基线）。
+6. `npx prisma migrate deploy`（只跑新 `init` 基线）；随后 `npx prisma generate`。
 7. `npx prisma db seed` / admin 初始化脚本（用户名 + 默认密码 `lol2026`，无业务数据）。
 8. `npm run build`。
 9. smoke 校验：admin 登录 → 创建赛事（带 kind/config）→ 报名/状态接口返回 → 骨架数量（stages/groups/空位对阵）符合 config。
