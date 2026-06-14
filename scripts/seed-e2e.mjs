@@ -1,12 +1,12 @@
 /**
- * Seed script for E2E test: creates a ROSTER_LOCKED tournament with 8 teams,
+ * Seed script for E2E test: creates a GROUPING tournament with 8 teams,
  * each with 5 players (1 captain + 4 members) so the GameDetailEditor
  * shows stats rows for all 10 players.
  * Usage: node scripts/seed-e2e.mjs
  *
  * The tournament service requires teams belonging to a tournament.
- * We archive any existing non-e2e tournament and create a fresh ROSTER_LOCKED
- * tournament with 8 teams so tournament creation can proceed.
+ * We archive any existing non-e2e tournament and create a fresh GROUPING
+ * tournament with 8 teams so grouping/bracket generation can proceed.
  */
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -44,7 +44,7 @@ async function main() {
   if (e2eTournament) {
     await prisma.tournament.update({
       where: { id: e2eTournament.id },
-      data: { status: 'ROSTER_LOCKED', archivedAt: null },
+      data: { status: 'GROUPING', archivedAt: null },
     });
     const teams = await prisma.team.count({ where: { tournamentId: e2eTournament.id } });
     console.log('E2E tournament already exists:', e2eTournament.id, 'with', teams, 'teams');
@@ -63,12 +63,12 @@ async function main() {
     }
   }
 
-  // Create a new ROSTER_LOCKED tournament (ready for draft/grouping)
+  // Create a new GROUPING tournament (ready for grouping)
   const tournament = await prisma.tournament.create({
     data: {
       name: 'E2E 测试赛事',
       kind: '正赛',
-      status: 'ROSTER_LOCKED',
+      status: 'GROUPING',
       teamBudget: 1000,
       config: E2E_CONFIG,
     },
