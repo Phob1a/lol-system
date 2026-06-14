@@ -1,5 +1,5 @@
 export type CaptainErrorCode =
-  | 'WRONG_SEASON_STATE'
+  | 'WRONG_TOURNAMENT_STATE'
   | 'NOT_FOUND'
   | 'ALREADY_CAPTAIN'
   | 'NOT_A_CAPTAIN'

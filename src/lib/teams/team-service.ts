@@ -10,7 +10,7 @@ export type TeamWithRefs = Prisma.TeamGetPayload<{
   };
 }>;
 
-export async function listSeasonTeams(
+export async function listTournamentTeams(
   db: PrismaClient,
   tournamentId: string,
 ): Promise<TeamWithRefs[]> {

@@ -14,7 +14,7 @@ export function isRosterEditable(status: TournamentStatus): boolean {
 
 function assertRosterEditable(status: TournamentStatus): void {
   if (!isRosterEditable(status)) {
-    throw new RegistrationError('SEASON_LOCKED', '选秀启动后名册已锁定，不可改动报名');
+    throw new RegistrationError('TOURNAMENT_LOCKED', '选秀启动后名册已锁定，不可改动报名');
   }
 }
 
@@ -72,7 +72,7 @@ export type RegistrationWithPlayer = Prisma.RegistrationGetPayload<{
   include: { player: { select: { gameId: true } } };
 }>;
 
-export async function listSeasonRegistrations(
+export async function listTournamentRegistrations(
   db: PrismaClient,
   tournamentId: string,
 ): Promise<RegistrationWithPlayer[]> {

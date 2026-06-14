@@ -5,7 +5,7 @@ import { closeGroupStage } from './bracket-service';
 import { recordGame } from './score-service';
 import { saveGameDetail } from './game-detail-service';
 import { getPublicTournamentState, getPublicMatchDetail } from './read-model';
-import { getPlayerSeasonStats } from './player-stats-service';
+import { getPlayerTournamentStats } from './player-stats-service';
 import { computeLeaderboard, type LeaderboardGame } from './leaderboard';
 import { seedTournamentWithTeams, expandRosterTo5 } from './test-fixtures';
 import { getChampions } from './champions';
@@ -75,7 +75,7 @@ it('M2 全流程：建赛事→分组→快录+详细→决赛 FINISHED→数据
 
   // 选手页
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
-  const ps = (await getPlayerSeasonStats(testDb, reg.playerId, t.id))!;
+  const ps = (await getPlayerTournamentStats(testDb, reg.playerId, t.id))!;
   expect(ps.summary.games).toBe(3);
   expect(ps.summary.mvpCount).toBe(3);
   expect(ps.games).toHaveLength(3);

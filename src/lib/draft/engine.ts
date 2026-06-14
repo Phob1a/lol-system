@@ -14,7 +14,7 @@ export class DraftStateError extends Error {
 
 /** All error codes the draft engine can raise. */
 export type DraftStateErrorCode =
-  | 'WRONG_SEASON_STATE'
+  | 'WRONG_TOURNAMENT_STATE'
   | 'NO_TOURNAMENT'
   | 'ALREADY_RUNNING'
   | 'NO_CAPTAINS'
@@ -66,7 +66,7 @@ export async function startDraft(
     const tournament = await tx.tournament.findUnique({ where: { id: tournamentId } });
     if (!tournament) throw new DraftStateError('NO_TOURNAMENT', '赛事不存在');
     if (tournament.status !== 'ROSTER_LOCKED') {
-      throw new DraftStateError('WRONG_SEASON_STATE', '赛事未处于名册锁定阶段');
+      throw new DraftStateError('WRONG_TOURNAMENT_STATE', '赛事未处于名册锁定阶段');
     }
 
     const existing = await tx.draftSession.findFirst({

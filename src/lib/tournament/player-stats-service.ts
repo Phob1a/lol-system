@@ -7,7 +7,7 @@ export type PlayerGameRow = {
   kills: number; deaths: number; assists: number; cs: number; damage: number; gold: number;
   win: boolean; isMvp: boolean;
 };
-export type PlayerSeasonStats = {
+export type PlayerTournamentStats = {
   playerId: string; nickname: string;
   summary: { games: number; wins: number; avgKills: number; avgDeaths: number; avgAssists: number; kda: number; avgCs: number; avgDamage: number; avgGold: number; mvpCount: number };
   games: PlayerGameRow[];
@@ -17,11 +17,11 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** 指定赛事内该选手的统计；签名按 tournamentId 参数化（跨赛事汇总为后续扩展，零表改动）。 */
-export async function getPlayerSeasonStats(db: Db, playerId: string, tournamentId: string): Promise<PlayerSeasonStats | null> {
+export async function getPlayerTournamentStats(db: Db, playerId: string, tournamentId: string): Promise<PlayerTournamentStats | null> {
   const player = await db.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
   const reg = await db.registration.findFirst({ where: { playerId, tournamentId } }); // @@unique([tournamentId, playerId])
-  const empty: PlayerSeasonStats = {
+  const empty: PlayerTournamentStats = {
     playerId, nickname: player.nickname,
     summary: { games: 0, wins: 0, avgKills: 0, avgDeaths: 0, avgAssists: 0, kda: 0, avgCs: 0, avgDamage: 0, avgGold: 0, mvpCount: 0 },
     games: [],

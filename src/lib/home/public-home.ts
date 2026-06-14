@@ -1,4 +1,4 @@
-export type HomeSeasonStatus =
+export type HomeTournamentStatus =
   | 'SETUP'
   | 'REGISTRATION'
   | 'ROSTER_LOCKED'
@@ -6,9 +6,9 @@ export type HomeSeasonStatus =
   | 'COMPLETED'
   | 'ARCHIVED';
 
-export type HomeTournamentStatus = 'SETUP' | 'GROUP_STAGE' | 'KNOCKOUT' | 'FINISHED';
+export type HomeBracketStatus = 'SETUP' | 'GROUP_STAGE' | 'KNOCKOUT' | 'FINISHED';
 
-const TOURNAMENT_STATUS_TEXT: Record<HomeTournamentStatus, string> = {
+const BRACKET_STATUS_TEXT: Record<HomeBracketStatus, string> = {
   SETUP: '赛事筹备中',
   GROUP_STAGE: '小组赛进行中',
   KNOCKOUT: '淘汰赛进行中',
@@ -16,8 +16,8 @@ const TOURNAMENT_STATUS_TEXT: Record<HomeTournamentStatus, string> = {
 };
 
 export type PublicHomeContext = {
-  season: { name: string; status: HomeSeasonStatus } | null;
-  tournament: { status: HomeTournamentStatus } | null;
+  tournament: { name: string; status: HomeTournamentStatus } | null;
+  bracket: { status: HomeBracketStatus } | null;
 };
 
 export type HomeEntry = {
@@ -66,9 +66,9 @@ function entry(id: HomeEntry['id'], emphasis: HomeEntry['emphasis'] = 'normal'):
 }
 
 export function buildHomeEntries(context: PublicHomeContext): HomeEntry[] {
-  if (!context.season) return [entry('login', 'primary')];
+  if (!context.tournament) return [entry('login', 'primary')];
 
-  switch (context.season.status) {
+  switch (context.tournament.status) {
     case 'REGISTRATION':
       return [
         entry('register', 'primary'),
@@ -113,36 +113,36 @@ export function buildHomeEntries(context: PublicHomeContext): HomeEntry[] {
   }
 }
 
-export function getSeasonStatusText(context: PublicHomeContext): {
+export function getTournamentStatusText(context: PublicHomeContext): {
   headline: string;
   description: string;
 } {
-  if (!context.season) {
+  if (!context.tournament) {
     return {
       headline: '暂无开放赛事',
       description: '当前没有活跃赛事。管理员可以登录后台创建赛事。',
     };
   }
 
-  const name = context.season.name;
-  const tournament = context.tournament;
-  const tournamentText = tournament
-    ? TOURNAMENT_STATUS_TEXT[tournament.status]
+  const name = context.tournament.name;
+  const bracket = context.bracket;
+  const bracketText = bracket
+    ? BRACKET_STATUS_TEXT[bracket.status]
     : '赛事暂未创建';
 
-  switch (context.season.status) {
+  switch (context.tournament.status) {
     case 'REGISTRATION':
-      return { headline: `${name}报名开放中`, description: tournamentText };
+      return { headline: `${name}报名开放中`, description: bracketText };
     case 'ROSTER_LOCKED':
-      return { headline: `${name}报名已截止`, description: tournamentText };
+      return { headline: `${name}报名已截止`, description: bracketText };
     case 'DRAFTING':
-      return { headline: `${name}选秀进行中`, description: tournamentText };
+      return { headline: `${name}选秀进行中`, description: bracketText };
     case 'COMPLETED':
-      return { headline: `${name}已完成`, description: tournamentText };
+      return { headline: `${name}已完成`, description: bracketText };
     case 'ARCHIVED':
-      return { headline: `${name}已归档`, description: tournamentText };
+      return { headline: `${name}已归档`, description: bracketText };
     case 'SETUP':
     default:
-      return { headline: `${name}准备中`, description: tournamentText };
+      return { headline: `${name}准备中`, description: bracketText };
   }
 }

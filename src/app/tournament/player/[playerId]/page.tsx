@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   PlayerStatsView,
-  type PlayerSeasonStats,
+  type PlayerTournamentStats,
 } from '@/components/tournament/PlayerStatsView';
 
 export default function PlayerStatsPage() {
   const params = useParams<{ playerId: string }>();
-  const [stats, setStats] = useState<PlayerSeasonStats | null | undefined>(undefined);
+  const [stats, setStats] = useState<PlayerTournamentStats | null | undefined>(undefined);
 
   useEffect(() => {
     const id = params?.playerId;
@@ -20,7 +20,7 @@ export default function PlayerStatsPage() {
           setStats(null);
           return;
         }
-        const body = (await res.json()) as { stats?: PlayerSeasonStats };
+        const body = (await res.json()) as { stats?: PlayerTournamentStats };
         setStats(body.stats ?? null);
       })
       .catch(() => setStats(null));

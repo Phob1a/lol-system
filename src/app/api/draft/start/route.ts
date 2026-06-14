@@ -23,7 +23,7 @@ export async function POST() {
     return NextResponse.json({ sessionId, snapshot });
   } catch (e) {
     if (e instanceof DraftStateError) {
-      if (e.code === 'WRONG_SEASON_STATE') {
+      if (e.code === 'WRONG_TOURNAMENT_STATE') {
         return NextResponse.json({ error: e.message, code: e.code }, { status: 422 });
       }
       return NextResponse.json({ error: e.message, code: e.code }, { status: 409 });

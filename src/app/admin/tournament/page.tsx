@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { getActiveTournament, listTournaments } from '@/lib/tournament/tournament-service';
-import { listSeasonTeams } from '@/lib/teams/team-service';
+import { listTournamentTeams } from '@/lib/teams/team-service';
 import { TournamentAdmin } from '@/components/admin/tournament/TournamentAdmin';
 import { TournamentManager } from '@/components/admin/TournamentManager';
 
@@ -12,7 +12,7 @@ export default async function AdminTournamentPage() {
     listTournaments(prisma),
   ]);
 
-  const teams = tournament ? await listSeasonTeams(prisma, tournament.id) : [];
+  const teams = tournament ? await listTournamentTeams(prisma, tournament.id) : [];
   const teamList = teams.map((t) => ({ id: t.id, name: t.name }));
 
   return (

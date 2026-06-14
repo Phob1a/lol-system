@@ -5,7 +5,7 @@ import { RegistrationError } from '@/lib/registration/errors';
 import { AdminRegistrationCreate } from '@/lib/registration/registration-schema';
 import {
   adminCreateRegistration,
-  listSeasonRegistrations,
+  listTournamentRegistrations,
 } from '@/lib/registration/registration-service';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
 
@@ -14,7 +14,7 @@ export async function GET() {
   if (guard.error) return guard.error;
   const tournament = await getActiveTournament(prisma);
   if (!tournament) return NextResponse.json({ tournament: null, registrations: [] });
-  const registrations = await listSeasonRegistrations(prisma, tournament.id);
+  const registrations = await listTournamentRegistrations(prisma, tournament.id);
   return NextResponse.json({ tournament, registrations });
 }
 

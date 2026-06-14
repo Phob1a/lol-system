@@ -3,7 +3,7 @@ import { ArrowRight, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   buildHomeEntries,
-  getSeasonStatusText,
+  getTournamentStatusText,
   type PublicHomeContext,
 } from '@/lib/home/public-home';
 
@@ -13,7 +13,7 @@ type Props = {
 
 export function PublicHomePage({ context }: Props) {
   const entries = buildHomeEntries(context);
-  const status = getSeasonStatusText(context);
+  const status = getTournamentStatusText(context);
 
   return (
     <main className="min-h-screen bg-background">

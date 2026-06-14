@@ -5,7 +5,7 @@ import {
   submitPublicRegistration,
   adminCreateRegistration,
   deleteRegistration,
-  listSeasonRegistrations,
+  listTournamentRegistrations,
   patchRegistration,
 } from './registration-service';
 import { RegistrationError } from './errors';
@@ -70,7 +70,7 @@ describe('registration admin ops', () => {
   it('lists registrations for a season', async () => {
     const tournament = await openSeason();
     await submitPublicRegistration(testDb, form);
-    expect(await listSeasonRegistrations(testDb, tournament.id)).toHaveLength(1);
+    expect(await listTournamentRegistrations(testDb, tournament.id)).toHaveLength(1);
   });
 
   it('patches cost and status', async () => {
@@ -135,7 +135,7 @@ describe('registration roster lock (P1.1)', () => {
       patchRegistration(testDb, reg.id, { cost: 250 }),
     ).rejects.toMatchObject({
       name: 'RegistrationError',
-      code: 'SEASON_LOCKED',
+      code: 'TOURNAMENT_LOCKED',
     });
   });
 
@@ -147,7 +147,7 @@ describe('registration roster lock (P1.1)', () => {
       deleteRegistration(testDb, reg.id),
     ).rejects.toMatchObject({
       name: 'RegistrationError',
-      code: 'SEASON_LOCKED',
+      code: 'TOURNAMENT_LOCKED',
     });
     expect(await testDb.registration.count({ where: { id: reg.id } })).toBe(1);
   });
@@ -164,7 +164,7 @@ describe('registration roster lock (P1.1)', () => {
       }),
     ).rejects.toMatchObject({
       name: 'RegistrationError',
-      code: 'SEASON_LOCKED',
+      code: 'TOURNAMENT_LOCKED',
     });
   });
 

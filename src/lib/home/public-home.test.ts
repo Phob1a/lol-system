@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildHomeEntries, getSeasonStatusText, type PublicHomeContext } from './public-home';
+import { buildHomeEntries, getTournamentStatusText, type PublicHomeContext } from './public-home';
 
 function ctx(overrides: Partial<PublicHomeContext> = {}): PublicHomeContext {
   return {
-    season: { name: '夏季赛', status: 'REGISTRATION' },
-    tournament: { status: 'SETUP' },
+    tournament: { name: '夏季赛', status: 'REGISTRATION' },
+    bracket: { status: 'SETUP' },
     ...overrides,
   };
 }
@@ -23,7 +23,7 @@ describe('public homepage view model', () => {
   });
 
   it('prioritizes live draft during DRAFTING', () => {
-    const entries = buildHomeEntries(ctx({ season: { name: '夏季赛', status: 'DRAFTING' } }));
+    const entries = buildHomeEntries(ctx({ tournament: { name: '夏季赛', status: 'DRAFTING' } }));
     expect(entries[0]).toMatchObject({ id: 'live', href: '/live', emphasis: 'primary' });
     expect(entries.map((e) => e.id)).toEqual([
       'live',
@@ -35,20 +35,20 @@ describe('public homepage view model', () => {
   });
 
   it('keeps login available when no active season exists', () => {
-    const entries = buildHomeEntries({ season: null, tournament: null });
+    const entries = buildHomeEntries({ tournament: null, bracket: null });
     expect(entries.map((e) => e.id)).toEqual(['login']);
     expect(entries[0].href).toBe('/login');
   });
 
   it('uses season status text without exposing private details', () => {
-    expect(getSeasonStatusText(ctx()).headline).toBe('夏季赛报名开放中');
-    expect(getSeasonStatusText({ season: null, tournament: null }).headline).toBe('暂无开放赛事');
+    expect(getTournamentStatusText(ctx()).headline).toBe('夏季赛报名开放中');
+    expect(getTournamentStatusText({ tournament: null, bracket: null }).headline).toBe('暂无开放赛事');
   });
 
   it('renders tournament status as Chinese text, not the raw enum', () => {
-    expect(getSeasonStatusText(ctx({ tournament: { status: 'GROUP_STAGE' } })).description).toBe(
+    expect(getTournamentStatusText(ctx({ bracket: { status: 'GROUP_STAGE' } })).description).toBe(
       '小组赛进行中',
     );
-    expect(getSeasonStatusText(ctx({ tournament: null })).description).toBe('赛事暂未创建');
+    expect(getTournamentStatusText(ctx({ bracket: null })).description).toBe('赛事暂未创建');
   });
 });

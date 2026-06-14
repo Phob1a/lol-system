@@ -14,7 +14,7 @@ import {
 import { championIconUrl } from '@/lib/tournament/champions';
 
 // ---------------------------------------------------------------------------
-// Types (mirror of PlayerSeasonStats + PlayerGameRow from player-stats-service)
+// Types (mirror of PlayerTournamentStats + PlayerGameRow from player-stats-service)
 // ---------------------------------------------------------------------------
 
 export type PlayerGameRow = {
@@ -47,7 +47,7 @@ export type PlayerSummary = {
   mvpCount: number;
 };
 
-export type PlayerSeasonStats = {
+export type PlayerTournamentStats = {
   playerId: string;
   nickname: string;
   summary: PlayerSummary;
@@ -201,7 +201,7 @@ function GamesTable({ games }: { games: PlayerGameRow[] }) {
 // Main export
 // ---------------------------------------------------------------------------
 
-export function PlayerStatsView({ stats }: { stats: PlayerSeasonStats }) {
+export function PlayerStatsView({ stats }: { stats: PlayerTournamentStats }) {
   return (
     <div className="space-y-6">
       <PlayerHeader nickname={stats.nickname} summary={stats.summary} />

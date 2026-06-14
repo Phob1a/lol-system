@@ -3,7 +3,7 @@ import { resetDb, testDb } from '@/lib/test/db';
 import { recordGame } from './score-service';
 import { closeGroupStage } from './bracket-service';
 import { saveGameDetail } from './game-detail-service';
-import { getPlayerSeasonStats } from './player-stats-service';
+import { getPlayerTournamentStats } from './player-stats-service';
 import { getChampions } from './champions';
 import { expandRosterTo5, seedTournamentWithTeams } from './test-fixtures';
 import { setupGroupStage } from './score-service.test-helpers';
@@ -44,7 +44,7 @@ it('汇总 + 逐场明细；MVP 标记', async () => {
     actorUserId: 'u',
   });
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
-  const res = (await getPlayerSeasonStats(testDb, reg.playerId, t.id))!;
+  const res = (await getPlayerTournamentStats(testDb, reg.playerId, t.id))!;
   expect(res.summary.games).toBe(1);
   expect(res.summary.mvpCount).toBe(1);
   expect(res.games).toHaveLength(1);
@@ -67,11 +67,11 @@ it('跨赛事隔离：仅取指定赛事的数据（真实第二赛事，验证 
   });
   const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
   // Verify player has 1 game in tournament #1
-  const res1 = (await getPlayerSeasonStats(testDb, reg.playerId, t1.id))!;
+  const res1 = (await getPlayerTournamentStats(testDb, reg.playerId, t1.id))!;
   expect(res1.summary.games).toBe(1);
 
   // Tournament #2: a real second tournament; register the SAME player to bypass the early-return path
-  // so that getPlayerSeasonStats actually runs the match.tournamentId filter query
+  // so that getPlayerTournamentStats actually runs the match.tournamentId filter query
   const { tournamentId: t2Id } = await seedTournamentWithTeams(4);
   await testDb.registration.create({
     data: {
@@ -84,6 +84,6 @@ it('跨赛事隔离：仅取指定赛事的数据（真实第二赛事，验证 
 
   // Querying tournament #2 must return 0 games — the player has a registration in t2
   // but no game stats; the match.tournamentId filter must not bleed t1 stats through
-  const res2 = (await getPlayerSeasonStats(testDb, reg.playerId, t2Id))!;
+  const res2 = (await getPlayerTournamentStats(testDb, reg.playerId, t2Id))!;
   expect(res2.summary.games).toBe(0);
 });

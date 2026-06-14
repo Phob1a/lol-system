@@ -33,7 +33,7 @@ export async function appointCaptain(
   });
   if (!reg) throw new CaptainError('NOT_FOUND', '报名记录不存在');
   if (reg.tournament.status !== 'ROSTER_LOCKED') {
-    throw new CaptainError('WRONG_SEASON_STATE', '仅在名册锁定阶段可任命队长');
+    throw new CaptainError('WRONG_TOURNAMENT_STATE', '仅在名册锁定阶段可任命队长');
   }
   if (reg.isCaptain) throw new CaptainError('ALREADY_CAPTAIN', '该选手已是队长');
 

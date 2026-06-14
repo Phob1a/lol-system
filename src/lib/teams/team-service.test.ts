@@ -4,7 +4,7 @@ import { testDb } from '@/lib/test/db';
 import { createTournament, transitionTournament } from '@/lib/tournament/tournament-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { appointCaptain } from '@/lib/captains/captain-service';
-import { listSeasonTeams, resetTeamPassword, updateTeamProfile } from './team-service';
+import { listTournamentTeams, resetTeamPassword, updateTeamProfile } from './team-service';
 import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
 
 async function appointed() {
@@ -22,7 +22,7 @@ async function appointed() {
 describe('team-service', () => {
   it('lists teams with captain + account username', async () => {
     const { tournamentId } = await appointed();
-    const teams = await listSeasonTeams(testDb, tournamentId);
+    const teams = await listTournamentTeams(testDb, tournamentId);
     expect(teams).toHaveLength(1);
     expect(teams[0].account.username).toMatch(/^TEAM-/);
     expect(teams[0].captain.nickname).toBe('队长');
