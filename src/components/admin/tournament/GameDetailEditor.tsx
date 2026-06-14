@@ -881,48 +881,59 @@ function StatsTable({
         ))}
       </div>
       {/* Data rows */}
-      {rows.map((row, idx) => (
-        <div
-          key={row.registrationId}
-          className="grid min-w-[640px] grid-cols-[110px_180px_88px_72px_88px_88px] items-center gap-1"
-        >
-          <span className="truncate text-sm" title={row.nickname}>
-            {row.nickname}
-          </span>
-          <div
-            data-testid={`stat-champion-cell-${tableKey}-${idx}`}
-            data-invalid={errors[row.registrationId]?.championId ? 'true' : 'false'}
-            tabIndex={-1}
-            className={errors[row.registrationId]?.championId ? 'rounded-md border border-destructive' : undefined}
-          >
-            <ChampionSelect
-              value={row.championId}
-              onChange={(k) => onUpdate(idx, { championId: k })}
-            />
+      {rows.map((row, idx) => {
+        const rowErrors = errors[row.registrationId];
+        const rowErrorText = rowErrors
+          ? Array.from(new Set(Object.values(rowErrors))).join('，')
+          : null;
+
+        return (
+          <div key={row.registrationId} className="min-w-[640px] space-y-1">
+            <div className="grid grid-cols-[110px_180px_88px_72px_88px_88px] items-center gap-1">
+              <span className="truncate text-sm" title={row.nickname}>
+                {row.nickname}
+              </span>
+              <div
+                data-testid={`stat-champion-cell-${tableKey}-${idx}`}
+                data-invalid={rowErrors?.championId ? 'true' : 'false'}
+                tabIndex={-1}
+                className={rowErrors?.championId ? 'rounded-md border border-destructive' : undefined}
+              >
+                <ChampionSelect
+                  value={row.championId}
+                  onChange={(k) => onUpdate(idx, { championId: k })}
+                />
+              </div>
+              {STAT_COLS.map((c) => (
+                <Input
+                  key={c.key}
+                  aria-label={c.label}
+                  aria-invalid={rowErrors?.[c.key] ? 'true' : 'false'}
+                  inputMode="numeric"
+                  value={row[c.key]}
+                  onChange={(e) => onUpdate(idx, { [c.key]: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const next = document.querySelector<HTMLInputElement>(
+                        `[data-stat-input="${tableKey}-${c.key}-${idx + 1}"]`,
+                      );
+                      next?.focus();
+                    }
+                  }}
+                  data-stat-input={`${tableKey}-${c.key}-${idx}`}
+                  className={rowErrors?.[c.key] ? 'h-10 border-destructive' : 'h-10'}
+                />
+              ))}
+            </div>
+            {rowErrorText && (
+              <p className="pl-[110px] text-xs text-destructive">
+                {rowErrorText}
+              </p>
+            )}
           </div>
-          {STAT_COLS.map((c) => (
-            <Input
-              key={c.key}
-              aria-label={c.label}
-              aria-invalid={errors[row.registrationId]?.[c.key] ? 'true' : 'false'}
-              inputMode="numeric"
-              value={row[c.key]}
-              onChange={(e) => onUpdate(idx, { [c.key]: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const next = document.querySelector<HTMLInputElement>(
-                    `[data-stat-input="${tableKey}-${c.key}-${idx + 1}"]`,
-                  );
-                  next?.focus();
-                }
-              }}
-              data-stat-input={`${tableKey}-${c.key}-${idx}`}
-              className={errors[row.registrationId]?.[c.key] ? 'h-10 border-destructive' : 'h-10'}
-            />
-          ))}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

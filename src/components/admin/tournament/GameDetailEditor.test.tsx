@@ -283,12 +283,13 @@ describe('GameDetailEditor stat entry', () => {
     const fetchMock = okFetch();
     render(<GameDetailEditor {...props()} />);
 
-    fireEvent.change(screen.getAllByLabelText('KDA')[0], { target: { value: '1/2/3' } });
+    fireEvent.change(screen.getAllByLabelText('KDA')[0], { target: { value: '1/2' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
     expect(screen.getByText(/选手数据需双方各 5 人填齐/)).toBeInTheDocument();
     expect(screen.getByTestId('stat-champion-cell-A-0')).toHaveAttribute('data-invalid', 'true');
+    expect(screen.getAllByText(/KDA 格式错误/).length).toBeGreaterThan(0);
   });
 
   it('parses KDA input into kills deaths and assists payload fields', async () => {
