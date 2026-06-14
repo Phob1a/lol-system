@@ -23,6 +23,15 @@ import {
 } from '@/components/ui/select';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { ChampionSelect } from './ChampionSelect';
+import {
+  buildBansPayload,
+  buildStandardBanRows,
+  derivePicksFromStats,
+  findChampionDuplicate,
+  isStatsAllComplete,
+  parseKda,
+  parseNonNegativeInteger,
+} from './game-detail-entry-utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,15 +86,14 @@ export type Props = {
 
 // ── Sub-types for local state ─────────────────────────────────────────────────
 
-type BanRow = { teamId: string; type: 'BAN' | 'PICK'; championId: string | null };
+type BanRow = { teamId: string; championId: string | null };
+type LegacyPickRow = { teamId: string; type: 'PICK'; championId: string };
 
 type StatRow = {
   registrationId: string;
   nickname: string;
   championId: string | null;
-  kills: string;
-  deaths: string;
-  assists: string;
+  kda: string;
   cs: string;
   damage: string;
   gold: string;
@@ -98,9 +106,7 @@ function blankStatRow(p: RosterPlayer): StatRow {
     registrationId: p.registrationId,
     nickname: p.nickname,
     championId: null,
-    kills: '',
-    deaths: '',
-    assists: '',
+    kda: '',
     cs: '',
     damage: '',
     gold: '',
@@ -134,9 +140,7 @@ function populateStatRow(p: RosterPlayer, existing: RawStat | undefined): StatRo
     registrationId: p.registrationId,
     nickname: p.nickname,
     championId: existing.championId,
-    kills: String(existing.kills),
-    deaths: String(existing.deaths),
-    assists: String(existing.assists),
+    kda: `${existing.kills}/${existing.deaths}/${existing.assists}`,
     cs: String(existing.cs),
     damage: String(existing.damage),
     gold: String(existing.gold),
@@ -175,6 +179,7 @@ export function GameDetailEditor({
   const [winnerTouched, setWinnerTouched] = useState(false);
 
   const [bans, setBans] = useState<BanRow[]>([]);
+  const [legacyPicks, setLegacyPicks] = useState<LegacyPickRow[]>([]);
   const [bansTouched, setBansTouched] = useState(false);
   const [bansCleared, setBansCleared] = useState(false);
 
@@ -202,11 +207,16 @@ export function GameDetailEditor({
     setWinnerTeamId(initial?.winnerTeamId ?? null);
     setWinnerTouched(false);
 
-    const initBans = initial?.bans;
+    const initBans = initial?.bans ?? [];
     setBans(
-      initBans && initBans.length > 0
-        ? initBans.map((b) => ({ teamId: b.teamId, type: b.type, championId: b.championId }))
-        : [],
+      initBans
+        .filter((b) => b.type === 'BAN')
+        .map((b) => ({ teamId: b.teamId, championId: b.championId })),
+    );
+    setLegacyPicks(
+      initBans
+        .filter((b): b is { teamId: string; type: 'PICK'; championId: string; order: number } => b.type === 'PICK')
+        .map((b) => ({ teamId: b.teamId, type: 'PICK', championId: b.championId })),
     );
     setBansTouched(false);
     setBansCleared(false);
@@ -236,17 +246,13 @@ export function GameDetailEditor({
 
   // ── Derived: stats completeness ───────────────────────────────────────────
 
-  function isStatRowComplete(row: StatRow): boolean {
-    if (!row.championId) return false;
-    return [row.kills, row.deaths, row.assists, row.cs, row.damage, row.gold].every(
-      (f) => parseNonNeg(f) !== null,
-    );
-  }
-
-  const statsAComplete = statsA.length === 5 && statsA.every(isStatRowComplete);
-  const statsBComplete = statsB.length === 5 && statsB.every(isStatRowComplete);
-  const statsAllComplete = statsAComplete && statsBComplete;
+  const statsAllComplete = isStatsAllComplete(statsA, statsB);
   const mvpEnabled = statsAllComplete && !statsCleared;
+
+  const statsChampionSummary = [
+    { teamName: match.teamA.name, rows: statsA },
+    { teamName: match.teamB.name, rows: statsB },
+  ];
 
   // ── All players for MVP select ────────────────────────────────────────────
 
@@ -258,7 +264,7 @@ export function GameDetailEditor({
   // ── Ban row helpers ───────────────────────────────────────────────────────
 
   function addBanRow() {
-    setBans((prev) => [...prev, { teamId: match.teamA.id, type: 'BAN', championId: null }]);
+    setBans((prev) => [...prev, { teamId: match.teamA.id, championId: null }]);
     setBansTouched(true);
     setBansCleared(false);
   }
@@ -276,8 +282,22 @@ export function GameDetailEditor({
 
   function clearBans() {
     setBans([]);
+    setLegacyPicks([]);
     setBansTouched(true);
     setBansCleared(true);
+  }
+
+  function applyStandardBanTemplate() {
+    if (bans.length > 0 && !window.confirm('套用标准模板会覆盖当前 BAN 行，是否继续？')) return;
+    const blue = blueTeamId ?? match.teamA.id;
+    const red = blue === match.teamA.id ? match.teamB.id : match.teamA.id;
+    if (!blueTeamId) {
+      setBlueTeamId(match.teamA.id);
+      setBlueTouched(true);
+    }
+    setBans(buildStandardBanRows(blue, red));
+    setBansTouched(true);
+    setBansCleared(false);
   }
 
   // ── Stats helpers ────────────────────────────────────────────────────────
@@ -305,6 +325,10 @@ export function GameDetailEditor({
 
   function buildPayload(): Record<string, unknown> {
     const detail: Record<string, unknown> = {};
+    const statsComplete = isStatsAllComplete(statsA, statsB);
+    const derivedPicks = statsComplete
+      ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id)
+      : [];
 
     // winnerTeamId: for new game always include; for edits only if touched
     if (!isEdit || winnerTouched) {
@@ -317,44 +341,50 @@ export function GameDetailEditor({
       const secs = minSecToSeconds(durationMin, durationSec);
       detail.durationSeconds = secs;
     }
-    if (bansTouched) {
+    if (bansTouched || statsComplete) {
       if (bansCleared) {
         detail.bans = null;
       } else {
-        detail.bans = bans.map((b, i) => ({
-          teamId: b.teamId,
-          type: b.type,
-          championId: b.championId ?? '',
-          order: i + 1,
-        }));
+        detail.bans = buildBansPayload({
+          banRows: bans,
+          derivedPicks,
+          legacyPicks,
+          useDerivedPicks: statsComplete,
+        });
       }
     }
     if (statsTouched) {
       if (statsCleared) {
         detail.playerStats = null;
-      } else {
-        const rowsA = statsA.map((r) => ({
-          teamId: match.teamA.id,
-          registrationId: r.registrationId,
-          championId: r.championId ?? '',
-          kills: parseNonNeg(r.kills) ?? 0,
-          deaths: parseNonNeg(r.deaths) ?? 0,
-          assists: parseNonNeg(r.assists) ?? 0,
-          cs: parseNonNeg(r.cs) ?? 0,
-          damage: parseNonNeg(r.damage) ?? 0,
-          gold: parseNonNeg(r.gold) ?? 0,
-        }));
-        const rowsB = statsB.map((r) => ({
-          teamId: match.teamB.id,
-          registrationId: r.registrationId,
-          championId: r.championId ?? '',
-          kills: parseNonNeg(r.kills) ?? 0,
-          deaths: parseNonNeg(r.deaths) ?? 0,
-          assists: parseNonNeg(r.assists) ?? 0,
-          cs: parseNonNeg(r.cs) ?? 0,
-          damage: parseNonNeg(r.damage) ?? 0,
-          gold: parseNonNeg(r.gold) ?? 0,
-        }));
+      } else if (statsComplete) {
+        const rowsA = statsA.map((r) => {
+          const kda = parseKda(r.kda)!;
+          return {
+            teamId: match.teamA.id,
+            registrationId: r.registrationId,
+            championId: r.championId!,
+            kills: kda.kills,
+            deaths: kda.deaths,
+            assists: kda.assists,
+            cs: parseNonNegativeInteger(r.cs)!,
+            damage: parseNonNegativeInteger(r.damage)!,
+            gold: parseNonNegativeInteger(r.gold)!,
+          };
+        });
+        const rowsB = statsB.map((r) => {
+          const kda = parseKda(r.kda)!;
+          return {
+            teamId: match.teamB.id,
+            registrationId: r.registrationId,
+            championId: r.championId!,
+            kills: kda.kills,
+            deaths: kda.deaths,
+            assists: kda.assists,
+            cs: parseNonNegativeInteger(r.cs)!,
+            damage: parseNonNegativeInteger(r.damage)!,
+            gold: parseNonNegativeInteger(r.gold)!,
+          };
+        });
         detail.playerStats = [...rowsA, ...rowsB];
       }
     }
@@ -372,11 +402,27 @@ export function GameDetailEditor({
       for (let i = 0; i < bans.length; i++) {
         if (!bans[i].championId) return `BP 第 ${i + 1} 行缺少英雄`;
       }
-      const seen = new Set<string>();
-      for (const b of bans) {
-        if (seen.has(b.championId!)) return `BP 中英雄重复：${b.championId}`;
-        seen.add(b.championId!);
-      }
+      const statsComplete = isStatsAllComplete(statsA, statsB);
+      const pickItems = statsComplete
+        ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
+            source: 'stat' as const,
+            label: `选手英雄 ${index + 1}`,
+            championId: pick.championId,
+          }))
+        : legacyPicks.map((pick, index) => ({
+            source: 'pick' as const,
+            label: `既有 PICK ${index + 1}`,
+            championId: pick.championId,
+          }));
+      const duplicate = findChampionDuplicate([
+        ...bans.map((ban, index) => ({
+          source: 'ban' as const,
+          label: `BAN ${index + 1}`,
+          championId: ban.championId,
+        })),
+        ...pickItems,
+      ]);
+      if (duplicate) return `同局英雄不可重复：${duplicate.championId}`;
     }
 
     if (statsTouched && !statsCleared && !statsAllComplete) {
@@ -524,16 +570,26 @@ export function GameDetailEditor({
 
           {/* ── BP 编辑器 ── */}
           <Section
-            title="BP（禁/选英雄）"
+            title="BP（禁用英雄）"
             action={
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={clearBans}
-              >
-                整段清空
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {blueTeamId
+                    ? `以 ${blueTeamId === match.teamA.id ? match.teamA.name : match.teamB.name} 为蓝方`
+                    : `将以 ${match.teamA.name} 为蓝方`}
+                </span>
+                <Button variant="outline" size="sm" onClick={applyStandardBanTemplate}>
+                  套用标准模板
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={clearBans}
+                >
+                  整段清空 BP
+                </Button>
+              </div>
             }
           >
             <div className="space-y-2">
@@ -552,18 +608,6 @@ export function GameDetailEditor({
                     <SelectContent>
                       <SelectItem value={match.teamA.id}>{match.teamA.name}</SelectItem>
                       <SelectItem value={match.teamB.id}>{match.teamB.name}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={row.type}
-                    onValueChange={(v) => updateBanRow(idx, { type: v as 'BAN' | 'PICK' })}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BAN">BAN</SelectItem>
-                      <SelectItem value="PICK">PICK</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex-1">
@@ -585,8 +629,27 @@ export function GameDetailEditor({
               ))}
               <Button variant="outline" size="sm" onClick={addBanRow} className="mt-1">
                 <Plus className="h-4 w-4" />
-                添加 ban/pick
+                添加 BAN
               </Button>
+              <div className="rounded-md border bg-muted/30 p-2 text-xs">
+                <p className="mb-1 font-medium text-muted-foreground">本局英雄</p>
+                {statsAllComplete ? (
+                  <div className="space-y-1">
+                    {statsChampionSummary.map((group) => (
+                      <div key={group.teamName} className="flex flex-wrap gap-1">
+                        <span className="mr-1 text-muted-foreground">{group.teamName}</span>
+                        {group.rows.map((row) => (
+                          <span key={row.registrationId} className="rounded border px-1">
+                            {row.championId}
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">填齐双方数据后自动生成 PICK</p>
+                )}
+              </div>
             </div>
           </Section>
 
@@ -726,10 +789,8 @@ function Section({
 
 // ── StatsTable helper ─────────────────────────────────────────────────────────
 
-const STAT_COLS: Array<{ key: keyof StatRow & string; label: string }> = [
-  { key: 'kills', label: 'K' },
-  { key: 'deaths', label: 'D' },
-  { key: 'assists', label: 'A' },
+const STAT_COLS: Array<{ key: 'kda' | 'cs' | 'damage' | 'gold'; label: string }> = [
+  { key: 'kda', label: 'KDA' },
   { key: 'cs', label: 'CS' },
   { key: 'damage', label: '伤害' },
   { key: 'gold', label: '金币' },
@@ -756,7 +817,7 @@ function StatsTable({
     <div className="space-y-1 overflow-x-auto">
       <p className="text-xs font-medium text-muted-foreground">{teamName}</p>
       {/* Header row */}
-      <div className="grid min-w-[600px] grid-cols-[110px_160px_repeat(6,56px)] gap-1 text-xs text-muted-foreground">
+      <div className="grid min-w-[640px] grid-cols-[110px_180px_88px_72px_88px_88px] gap-1 text-xs text-muted-foreground">
         <span>选手</span>
         <span>英雄</span>
         {STAT_COLS.map((c) => (
@@ -769,7 +830,7 @@ function StatsTable({
       {rows.map((row, idx) => (
         <div
           key={row.registrationId}
-          className="grid min-w-[600px] grid-cols-[110px_160px_repeat(6,56px)] items-center gap-1"
+          className="grid min-w-[640px] grid-cols-[110px_180px_88px_72px_88px_88px] items-center gap-1"
         >
           <span className="truncate text-sm" title={row.nickname}>
             {row.nickname}
@@ -781,12 +842,11 @@ function StatsTable({
           {STAT_COLS.map((c) => (
             <Input
               key={c.key}
-              type="number"
-              min={0}
-              value={row[c.key as keyof StatRow] as string}
+              aria-label={c.label}
+              inputMode="numeric"
+              value={row[c.key]}
               onChange={(e) => onUpdate(idx, { [c.key]: e.target.value })}
-              className="h-8 px-1 text-center text-xs"
-              placeholder="0"
+              className="h-10"
             />
           ))}
         </div>
