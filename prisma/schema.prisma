@@ -1,6 +1,6 @@
-// LoL Season & Draft System — Prisma schema
+// LoL Tournament System — Prisma schema
 // Provider: PostgreSQL 16
-// Multi-season: each Season owns registrations, teams, and exactly one draft.
+// Season concept merged into Tournament: each Tournament owns registrations, teams, and exactly one draft.
 // Event-sourced draft (DraftEvent) with materialized state for fast reads.
 
 generator client {
@@ -23,15 +23,6 @@ enum Position {
 enum Role {
   ADMIN
   CAPTAIN
-}
-
-enum SeasonStatus {
-  SETUP
-  REGISTRATION
-  ROSTER_LOCKED
-  DRAFTING
-  COMPLETED
-  ARCHIVED
 }
 
 enum RegistrationStatus {
@@ -69,23 +60,6 @@ enum EventType {
   ORDER_SET
 }
 
-model Season {
-  id         String       @id @default(cuid())
-  name       String
-  status     SeasonStatus @default(SETUP)
-  teamBudget Float        @default(1000)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  archivedAt DateTime?
-
-  registrations Registration[]
-  teams         Team[]
-  draftSession  DraftSession?
-  tournament    Tournament?
-
-  @@map("seasons")
-}
-
 model Player {
   id        String   @id @default(cuid())
   gameId    String   @unique
@@ -100,7 +74,7 @@ model Player {
 
 model Registration {
   id                 String             @id @default(cuid())
-  seasonId           String
+  tournamentId       String
   playerId           String
   nickname           String
   primaryPositions   Position[]
@@ -114,7 +88,7 @@ model Registration {
   status             RegistrationStatus @default(ACTIVE)
   registeredAt       DateTime           @default(now())
 
-  season        Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  tournament    Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player        Player      @relation(fields: [playerId], references: [id])
   teamAsCaptain Team?       @relation("TeamCaptain")
   slots         TeamSlot[]
@@ -124,8 +98,8 @@ model Registration {
   gameStats         GamePlayerStat[]
   gamesAsMvp        Game[]               @relation("GameMvp")
 
-  @@unique([seasonId, playerId])
-  @@index([seasonId])
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId])
   @@map("registrations")
 }
 
@@ -144,19 +118,19 @@ model User {
 }
 
 model Team {
-  id         String @id @default(cuid())
-  seasonId   String
-  name       String
-  captainId  String @unique
-  userId     String @unique
-  budgetLeft Float  @default(0)
-  slogan     String?
+  id           String @id @default(cuid())
+  tournamentId String
+  name         String
+  captainId    String @unique
+  userId       String @unique
+  budgetLeft   Float  @default(0)
+  slogan       String?
 
-  season  Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  captain Registration @relation("TeamCaptain", fields: [captainId], references: [id])
-  account User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  slots   TeamSlot[]
-  picks   DraftPick[]  @relation("PickingTeam")
+  tournament Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  captain    Registration @relation("TeamCaptain", fields: [captainId], references: [id])
+  account    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots      TeamSlot[]
+  picks      DraftPick[]  @relation("PickingTeam")
 
   tournamentTeams  TournamentTeam[]
   groupMemberships TournamentGroupTeam[]
@@ -171,7 +145,7 @@ model Team {
 
   createdAt DateTime @default(now())
 
-  @@index([seasonId])
+  @@index([tournamentId])
   @@map("teams")
 }
 
@@ -190,7 +164,7 @@ model TeamSlot {
 
 model DraftSession {
   id           String      @id @default(cuid())
-  seasonId     String      @unique
+  tournamentId String      @unique
   status       DraftStatus @default(NOT_STARTED)
   currentRound Int         @default(0)
   onTheClock   String?
@@ -198,9 +172,9 @@ model DraftSession {
   startedAt    DateTime?
   finishedAt   DateTime?
 
-  season Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  rounds DraftRound[]
-  events DraftEvent[]
+  tournament Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  rounds     DraftRound[]
+  events     DraftEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -294,25 +268,33 @@ enum BanPickType {
 
 enum TournamentStatus {
   SETUP
+  REGISTRATION
+  ROSTER_LOCKED
+  DRAFTING
+  GROUPING
   GROUP_STAGE
   KNOCKOUT
   FINISHED
+  ARCHIVED
 }
 
 model Tournament {
-  id        String           @id @default(cuid())
-  seasonId  String           @unique
-  name      String
-  kind      String           @default("正赛")
-  status    TournamentStatus @default(SETUP)
-  config    Json
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id         String           @id @default(cuid())
+  name       String
+  kind       String           @default("正赛")
+  status     TournamentStatus @default(SETUP)
+  config     Json
+  teamBudget Float            @default(1000)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  archivedAt DateTime?
 
-  season Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  stages TournamentStage[]
-  teams  TournamentTeam[]
-  matches Match[]
+  registrations Registration[]
+  teams         Team[]
+  draftSession  DraftSession?
+  stages        TournamentStage[]
+  tournamentTeams TournamentTeam[]
+  matches       Match[]
 
   @@map("tournaments")
 }

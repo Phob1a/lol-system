@@ -14,7 +14,7 @@ export async function resetDb(): Promise<void> {
       "tournament_groups", "tournament_stages", "tournament_team_players",
       "tournament_teams", "tournaments",
       "draft_events", "draft_picks", "draft_rounds", "draft_sessions",
-      "team_slots", "teams", "registrations", "players", "users", "seasons"
+      "team_slots", "teams", "registrations", "players", "users"
     RESTART IDENTITY CASCADE;
   `);
 }
