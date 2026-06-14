@@ -12,10 +12,10 @@ export type TeamWithRefs = Prisma.TeamGetPayload<{
 
 export async function listSeasonTeams(
   db: PrismaClient,
-  seasonId: string,
+  tournamentId: string,
 ): Promise<TeamWithRefs[]> {
   return db.team.findMany({
-    where: { seasonId },
+    where: { tournamentId },
     include: {
       captain: { select: { id: true, nickname: true } },
       account: { select: { username: true } },

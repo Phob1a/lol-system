@@ -1,30 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import bcrypt from 'bcryptjs';
 import { testDb } from '@/lib/test/db';
-import { createSeason, transitionSeason } from '@/lib/season/season-service';
+import { createTournament, transitionTournament } from '@/lib/tournament/tournament-service';
 import { submitPublicRegistration } from '@/lib/registration/registration-service';
 import { appointCaptain } from '@/lib/captains/captain-service';
 import { listSeasonTeams, resetTeamPassword, updateTeamProfile } from './team-service';
 import { CFG_2x4x2 } from '@/lib/tournament/test-fixtures';
 
-const T = { kind: '正赛', config: CFG_2x4x2 };
-
 async function appointed() {
-  const s = await createSeason(testDb, { name: 'S1', teamBudget: 1000, tournament: T }, 'u');
-  await transitionSeason(testDb, s.id, 'REGISTRATION');
+  const tournament = await createTournament(testDb, { name: 'S1', teamBudget: 1000, kind: '正赛', config: CFG_2x4x2 }, 'u');
+  await transitionTournament(testDb, tournament.id, 'REGISTRATION');
   const reg = await submitPublicRegistration(testDb, {
     gameId: 'cap', nickname: '队长', primaryPositions: ['MID'], secondaryPositions: [],
     currentRank: '大师', peakRank: '大师', willingToCaptain: true,
   });
-  await transitionSeason(testDb, s.id, 'ROSTER_LOCKED');
+  await transitionTournament(testDb, tournament.id, 'ROSTER_LOCKED');
   const result = await appointCaptain(testDb, reg.id);
-  return { seasonId: s.id, teamId: result.teamId };
+  return { tournamentId: tournament.id, teamId: result.teamId };
 }
 
 describe('team-service', () => {
   it('lists teams with captain + account username', async () => {
-    const { seasonId } = await appointed();
-    const teams = await listSeasonTeams(testDb, seasonId);
+    const { tournamentId } = await appointed();
+    const teams = await listSeasonTeams(testDb, tournamentId);
     expect(teams).toHaveLength(1);
     expect(teams[0].account.username).toMatch(/^TEAM-/);
     expect(teams[0].captain.nickname).toBe('队长');
