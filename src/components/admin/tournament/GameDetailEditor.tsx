@@ -426,6 +426,18 @@ export function GameDetailEditor({
   // ── Client-side validation before save ──────────────────────────────────
 
   function validate(): string | null {
+    const statPickItems = statsAllComplete
+      ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
+          source: 'stat' as const,
+          label: `选手英雄 ${index + 1}`,
+          championId: pick.championId,
+        }))
+      : [];
+    if (statsTouched && !statsCleared && statPickItems.length > 0) {
+      const duplicate = findChampionDuplicate(statPickItems);
+      if (duplicate) return `同局英雄不可重复：${duplicate.championId}`;
+    }
+
     const willWriteBans = !bansCleared && (bansTouched || statsTouched);
 
     if (willWriteBans) {
@@ -433,11 +445,7 @@ export function GameDetailEditor({
         if (!bans[i].championId) return `BP 第 ${i + 1} 行缺少英雄`;
       }
       const pickItems = statsAllComplete
-        ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
-            source: 'stat' as const,
-            label: `选手英雄 ${index + 1}`,
-            championId: pick.championId,
-          }))
+        ? statPickItems
         : legacyPicks.map((pick, index) => ({
             source: 'pick' as const,
             label: `既有 PICK ${index + 1}`,
@@ -463,7 +471,8 @@ export function GameDetailEditor({
       queueMicrotask(() => {
         const first = document.querySelector('[data-invalid="true"], [aria-invalid="true"]') as HTMLElement | null;
         first?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-        first?.focus?.();
+        const focusTarget = first?.querySelector<HTMLElement>('input, select, textarea, button, [role="combobox"]') ?? first;
+        focusTarget?.focus?.();
       });
       return message;
     }

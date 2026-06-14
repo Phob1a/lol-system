@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameDetailEditor, type Props } from './GameDetailEditor';
 
@@ -238,6 +238,25 @@ describe('GameDetailEditor BP payload', () => {
     expect(toastErrorMock).toHaveBeenCalledWith('同局英雄不可重复：Ahri');
   });
 
+  it('blocks duplicate player champions even after BP is cleared', () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '整段清空 BP' }));
+    const statHeroSelects = screen.getAllByTestId('champion-select').slice(-10);
+    statHeroSelects.forEach((select, i) => {
+      fireEvent.change(select, { target: { value: i === 1 ? 'Champion0' : `Champion${i}` } });
+    });
+    for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '1/2/3' } });
+    for (const input of screen.getAllByLabelText('CS')) fireEvent.change(input, { target: { value: '100' } });
+    for (const input of screen.getAllByLabelText('伤害')) fireEvent.change(input, { target: { value: '10000' } });
+    for (const input of screen.getAllByLabelText('金币')) fireEvent.change(input, { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledWith('同局英雄不可重复：Champion0');
+  });
+
   it('does not rewrite BP when complete preloaded stats are untouched', async () => {
     const fetchMock = okFetch();
     render(<GameDetailEditor {...props({
@@ -288,8 +307,10 @@ describe('GameDetailEditor stat entry', () => {
 
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
     expect(screen.getByText(/选手数据需双方各 5 人填齐/)).toBeInTheDocument();
-    expect(screen.getByTestId('stat-champion-cell-A-0')).toHaveAttribute('data-invalid', 'true');
+    const championCell = screen.getByTestId('stat-champion-cell-A-0');
+    expect(championCell).toHaveAttribute('data-invalid', 'true');
     expect(screen.getAllByText(/KDA 格式错误/).length).toBeGreaterThan(0);
+    await waitFor(() => expect(within(championCell).getByRole('combobox')).toHaveFocus());
   });
 
   it('parses KDA input into kills deaths and assists payload fields', async () => {
