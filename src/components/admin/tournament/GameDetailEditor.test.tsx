@@ -284,6 +284,36 @@ describe('GameDetailEditor BP payload', () => {
     expect(body.detail.bans).toBeUndefined();
     expect(body.detail.playerStats).toBeUndefined();
   });
+
+  it('drops derived PICK rows when complete preloaded stats are cleared', async () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props({
+      gameId: 'game-1',
+      initial: {
+        id: 'game-1',
+        index: 1,
+        isDraft: false,
+        winnerTeamId: 'team-a',
+        hasBans: true,
+        hasStats: true,
+        bans: [
+          { teamId: 'team-a', type: 'BAN', championId: 'Lux', order: 1 },
+          { teamId: 'team-a', type: 'PICK', championId: 'Champion0', order: 2 },
+        ],
+        playerStats: completePlayerStats(),
+      },
+    })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '整段清空' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.detail.playerStats).toBeNull();
+    expect(body.detail.bans).toEqual([
+      { teamId: 'team-a', type: 'BAN', championId: 'Lux', order: 1 },
+    ]);
+  });
 });
 
 describe('GameDetailEditor stat entry', () => {

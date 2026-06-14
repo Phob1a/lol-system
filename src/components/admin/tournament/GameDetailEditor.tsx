@@ -235,25 +235,26 @@ export function GameDetailEditor({
         .filter((b) => b.type === 'BAN')
         .map((b) => ({ teamId: b.teamId, championId: b.championId })),
     );
+    const initStats = initial?.playerStats;
+    const nextStatsA = playersA.map((p) =>
+      populateStatRow(p, initStats?.find((s) => s.registrationId === p.registrationId)),
+    );
+    const nextStatsB = playersB.map((p) =>
+      populateStatRow(p, initStats?.find((s) => s.registrationId === p.registrationId)),
+    );
+    const hasCompleteInitialStats = isStatsAllComplete(nextStatsA, nextStatsB);
     setLegacyPicks(
-      initBans
-        .filter((b): b is { teamId: string; type: 'PICK'; championId: string; order: number } => b.type === 'PICK')
-        .map((b) => ({ teamId: b.teamId, type: 'PICK', championId: b.championId })),
+      hasCompleteInitialStats
+        ? []
+        : initBans
+            .filter((b): b is { teamId: string; type: 'PICK'; championId: string; order: number } => b.type === 'PICK')
+            .map((b) => ({ teamId: b.teamId, type: 'PICK', championId: b.championId })),
     );
     setBansTouched(false);
     setBansCleared(false);
 
-    const initStats = initial?.playerStats;
-    setStatsA(
-      playersA.map((p) =>
-        populateStatRow(p, initStats?.find((s) => s.registrationId === p.registrationId)),
-      ),
-    );
-    setStatsB(
-      playersB.map((p) =>
-        populateStatRow(p, initStats?.find((s) => s.registrationId === p.registrationId)),
-      ),
-    );
+    setStatsA(nextStatsA);
+    setStatsB(nextStatsB);
     setStatsTouched(false);
     setStatsCleared(false);
     setStatErrors({});
