@@ -398,12 +398,13 @@ export function GameDetailEditor({
   // ── Client-side validation before save ──────────────────────────────────
 
   function validate(): string | null {
-    if (bansTouched && !bansCleared) {
+    const willWriteBans = !bansCleared && (bansTouched || statsAllComplete);
+
+    if (willWriteBans) {
       for (let i = 0; i < bans.length; i++) {
         if (!bans[i].championId) return `BP 第 ${i + 1} 行缺少英雄`;
       }
-      const statsComplete = isStatsAllComplete(statsA, statsB);
-      const pickItems = statsComplete
+      const pickItems = statsAllComplete
         ? derivePicksFromStats(statsA, statsB, match.teamA.id, match.teamB.id).map((pick, index) => ({
             source: 'stat' as const,
             label: `选手英雄 ${index + 1}`,

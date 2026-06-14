@@ -2,6 +2,18 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameDetailEditor, type Props } from './GameDetailEditor';
 
+const { toastErrorMock, toastSuccessMock } = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: toastErrorMock,
+    success: toastSuccessMock,
+  },
+}));
+
 vi.mock('./ChampionSelect', () => ({
   ChampionSelect: ({ value, onChange }: { value: string | null; onChange: (v: string) => void }) => (
     <select
@@ -57,6 +69,8 @@ function okFetch() {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  toastErrorMock.mockReset();
+  toastSuccessMock.mockReset();
 });
 
 function chooseStatChampions() {
@@ -166,5 +180,34 @@ describe('GameDetailEditor BP payload', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.detail.bans).toBeNull();
+  });
+
+  it('blocks duplicate champions between untouched BAN and derived PICK rows', () => {
+    const fetchMock = okFetch();
+    render(<GameDetailEditor {...props({
+      gameId: 'game-1',
+      initial: {
+        id: 'game-1',
+        index: 1,
+        isDraft: false,
+        winnerTeamId: 'team-a',
+        hasBans: true,
+        hasStats: false,
+        bans: [{ teamId: 'team-a', type: 'BAN', championId: 'Ahri', order: 1 }],
+      },
+    })} />);
+
+    const statHeroSelects = screen.getAllByTestId('champion-select').slice(-10);
+    statHeroSelects.forEach((select, i) => {
+      fireEvent.change(select, { target: { value: i === 0 ? 'Ahri' : `Champion${i}` } });
+    });
+    for (const input of screen.getAllByLabelText('KDA')) fireEvent.change(input, { target: { value: '1/2/3' } });
+    for (const input of screen.getAllByLabelText('CS')) fireEvent.change(input, { target: { value: '100' } });
+    for (const input of screen.getAllByLabelText('伤害')) fireEvent.change(input, { target: { value: '10000' } });
+    for (const input of screen.getAllByLabelText('金币')) fireEvent.change(input, { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledWith('同局英雄不可重复：Ahri');
   });
 });
