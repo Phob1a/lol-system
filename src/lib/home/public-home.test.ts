@@ -51,4 +51,14 @@ describe('public homepage view model', () => {
     );
     expect(getTournamentStatusText(ctx({ bracket: null })).description).toBe('赛事暂未创建');
   });
+
+  it('does not fall through to the SETUP "准备中" headline during active bracket phases', () => {
+    for (const status of ['GROUPING', 'GROUP_STAGE', 'KNOCKOUT', 'FINISHED'] as const) {
+      const { headline } = getTournamentStatusText(ctx({ tournament: { name: '夏季赛', status } }));
+      expect(headline).not.toBe('夏季赛准备中');
+    }
+    // post-draft phases prioritize the tournament/bracket entry, not registration
+    const entries = buildHomeEntries(ctx({ tournament: { name: '夏季赛', status: 'GROUP_STAGE' } }));
+    expect(entries[0]).toMatchObject({ id: 'tournament', emphasis: 'primary' });
+  });
 });

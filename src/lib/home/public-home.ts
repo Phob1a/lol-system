@@ -3,7 +3,10 @@ export type HomeTournamentStatus =
   | 'REGISTRATION'
   | 'ROSTER_LOCKED'
   | 'DRAFTING'
-  | 'COMPLETED'
+  | 'GROUPING'
+  | 'GROUP_STAGE'
+  | 'KNOCKOUT'
+  | 'FINISHED'
   | 'ARCHIVED';
 
 export type HomeBracketStatus = 'SETUP' | 'GROUP_STAGE' | 'KNOCKOUT' | 'FINISHED';
@@ -85,7 +88,10 @@ export function buildHomeEntries(context: PublicHomeContext): HomeEntry[] {
         entry('register', 'muted'),
         entry('login', 'muted'),
       ];
-    case 'COMPLETED':
+    case 'GROUPING':
+    case 'GROUP_STAGE':
+    case 'KNOCKOUT':
+    case 'FINISHED':
     case 'ARCHIVED':
       return [
         entry('tournament', 'primary'),
@@ -137,8 +143,13 @@ export function getTournamentStatusText(context: PublicHomeContext): {
       return { headline: `${name}报名已截止`, description: bracketText };
     case 'DRAFTING':
       return { headline: `${name}选秀进行中`, description: bracketText };
-    case 'COMPLETED':
-      return { headline: `${name}已完成`, description: bracketText };
+    case 'GROUPING':
+      return { headline: `${name}对阵编排中`, description: '小组分组即将公布' };
+    case 'GROUP_STAGE':
+    case 'KNOCKOUT':
+      return { headline: `${name}火热进行中`, description: bracketText };
+    case 'FINISHED':
+      return { headline: `${name}已结束`, description: bracketText };
     case 'ARCHIVED':
       return { headline: `${name}已归档`, description: bracketText };
     case 'SETUP':
