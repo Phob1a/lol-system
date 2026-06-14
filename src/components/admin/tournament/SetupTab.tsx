@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { TournamentConfigForm, type TournamentConfigValue } from './TournamentConfigForm';
 import type { AdminState } from '@/hooks/useTournamentState';
+import { BUDGET_EDITABLE_STATUSES } from '@/lib/tournament/tournament-service';
 
 type Props = {
   tournamentId: string;
@@ -55,6 +57,8 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
   const [editValue, setEditValue] = useState<TournamentConfigValue | null>(null);
   const [editValid, setEditValid] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [budgetValue, setBudgetValue] = useState<string | null>(null);
+  const [savingBudget, setSavingBudget] = useState(false);
 
   // ── reset state (danger zone) ─────────────────────────────────────────────
   const [resetting, setResetting] = useState(false);
@@ -67,6 +71,9 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
     const CONFIG_CLEAR_STATUSES = new Set(['GROUP_STAGE', 'KNOCKOUT', 'FINISHED', 'ARCHIVED']);
     const configWillClear = !CONFIG_CLEAR_STATUSES.has(t.status);
     const isConfigEditable = configWillClear;
+    const currentBudgetValue = budgetValue ?? String(t.teamBudget);
+    const budgetEditable = BUDGET_EDITABLE_STATUSES.some((status) => status === t.status);
+    const budgetDirty = currentBudgetValue !== String(t.teamBudget);
 
     // Lazy-initialise edit form value from tournament on first render.
     const currentEditValue = editValue ?? tournamentToConfigValue(t);
@@ -109,6 +116,36 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
         toast.error(e instanceof Error ? e.message : '保存失败');
       } finally {
         setSaving(false);
+      }
+    }
+
+    async function handleSaveBudget() {
+      if (!state?.tournament) return;
+      const value = Number(currentBudgetValue);
+      if (!Number.isFinite(value) || value <= 0) {
+        toast.error('预算必须大于 0');
+        return;
+      }
+
+      setSavingBudget(true);
+      try {
+        const res = await fetch(`/api/tournament/${state.tournament.id}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ teamBudget: value }),
+        });
+        if (res.ok) {
+          toast.success('队伍预算已更新');
+          setBudgetValue(null);
+          await refetch();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error ?? '更新失败');
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : '更新失败');
+      } finally {
+        setSavingBudget(false);
       }
     }
 
@@ -166,6 +203,45 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               <span>{t.status}</span>
             </div>
           </div>
+        </div>
+
+        {/* 队伍总费用 */}
+        <div className="space-y-4 max-w-xl rounded-md border p-4">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">队伍总费用</h2>
+            <p className="text-xs text-muted-foreground">
+              每支队伍的初始预算。选秀开始后该值会被锁定，因为各队剩余预算已基于它计算。
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="team-budget" className="text-xs text-muted-foreground">
+                队伍总费用
+              </label>
+              <Input
+                id="team-budget"
+                type="text"
+                inputMode="decimal"
+                className="w-48"
+                value={currentBudgetValue}
+                onChange={(e) => setBudgetValue(e.target.value)}
+                disabled={!budgetEditable || savingBudget}
+              />
+            </div>
+            <Button
+              disabled={!budgetEditable || savingBudget || !budgetDirty}
+              onClick={() => void handleSaveBudget()}
+            >
+              <LoadingButtonContent loading={savingBudget} loadingText="保存中…">
+                保存队伍总费用
+              </LoadingButtonContent>
+            </Button>
+          </div>
+          {!budgetEditable && (
+            <p className="text-xs text-amber-600">
+              队伍预算已锁定（{t.status}），无法修改。
+            </p>
+          )}
         </div>
 
         {/* 修改配置表单（FINISHED 时隐藏） */}
