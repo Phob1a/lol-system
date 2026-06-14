@@ -51,7 +51,7 @@ describe('game detail entry utils', () => {
     expect(isStatsPristine(partial)).toBe(false);
     expect(isStatsAllComplete(completeA, completeB)).toBe(true);
     expect(isStatsAllComplete(completeA, completeB.slice(0, 4))).toBe(false);
-    expect(isStatsAllComplete([stat('a1', '')], completeB)).toBe(false);
+    expect(isStatsAllComplete([stat('a0', ''), ...completeA.slice(1)], completeB)).toBe(false);
   });
 
   it('derives 10 PICK rows from complete stats with team ownership', () => {
