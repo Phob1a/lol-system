@@ -125,7 +125,14 @@ export async function getAdminTournamentState(db: Db, tournamentId: string) {
   );
 
   return {
-    tournament: { id: t.id, name: t.name, kind: t.kind, status: t.status, config: t.config },
+    tournament: {
+      id: t.id,
+      name: t.name,
+      kind: t.kind,
+      status: t.status,
+      teamBudget: t.teamBudget,
+      config: t.config,
+    },
     matches: t.matches.map((m) => ({
       id: m.id, label: m.label, roundKey: m.roundKey, bestOf: m.bestOf,
       scheduledAt: m.scheduledAt?.toISOString() ?? null,

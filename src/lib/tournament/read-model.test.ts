@@ -25,6 +25,9 @@ it('admin state 含 config/version + games 摘要（isDraft/hasBans/hasStats）'
   await saveGameDetail(testDb, { matchId: gm.id, expectedVersion: gm.version, detail: { winnerTeamId: null }, actorUserId: 'u' });
   const admin = (await getAdminTournamentState(testDb, tournamentId))!;
   expect((admin.tournament as Record<string, unknown>).config).toBeDefined();
+  expect(admin.tournament).toEqual(expect.objectContaining({
+    teamBudget: 1000,
+  }));
   const row = admin.matches.find((m) => m.id === gm.id)!;
   expect(row.version).toBeGreaterThanOrEqual(0);
   expect(row.games[0].isDraft).toBe(true);

@@ -60,7 +60,14 @@ export type AdminMatch = NonNullable<PublicState>['matches'][number] & {
 };
 
 export type AdminState = (Omit<NonNullable<PublicState>, 'tournament' | 'matches'> & {
-  tournament: { id: string; name: string; kind: string; status: string; config: GroupKnockoutConfig };
+  tournament: {
+    id: string;
+    name: string;
+    kind: string;
+    status: string;
+    teamBudget: number;
+    config: GroupKnockoutConfig;
+  };
   matches: AdminMatch[];
 }) | null;
 

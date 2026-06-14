@@ -17,6 +17,7 @@ function stateWithGroups(groupTeams: Array<Record<string, string>> = [{}, {}]): 
       name: 'Summer',
       kind: 'STANDARD',
       status: 'GROUPING',
+      teamBudget: 1000,
       config: {
         template: 'group-knockout',
         groupCount: 2,

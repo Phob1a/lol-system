@@ -22,6 +22,7 @@ function state(): NonNullable<AdminState> {
       name: 'Summer',
       kind: 'STANDARD',
       status: 'GROUP_STAGE',
+      teamBudget: 1000,
       config: {
         template: 'group-knockout',
         groupCount: 2,
