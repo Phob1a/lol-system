@@ -16,7 +16,7 @@ export default defineWorkspace([
     test: {
       name: 'component',
       environment: 'jsdom',
-      include: ['src/components/**/*.test.tsx'],
+      include: ['src/components/**/*.test.ts', 'src/components/**/*.test.tsx'],
       globals: true,
       setupFiles: ['./vitest.setup.dom.ts'],
     },
