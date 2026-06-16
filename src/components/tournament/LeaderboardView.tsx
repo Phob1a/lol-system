@@ -197,8 +197,8 @@ export function LeaderboardView({ initialProfiles }: Props = {}) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="overflow-hidden rounded-lg border bg-card lg:block">
+    <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="overflow-hidden rounded-lg border bg-card lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
         <div className="grid grid-flow-col auto-cols-[170px] overflow-x-auto lg:block">
           <div className="w-[170px] shrink-0 border-r p-3 lg:w-auto lg:border-b lg:border-r-0">
             <input
