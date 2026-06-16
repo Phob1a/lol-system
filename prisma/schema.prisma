@@ -463,6 +463,7 @@ model GamePlayerStat {
   cs             Int
   damage         Int
   gold           Int
+  extStats       Json?
 
   game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
   team         Team         @relation("GamePlayerStatTeam", fields: [teamId], references: [id], onDelete: Restrict)
@@ -486,4 +487,39 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============ Match Import Staging ============
+
+enum MatchImportSource {
+  SCRIPT
+  UPLOAD
+}
+
+enum MatchImportStatus {
+  PENDING
+  COMMITTED
+  DISCARDED
+}
+
+model MatchImport {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  source          MatchImportSource
+  status          MatchImportStatus @default(PENDING)
+  externalGameId  BigInt
+  gameVersion     String?
+  gameMode        String?
+  gameType        String?
+  queueId         Int?
+  mapId           Int?
+  gameCreation    BigInt?
+  durationSeconds Int?
+  rawJson         Json
+  committedGameId String?
+  note            String?
+
+  @@index([status])
+  @@index([externalGameId])
+  @@map("match_imports")
 }
