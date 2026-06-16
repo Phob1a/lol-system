@@ -14,7 +14,7 @@ async function main() {
     await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/zh_CN/champion.json`)
   ).json();
   const champions = Object.values(data.data)
-    .map((c) => ({ key: c.id, name: c.name, title: c.title }))
+    .map((c) => ({ key: c.id, riotId: Number(c.key), name: c.name, title: c.title }))
     .sort((a, b) => a.key.localeCompare(b.key));
   await mkdir(dirname(OUT), { recursive: true });
   await writeFile(OUT, JSON.stringify({ version, champions }, null, 2) + '\n', 'utf8');

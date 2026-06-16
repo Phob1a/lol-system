@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { getChampions, isChampionKey, championIconUrl, championName } from './champions';
+import { getChampions, isChampionKey, championIconUrl, championName, championKeyByNumericId } from './champions';
 
 it('champions.json 非空且 key 唯一', () => {
   const all = getChampions();
@@ -32,4 +32,13 @@ it('championName 解析与未命中', () => {
   const c = getChampions()[0];
   expect(championName(c.key)).toBe(c.name);
   expect(championName('__nope__')).toBeNull();
+});
+
+it('数字 championId 能映射到 Data Dragon key', () => {
+  expect(championKeyByNumericId(266)).toBe('Aatrox');
+  expect(championKeyByNumericId(202)).toBe('Jhin');
+});
+
+it('未知数字 id 返回 null', () => {
+  expect(championKeyByNumericId(99999)).toBeNull();
 });
