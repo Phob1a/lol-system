@@ -1,7 +1,16 @@
 import { z } from 'zod';
 
+// 大整数（如 riot gameId）：number 分支必须是安全整数，否则 JSON.parse 阶段可能已丢精度，
+// 失真的 externalGameId 会污染 COMMITTED 去重/唯一约束。超出安全范围的值只能走字符串路径。
 const bigIntish = z
-  .union([z.string().regex(/^\d+$/), z.number().int().nonnegative()])
+  .union([
+    z.string().regex(/^\d+$/),
+    z
+      .number()
+      .int()
+      .nonnegative()
+      .refine(Number.isSafeInteger, '数值超出安全整数范围，请用字符串传递大整数'),
+  ])
   .transform((v) => BigInt(v));
 
 const playerSchema = z.object({

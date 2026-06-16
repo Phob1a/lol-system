@@ -49,4 +49,15 @@ describe('summarySchema', () => {
     const bad = { ...sample, players: sample.players.slice(0, 5) };
     expect(() => summarySchema.parse(bad)).toThrow();
   });
+
+  it('rejects a numeric gameId beyond safe integer range', () => {
+    const bad = { ...sample, gameId: Number.MAX_SAFE_INTEGER + 1 };
+    expect(() => summarySchema.parse(bad)).toThrow();
+  });
+
+  it('accepts a large gameId only via string and converts exactly to BigInt', () => {
+    const input = { ...sample, gameId: '9007199254740993' }; // MAX_SAFE_INTEGER + 2
+    const result = summarySchema.parse(input);
+    expect(result.gameId).toBe(9007199254740993n);
+  });
 });
