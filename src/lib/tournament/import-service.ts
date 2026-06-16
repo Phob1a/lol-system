@@ -1,6 +1,16 @@
 import { summarySchema } from './import-schema';
 import type { Db } from './types';
 
+export function resolveImportAuth(
+  bearer: string | null,
+  isAdmin: boolean,
+  envToken: string | undefined,
+): { source: 'SCRIPT' | 'UPLOAD' } | { error: 401 } {
+  if (envToken && bearer && bearer === envToken) return { source: 'SCRIPT' };
+  if (isAdmin) return { source: 'UPLOAD' };
+  return { error: 401 };
+}
+
 export async function ingestImport(db: Db, raw: unknown, source: 'SCRIPT' | 'UPLOAD') {
   const s = summarySchema.parse(raw);
   const dup = await db.matchImport.findFirst({

@@ -22,6 +22,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  if (req.method === 'POST' && pathname === '/api/tournament/imports') return NextResponse.next();
+
   if (isPublic(pathname)) return NextResponse.next();
 
   const token = await getToken({ req });
