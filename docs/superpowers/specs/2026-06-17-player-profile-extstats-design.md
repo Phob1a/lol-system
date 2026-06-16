@@ -221,6 +221,26 @@
 
 这些字段和模式强绑定，默认主界面不解释。若后续明确要支持 Arena 或特殊模式，再独立定义展示口径。
 
+### 4.11 六边形能力图
+
+用户明确希望选手详情页有“六边形”表现图。能力图只做解释性展示，不参与排行榜排序，避免把临时口径变成竞技结论。
+
+六个维度：
+
+- 输出：`totalDamageDealtToChampions`、`damageDealtToObjectives`、`damageDealtToTurrets`
+- 经济：`goldEarned`、`totalMinionsKilled`、`neutralMinionsKilled`
+- 视野：`visionScore`、`wardsPlaced`、`wardsKilled`、`visionWardsBoughtInGame`
+- 生存：低死亡、`totalDamageTaken`、`damageSelfMitigated`
+- 目标：`turretKills`、`inhibitorKills`、首塔/首水晶参与
+- 团战：KDA、`timeCCingOthers`、多杀/连杀
+
+归一化规则：
+
+- 只使用有 `extStats` 的局。
+- 每个维度先算该选手场均原始指标，再在当前赛事有扩展数据的选手集合内按百分位映射到 0-100。
+- `sourceGames = 0` 时不画假六边形，显示“暂无扩展数据”。
+- 这是相对赛事内表现，不是官方评分；UI 文案必须避免“综合实力”这类绝对表述。
+
 ## 5. 后端设计
 
 扩展 `src/lib/tournament/player-stats-service.ts`。
@@ -260,6 +280,16 @@ type PlayerExtendedTotals = {
   longestTimeSpentLiving: number | null;
 };
 
+type PlayerRadarScores = {
+  sourceGames: number;
+  output: number | null;
+  economy: number | null;
+  vision: number | null;
+  survival: number | null;
+  objective: number | null;
+  teamfight: number | null;
+};
+
 type PlayerGameExtended = {
   championLevel: number | null;
   spell1Id: number | null;
@@ -289,11 +319,13 @@ type PlayerGameExtended = {
 
 - `normalizeExtStats(extStats: Prisma.JsonValue | null): NormalizedExtStats | null`
 - `computeExtendedStats(rows): { averages, totals }`
+- `computeRadarScores(profiles): Map<registrationId, PlayerRadarScores>`
 
 规则：
 
 - 字段不存在或类型不是 number/bool 时返回 `null` 或 0，不抛错。
 - 平均值只对有 `extStats` 的局计算，并返回 `sourceGames`，避免旧手录局把场均拉低。
+- 六边形能力图用赛事内百分位归一化；无扩展数据的选手各维度返回 `null`，不强行补 0。
 - `rawStats` 保留原始对象，但只在单场明细中返回，不参与聚合。
 
 ### 5.3 兼容旧数据
@@ -312,17 +344,24 @@ type PlayerGameExtended = {
 
 保留现有头部和逐场记录，新增三个区域：
 
-1. **扩展概览**
+1. **六边形能力图**
+   - 输出、经济、视野、生存、目标、团战六维 0-100
+   - 放在稳定核心数据之后、扩展概览之前
+   - 能力图旁边展示覆盖场次，例如“扩展数据覆盖 4/10 局”
+   - 无扩展数据时显示短空态，不渲染 0 分多边形
+
+2. **扩展概览**
    - 输出：场均英雄伤害、目标伤害、防御塔伤害
    - 视野：场均视野分、插眼、排眼、真眼
    - 生存：场均承伤、减免、最长存活
    - 经济：场均花费、野怪
 
-2. **高光事件**
+3. **高光事件**
    - 首杀、首塔、推塔、水晶、多杀次数
    - 最高多杀、最大连杀
+   - 使用整行卡片组展示，不塞进窄侧栏；数值和事件名分层，避免大数字挤压标签
 
-3. **逐场扩展**
+4. **逐场扩展**
    - 每场表格在现有 K/D/A 后增加可展开行
    - 展开后显示装备、技能、视野、输出细分、承伤、目标数据
    - 底部再加“原始字段”折叠区，按 key 排序显示完整 `rawStats`
@@ -333,6 +372,7 @@ type PlayerGameExtended = {
 - 原始字段必须可查，默认收起。
 - 移动端逐场扩展用纵向字段组，不做超宽表格。
 - `extStats` 缺失时使用短空态，不显示一堆 0。
+- 六边形可以用原生 SVG 实现，不为单个图形引入新图表依赖。
 
 ## 7. API
 
@@ -354,6 +394,7 @@ type PlayerGameExtended = {
 - 有 `extStats` 时正确计算视野、承伤、目标伤害、多杀、装备。
 - 旧手录局无 `extStats` 时基础统计不变，扩展覆盖场次正确。
 - 非 number 字段不抛错。
+- 六边形维度只使用有扩展数据的局，并在赛事内归一化到 0-100。
 - `rawStats` 只在单人详情返回，不进入 leaderboard 批量 payload。
 
 ### 8.2 Component
@@ -361,6 +402,7 @@ type PlayerGameExtended = {
 覆盖：
 
 - 扩展概览显示覆盖场次。
+- 六边形能力图显示六维标签；无扩展数据时显示空态。
 - 无 `extStats` 时显示空态。
 - 逐场扩展可展开，展示装备/视野/输出。
 - 原始字段折叠区包含未知 key。
