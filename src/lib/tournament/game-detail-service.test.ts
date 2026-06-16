@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
 import { recordGame } from './score-service';
 import { closeGroupStage } from './bracket-service';
-import { saveGameDetail } from './game-detail-service';
+import { saveGameDetail, saveGameDetailTx } from './game-detail-service';
 import { getChampions } from './champions';
 import { expandRosterTo5 } from './test-fixtures';
 import { setupGroupStage } from './score-service.test-helpers';
@@ -374,4 +374,22 @@ it('CANCELED 比赛 saveGameDetail → 拒绝', async () => {
   await expect(
     saveGameDetail(testDb, { matchId: final.id, expectedVersion: f.version, detail: { winnerTeamId: final.teamAId }, actorUserId: 'u' }),
   ).rejects.toThrow(/状态/);
+});
+
+it('saveGameDetailTx 可在外部事务内被调用并写入', async () => {
+  const { t, final } = await toFinalWithRosters();
+  const a = await expandRosterTo5(t.id, final.teamAId!);
+  const b = await expandRosterTo5(t.id, final.teamBId!);
+  await testDb.$transaction((tx) =>
+    saveGameDetailTx(tx, {
+      matchId: final.id, expectedVersion: final.version,
+      detail: {
+        winnerTeamId: final.teamAId, blueTeamId: final.teamAId, durationSeconds: 1800,
+        playerStats: [...statsFor(final.teamAId!, a, 0), ...statsFor(final.teamBId!, b, 5)],
+      },
+      actorUserId: 'u',
+    }),
+  );
+  const g = await testDb.game.findFirst({ where: { matchId: final.id }, include: { playerStats: true } });
+  expect(g!.playerStats).toHaveLength(10);
 });
