@@ -9,6 +9,7 @@ export type TournamentErrorCode =
   | 'VERSION_CONFLICT'
   | 'DOWNSTREAM_RECORDED'
   | 'STANDINGS_TIED'
+  | 'CONFLICT'
   | 'VALIDATION';
 
 export class TournamentError extends Error {

@@ -38,6 +38,37 @@ export const summarySchema = z.object({
 });
 export type SummaryInput = z.infer<typeof summarySchema>;
 
+// commit 请求体：把一局 staging 导入落入正式赛事结构。
+// mappings 必须恰好 10 条（capturedParticipantId → 站内 registrationId）。
+// overrides 以 capturedParticipantId 的字符串形式为 key，按字段覆盖捕获值。
+export const commitSchema = z.object({
+  matchId: z.string().min(1),
+  expectedVersion: z.number().int(),
+  gameIndex: z.number().int().positive(),
+  blueTeamId: z.string().min(1),
+  mappings: z
+    .array(
+      z.object({
+        capturedParticipantId: z.number().int(),
+        registrationId: z.string().min(1),
+      }),
+    )
+    .length(10),
+  overrides: z
+    .record(
+      z.object({
+        kills: z.number().int().nonnegative().optional(),
+        deaths: z.number().int().nonnegative().optional(),
+        assists: z.number().int().nonnegative().optional(),
+        cs: z.number().int().nonnegative().optional(),
+        damage: z.number().int().nonnegative().optional(),
+        gold: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .optional(),
+});
+export type CommitInput = z.infer<typeof commitSchema>;
+
 // pid 解析：优先 top-level participantId，其次 stats.participantId，最后队内顺序 index+1。
 // mapping 与 commit 必须共用此函数，保证键一致。
 export function resolvePid(
