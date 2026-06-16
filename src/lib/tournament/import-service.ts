@@ -5,6 +5,46 @@ import { saveGameDetailTx } from './game-detail-service';
 import { resolvePid, summarySchema, type CommitInput } from './import-schema';
 import type { Db } from './types';
 
+// ——— BigInt → string serialization (API output safe) ———
+
+type SerializedImport<T extends { externalGameId: bigint; gameCreation: bigint | null }> = Omit<
+  T,
+  'externalGameId' | 'gameCreation'
+> & { externalGameId: string; gameCreation: string | null };
+
+export function serializeImport<
+  T extends { externalGameId: bigint; gameCreation: bigint | null },
+>(row: T): SerializedImport<T> {
+  return {
+    ...row,
+    externalGameId: row.externalGameId.toString(),
+    gameCreation: row.gameCreation?.toString() ?? null,
+  } as SerializedImport<T>;
+}
+
+export async function listImports(
+  db: Db,
+  status?: 'PENDING' | 'COMMITTED' | 'DISCARDED',
+) {
+  const rows = await db.matchImport.findMany({
+    where: status ? { status } : undefined,
+    orderBy: { createdAt: 'desc' },
+  });
+  return rows.map(serializeImport);
+}
+
+export async function getImportDetail(db: Db, id: string) {
+  const row = await db.matchImport.findUnique({ where: { id } });
+  return row ? serializeImport(row) : null;
+}
+
+export async function discardImport(db: Db, id: string) {
+  const row = await db.matchImport.findUniqueOrThrow({ where: { id } });
+  if (row.status !== 'PENDING')
+    throw new TournamentError('VALIDATION', '仅待处理的导入可丢弃');
+  await db.matchImport.update({ where: { id }, data: { status: 'DISCARDED' } });
+}
+
 type Candidate = { registrationId: string; gameId: string; nickname: string };
 type MapRow = {
   capturedParticipantId: number;
