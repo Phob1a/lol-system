@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Expand the public player detail page so imported LCU settlement data in `GamePlayerStat.extStats` becomes readable: six-dimensional hexagon chart, extended averages/totals, highlight-event cards, per-game extended details, and full raw fields.
+**Goal:** Expand the public player detail page so imported LCU settlement data in `GamePlayerStat.extStats` becomes readable: six-dimensional hexagon chart, safe first-version charts, extended averages/totals, highlight-event cards, per-game extended details, and full raw fields.
 
 **Architecture:** Keep `extStats Json?` as the storage boundary. Normalize JSON in `player-stats-service`, return complete raw stats only from the single-player API, and keep leaderboard payloads summary-only. The UI renders stable basic stats first, then optional extended blocks that degrade cleanly when old hand-entered games lack `extStats`.
 
@@ -21,6 +21,8 @@
   - `it('旧手录局无 extStats 时只影响扩展覆盖场次')`
   - `it('extStats 字段类型异常时不抛错')`
   - `it('为六边形能力图计算赛事内 0-100 相对分')`
+  - `it('为趋势图输出归一化伤害与视野序列')`
+  - `it('计算每场物理魔法真实伤害构成')`
 - [ ] In tests, create games with `saveGameDetail`, then update selected `gamePlayerStat` rows with `extStats` via `testDb.gamePlayerStat.updateMany` or `update`.
 - [ ] Add exported or testable types:
   - `NormalizedExtStats`
@@ -47,10 +49,15 @@
   - Convert each dimension to a current-tournament percentile score from 0 to 100.
   - Use these six dimension keys: `output`, `economy`, `vision`, `survival`, `objective`, `teamfight`.
   - For survival, combine lower deaths with higher mitigation/taken values so lower deaths improve the score.
+- [ ] Add chart-safe derived data:
+  - `extended.trends.damagePercentile` and `extended.trends.visionPercentile` per game, both 0-100.
+  - `game.extended.damageComposition` with physical/magic/true values and percentages.
+  - No event timestamps and no epic-monster damage peaks; these fields do not exist in the current capture payload.
 - [ ] Update `getPlayerTournamentStats` and `listPlayerTournamentProfiles` to attach:
   - `stats.extended.averages`
   - `stats.extended.totals`
   - `stats.extended.radar`
+  - `stats.extended.trends`
   - `stats.extended.sourceGames`
   - `game.extended`
 - [ ] Run:
@@ -97,8 +104,12 @@ npm test -- src/lib/tournament/player-stats-service.test.ts
 - [ ] Add component tests:
   - renders six radar labels and scores when `extended.radar.sourceGames > 0`
   - shows the short empty state when `sourceGames === 0`
+  - renders a small-sample note when radar source data is sparse
+  - renders normalized output/vision trend only when at least 3 games have source values
+  - renders damage composition bars from physical/magic/true damage
   - renders extension coverage text like `扩展数据覆盖 2/3 局`
   - renders high-highlight cards as a section independent from recent games
+  - does not render a highlight timeline or hard-coded event timestamps
   - expands a game row and shows items, spells, vision/output/survival details
   - raw stats disclosure includes an unknown key from `rawStats`
 - [ ] Extend local component types to match service types instead of hand-maintaining only the old summary shape.
@@ -108,6 +119,15 @@ npm test -- src/lib/tournament/player-stats-service.test.ts
   - one polygon from 0-100 values
   - no external chart dependency
   - empty state when no score data exists
+  - sample-size warning when `sourceGames < 3` or comparison sample is too small
+- [ ] Add a `NormalizedTrendChart` subcomponent:
+  - uses already-normalized 0-100 damage/vision values
+  - labels that these are percentile scores, not raw damage and raw vision on one axis
+  - degrades to per-game number chips when fewer than 3 source games exist
+- [ ] Add a `DamageCompositionChart` subcomponent:
+  - stacked bars for physical/magic/true champion damage
+  - per-row total damage label
+  - handles zero total by showing an empty state instead of dividing by zero
 - [ ] Add `ExtendedOverview`:
   - output: average champion/objective/turret damage
   - economy: average gold spent, team jungle CS, enemy jungle CS
@@ -118,6 +138,7 @@ npm test -- src/lib/tournament/player-stats-service.test.ts
   - turret/inhibitor kills
   - double/triple/quadra/penta totals
   - largest multi-kill and largest killing spree
+  - no event time labels; current LCU match-history stats only provide booleans/counts
 - [ ] Extend `GamesTable`:
   - preserve current compact row columns
   - add an expand/collapse control per game
@@ -126,6 +147,9 @@ npm test -- src/lib/tournament/player-stats-service.test.ts
 - [ ] Ensure old data degrades cleanly:
   - no `extended` object: show existing basic page plus empty extended state
   - `extended.sourceGames === 0`: no fake 0-score chart
+- [ ] Do not implement the postponed charts in this task:
+  - no heatmap unless a single metric and legend are explicitly added later
+  - no highlight timeline until `lol-capture` stores timeline API data
 - [ ] Run:
 
 ```bash
