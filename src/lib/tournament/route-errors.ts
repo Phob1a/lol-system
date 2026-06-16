@@ -22,6 +22,15 @@ export function toResponse(err: unknown): NextResponse {
       { status: STATUS[err.code] ?? 400 },
     );
   }
+  // Prisma P2025: record not found (e.g. findUniqueOrThrow on missing import)
+  if (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: unknown }).code === 'P2025'
+  ) {
+    return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+  }
   console.error('[tournament] unexpected', err);
   return NextResponse.json({ error: '服务器错误' }, { status: 500 });
 }

@@ -48,6 +48,11 @@ export default async function AdminHomePage() {
       value: '事件日志 · seq monotonic',
       href: '/admin/audit',
     },
+    {
+      label: 'IMPORTS',
+      value: '对局导入 · LCU JSON 审核',
+      href: '/admin/imports',
+    },
   ];
 
   return (
