@@ -94,9 +94,13 @@ function extractPlayerStats(rawJson: unknown, capturedParticipantId: number): Pl
       }>;
     };
     if (!Array.isArray(data?.players)) return null;
-    const player = data.players.find(
-      (p) => (p.participantId ?? 0) === capturedParticipantId,
-    );
+    const player = data.players.find((p, idx) => {
+      // Mirror backend resolvePid: top-level participantId ?? stats.participantId ?? index+1
+      const pid =
+        p.participantId ??
+        (typeof p.stats?.participantId === 'number' ? (p.stats.participantId as number) : idx + 1);
+      return pid === capturedParticipantId;
+    });
     if (!player?.stats) return null;
     const s = player.stats;
     const n = (k: string) => {

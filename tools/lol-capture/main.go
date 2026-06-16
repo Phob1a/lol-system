@@ -474,6 +474,8 @@ func main() {
 		} else {
 			logf("✅ 已上传到服务器")
 		}
+	} else if (server != "") != (token != "") {
+		logf("⚠️ 只提供了 --server 或 --token 之一，未执行上传（两者需同时提供）。")
 	}
 
 	logf("===== 抓取完成 =====")
