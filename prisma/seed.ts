@@ -4,28 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Singleton Config row
-  await prisma.config.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      teamBudget: 1000,
-      draftLocked: false,
-      extras: {},
-    },
-    update: {},
-  });
-
-  // 2. Default admin account.
-  // Username `admin`. Initial password from env DEFAULT_USER_PASSWORD (fallback: "lol2026").
-  // mustChangePwd=true forces password change on first login.
-  const initialPwd = process.env.DEFAULT_USER_PASSWORD ?? 'lol2026';
+  const initialPwd = process.env.DEFAULT_ADMIN_PASSWORD ?? 'lol2026';
   const passwordHash = await bcrypt.hash(initialPwd, 10);
 
   await prisma.user.upsert({
-    where: { gameId: 'admin' },
+    where: { username: 'admin' },
     create: {
-      gameId: 'admin',
+      username: 'admin',
       passwordHash,
       role: 'ADMIN',
       mustChangePwd: true,
@@ -33,9 +18,25 @@ async function main() {
     update: {},
   });
 
+  // Dev convenience: a sample tournament open for registration.
+  if (process.env.SEED_SAMPLE_SEASON === '1') {
+    const existing = await prisma.tournament.findFirst({ where: { status: { not: 'ARCHIVED' } } });
+    if (!existing) {
+      await prisma.tournament.create({
+        data: {
+          name: 'S1 测试赛事',
+          status: 'REGISTRATION',
+          teamBudget: 1000,
+          kind: '正赛',
+          config: { template: 'group-knockout', groupCount: 2, teamsPerGroup: 4, advancingPerGroup: 2, groupBestOf: 1, knockoutBestOf: { SF: 3, FINAL: 5 } },
+        },
+      });
+      console.log('  Sample tournament "S1 测试赛事" created (REGISTRATION).');
+    }
+  }
+
   console.log('Seed complete.');
-  console.log(`  Admin account: gameId="admin" password="${initialPwd}" (must change on first login)`);
-  console.log('  Default team budget: 1000');
+  console.log(`  Admin account: username="admin" password="${initialPwd}" (must change on first login)`);
 }
 
 main()

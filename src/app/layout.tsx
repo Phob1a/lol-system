@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Providers } from '@/components/providers';
 import './globals.css';
-import '@/styles/tactical.css';
 
 export const metadata: Metadata = {
   title: 'LoL 选人系统',

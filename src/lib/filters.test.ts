@@ -2,21 +2,21 @@ import { describe, expect, it } from 'vitest';
 import {
   filterPlayers,
   sortPlayers,
-  type PlayerForPool,
+  type RegistrationForPool,
 } from './filters';
 
 function p(
-  partial: Partial<PlayerForPool> & Pick<PlayerForPool, 'id' | 'gameId' | 'nickname'>,
-): PlayerForPool {
+  partial: Partial<RegistrationForPool> & Pick<RegistrationForPool, 'id' | 'gameId' | 'nickname'>,
+): RegistrationForPool {
   return {
     primaryPositions: ['MID'],
     secondaryPositions: [],
     cost: 100,
     ...partial,
-  } as PlayerForPool;
+  } as RegistrationForPool;
 }
 
-const players: PlayerForPool[] = [
+const players: RegistrationForPool[] = [
   p({ id: '1', gameId: 'faker',     nickname: '李哥',   primaryPositions: ['MID'],     secondaryPositions: ['TOP'], cost: 500 }),
   p({ id: '2', gameId: 'showmaker', nickname: '小修',   primaryPositions: ['MID'],     secondaryPositions: [],       cost: 400 }),
   p({ id: '3', gameId: 'canyon',    nickname: '峡谷',   primaryPositions: ['JUNGLE'],  secondaryPositions: ['TOP'], cost: 350 }),

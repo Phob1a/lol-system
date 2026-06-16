@@ -1,4 +1,15 @@
 import { prisma } from '@/lib/db';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
+import { PageHeader } from '@/components/layout/PageHeader';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,16 +24,19 @@ const EVENT_LABEL: Record<string, string> = {
   ORDER_SET: '设置顺序',
 };
 
-function eventColor(type: string): string {
-  if (type.startsWith('PICK_MADE')) return 'var(--tc-cyan)';
-  if (type.endsWith('STARTED')) return 'var(--tc-green)';
-  if (type === 'PICK_REVOKED' || type === 'ROUND_REWOUND' || type === 'DRAFT_RESET') return 'var(--tc-red)';
-  if (type === 'SLOT_REARRANGED') return 'var(--tc-amber)';
-  return 'var(--tc-text)';
-}
-
 export default async function AuditPage() {
+  const tournament = await getActiveTournament(prisma);
+
+  if (!tournament) {
+    return (
+      <div>
+        <p className="text-muted-foreground">暂无赛事</p>
+      </div>
+    );
+  }
+
   const events = await prisma.draftEvent.findMany({
+    where: { session: { tournamentId: tournament.id } },
     orderBy: { seq: 'desc' },
     take: 200,
   });
@@ -30,105 +44,54 @@ export default async function AuditPage() {
   const userIds = Array.from(new Set(events.map((e) => e.actorId)));
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
-    select: { id: true, gameId: true, role: true },
+    select: { id: true, username: true, role: true },
   });
   const userById = new Map(users.map((u) => [u.id, u]));
 
   return (
-    <div
-      className="tc-board"
-      style={{ minHeight: '100%', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}
-    >
-      <header style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 4, height: 30, background: 'var(--tc-green)', boxShadow: '0 0 12px var(--tc-green)' }} />
-          <div>
-            <div className="tc-h1" style={{ fontSize: 22 }}>
-              AUDIT<span style={{ color: 'var(--tc-green)' }}>{"//"}</span>TRAIL
-            </div>
-            <div className="tc-label">APPEND-ONLY EVENT LOG · MONOTONIC SEQ · LATEST 200</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <span className="tc-chip">{events.length} EVENTS</span>
-          <a href="/api/draft/export?format=json" className="tc-btn">↓ EXPORT JSON</a>
-          <a href="/api/draft/export?format=csv" className="tc-btn">↓ EXPORT CSV</a>
-        </div>
-      </header>
+    <div className="flex flex-col gap-4">
+      <PageHeader title="审计日志" description="当前赛事选秀事件流" />
 
-      <div className="tc-divider" />
-
-      <div
-        className="tc-card"
-        style={{ padding: 14, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}
-      >
-        <span className="corner tl" /><span className="corner tr" />
-        <span className="corner bl" /><span className="corner br" />
-
-        {events.length === 0 ? (
-          <div
-            className="tc-mono"
-            style={{ padding: 32, textAlign: 'center', color: 'var(--tc-text-faint)', fontSize: 12 }}
-          >
-            暂无事件 · 启动选秀后将在此记录
-          </div>
-        ) : (
-          <>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '60px 170px 140px 140px 1fr',
-                gap: 12,
-                padding: '6px 10px',
-                borderBottom: '1px solid var(--tc-line2)',
-                background: 'rgba(61,255,156,0.04)',
-              }}
-            >
-              {['SEQ', 'TIMESTAMP', 'TYPE', 'ACTOR', 'PAYLOAD'].map((h) => (
-                <span key={h} className="tc-label" style={{ fontSize: 9 }}>
-                  {h}
-                </span>
-              ))}
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', fontFamily: 'var(--tc-font-mono)' }}>
-              {events.map((e, i) => {
-                const c = eventColor(e.type);
-                const actor = userById.get(e.actorId);
-                return (
-                  <div
-                    key={e.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '60px 170px 140px 140px 1fr',
-                      gap: 12,
-                      padding: '8px 10px',
-                      alignItems: 'center',
-                      fontSize: 11,
-                      background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
-                      borderBottom: '1px dashed var(--tc-line)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--tc-text-faint)' }}>#{e.seq}</span>
-                    <span style={{ color: 'var(--tc-text-dim)' }}>
-                      {new Date(e.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
-                    </span>
-                    <span style={{ color: c, fontWeight: 600, letterSpacing: 1 }}>
-                      {EVENT_LABEL[e.type] ?? e.type}
-                    </span>
-                    <span style={{ color: 'var(--tc-cyan)' }}>
-                      {actor?.gameId ?? e.actorId.slice(0, 6)}
-                      {actor && <span style={{ marginLeft: 4, color: 'var(--tc-text-faint)' }}>· {actor.role}</span>}
-                    </span>
-                    <span style={{ color: 'var(--tc-text-dim)', overflowX: 'auto' }}>
-                      {typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload ?? {})}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
+      {events.length === 0 ? (
+        <p className="text-muted-foreground">暂无事件 · 启动选秀后将在此记录</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>SEQ</TableHead>
+              <TableHead>TIMESTAMP</TableHead>
+              <TableHead>TYPE</TableHead>
+              <TableHead>ACTOR</TableHead>
+              <TableHead>PAYLOAD</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {events.map((e) => {
+              const actor = userById.get(e.actorId);
+              return (
+                <TableRow key={e.id}>
+                  <TableCell className="text-muted-foreground">#{e.seq}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {new Date(e.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{EVENT_LABEL[e.type] ?? e.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {actor?.username ?? e.actorId.slice(0, 6)}
+                    {actor && (
+                      <span className="ml-1 text-muted-foreground">· {actor.role}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground max-w-xs truncate">
+                    {typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload ?? {})}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
     </div>
   );
 }

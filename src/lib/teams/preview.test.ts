@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { computeTeamPreviews, pickCaptainSlot, type PlayerRef } from './preview';
+import { computeTeamPreviews, pickCaptainSlot, type RegistrationRef } from './preview';
 
-function captain(partial: Partial<PlayerRef> & Pick<PlayerRef, 'id' | 'gameId'>): PlayerRef {
+function captain(partial: Partial<RegistrationRef> & Pick<RegistrationRef, 'id' | 'gameId'>): RegistrationRef {
   return {
     nickname: partial.nickname ?? partial.gameId,
     primaryPositions: ['MID'],
-    secondaryPositions: [],
     cost: 0,
     ...partial,
-  } as PlayerRef;
+  } as RegistrationRef;
 }
 
 describe('pickCaptainSlot', () => {

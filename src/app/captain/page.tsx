@@ -1,45 +1,58 @@
-import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { computeTeamPreviews } from '@/lib/teams/preview';
+import { prisma } from '@/lib/db';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
+import { computeTeamPreviews } from '@/lib/teams/preview';
 import { CaptainDashboard } from '@/components/draft/CaptainDashboard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CaptainPage() {
   const session = await getSession();
-  const ownGameId = session!.user.gameId;
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return <div className="text-muted-foreground">暂无进行中的赛事</div>;
 
-  const ownPlayer = await prisma.player.findUnique({
-    where: { gameId: ownGameId },
-    select: { id: true },
-  });
-  const ownCaptainId = ownPlayer?.id ?? null;
+  const ownTeam = session?.user.teamId
+    ? await prisma.team.findUnique({
+        where: { id: session.user.teamId },
+        select: { captainId: true },
+      })
+    : null;
 
-  const [config, pool, captains, snapshot] = await Promise.all([
-    prisma.config.findUnique({ where: { id: 1 } }),
-    prisma.player.findMany({
-      where: { isRetired: false, isCaptain: false },
-      orderBy: { gameId: 'asc' },
+  const [pool, captains, snapshot] = await Promise.all([
+    prisma.registration.findMany({
+      where: { tournamentId: tournament.id, isCaptain: false, status: 'ACTIVE' },
+      select: {
+        id: true, nickname: true, cost: true,
+        primaryPositions: true, secondaryPositions: true,
+        player: { select: { gameId: true } },
+      },
+      orderBy: { registeredAt: 'asc' },
     }),
-    prisma.player.findMany({
-      where: { isCaptain: true, isRetired: false },
-      orderBy: { gameId: 'asc' },
+    prisma.registration.findMany({
+      where: { tournamentId: tournament.id, isCaptain: true, status: 'ACTIVE' },
+      select: {
+        id: true, nickname: true, cost: true,
+        primaryPositions: true, secondaryPositions: true,
+        player: { select: { gameId: true } },
+      },
+      orderBy: { registeredAt: 'asc' },
     }),
-    getDraftSnapshot(),
+    getDraftSnapshot(tournament.id),
   ]);
 
-  const teamBudget = config?.teamBudget ?? 1000;
-  const virtualTeams = computeTeamPreviews(captains, teamBudget);
+  const flat = (r: (typeof pool)[number]) => ({
+    id: r.id, gameId: r.player.gameId, nickname: r.nickname, cost: r.cost,
+    primaryPositions: r.primaryPositions, secondaryPositions: r.secondaryPositions,
+  });
 
   return (
     <CaptainDashboard
       initialSnapshot={snapshot}
-      pool={pool}
-      virtualTeams={virtualTeams}
-      ownGameId={ownGameId}
-      ownCaptainId={ownCaptainId}
-      teamBudget={teamBudget}
+      pool={pool.map(flat)}
+      virtualTeams={computeTeamPreviews(captains.map(flat), tournament.teamBudget)}
+      ownCaptainId={ownTeam?.captainId ?? null}
+      teamBudget={tournament.teamBudget}
     />
   );
 }

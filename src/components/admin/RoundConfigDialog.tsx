@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Player, Position, RoundMode } from '@prisma/client';
-import type { DraftSnapshot, DraftTeamSnapshot } from '@/lib/draft/types';
+import type { Position, RoundMode } from '@prisma/client';
+import type { DraftSnapshot, RegistrationRef } from '@/lib/draft/types';
+import { formatCost, normalizeCost } from '@/lib/costs';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Dialog,
   DialogContent,
@@ -31,8 +33,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onSubmitted: () => void;
   snapshot: DraftSnapshot;
-  /** Pool of unpicked, eligible players for MANUAL mode. */
-  pool: Pick<Player, 'id' | 'gameId' | 'nickname' | 'cost'>[];
+  /** Pool of unpicked, eligible registrations for MANUAL mode. */
+  pool: RegistrationRef[];
   /** Whether REVERSE_LAST is allowed (i.e. there is a previous round). */
   canReverse: boolean;
   nextRoundNo: number;
@@ -51,16 +53,16 @@ export function RoundConfigDialog({
   const [submitting, setSubmitting] = useState(false);
   const [order, setOrder] = useState<string[]>(snapshot.teams.map((t) => t.captainId));
   const [assignments, setAssignments] = useState<
-    Record<string, { playerId: string; position: Position | '' }>
+    Record<string, { registrationId: string; position: Position | '' }>
   >({});
 
   useEffect(() => {
     if (open) {
       setMode(canReverse ? 'ADMIN_ORDER' : 'ADMIN_ORDER');
       setOrder(snapshot.teams.map((t) => t.captainId));
-      const init: Record<string, { playerId: string; position: Position | '' }> = {};
+      const init: Record<string, { registrationId: string; position: Position | '' }> = {};
       for (const t of snapshot.teams) {
-        init[t.captainId] = { playerId: '', position: '' };
+        init[t.captainId] = { registrationId: '', position: '' };
       }
       setAssignments(init);
     }
@@ -72,7 +74,7 @@ export function RoundConfigDialog({
     for (const t of snapshot.teams) {
       m.set(
         t.captainId,
-        t.slots.filter((s) => s.player === null).map((s) => s.position),
+        t.slots.filter((s) => s.registration === null).map((s) => s.position),
       );
     }
     return m;
@@ -101,14 +103,14 @@ export function RoundConfigDialog({
 
   async function submit() {
     if (mode === 'MANUAL') {
-      // Validate: every captain has playerId + position
+      // Validate: every captain has registrationId + position
       const issues: string[] = [];
       const usedPlayers = new Set<string>();
       for (const t of snapshot.teams) {
         const a = assignments[t.captainId];
-        if (!a?.playerId) issues.push(`${t.captainNickname}: 未选择选手`);
-        else if (usedPlayers.has(a.playerId)) issues.push(`${t.captainNickname}: 选手与他队冲突`);
-        else usedPlayers.add(a.playerId);
+        if (!a?.registrationId) issues.push(`${t.captainNickname}: 未选择选手`);
+        else if (usedPlayers.has(a.registrationId)) issues.push(`${t.captainNickname}: 选手与他队冲突`);
+        else usedPlayers.add(a.registrationId);
         if (!a?.position) issues.push(`${t.captainNickname}: 未选择位置`);
       }
       if (issues.length > 0) {
@@ -126,13 +128,13 @@ export function RoundConfigDialog({
     const body: {
       mode: RoundMode;
       adminProvidedOrder?: string[];
-      manualAssignments?: { captainId: string; playerId: string; position: Position }[];
+      manualAssignments?: { captainId: string; registrationId: string; position: Position }[];
     } = { mode };
     if (mode === 'ADMIN_ORDER') body.adminProvidedOrder = order;
     if (mode === 'MANUAL') {
       body.manualAssignments = snapshot.teams.map((t) => ({
         captainId: t.captainId,
-        playerId: assignments[t.captainId].playerId,
+        registrationId: assignments[t.captainId].registrationId,
         position: assignments[t.captainId].position as Position,
       }));
     }
@@ -213,19 +215,19 @@ export function RoundConfigDialog({
               <Card>
                 <CardContent className="divide-y p-0">
                   {snapshot.teams.map((t) => {
-                    const a = assignments[t.captainId] ?? { playerId: '', position: '' };
+                    const a = assignments[t.captainId] ?? { registrationId: '', position: '' };
                     const empties = emptySlotsByCaptain.get(t.captainId) ?? [];
                     const budget = budgetByCaptain.get(t.captainId) ?? 0;
-                    const eligiblePool = pool.filter((p) => p.cost <= budget);
+                    const eligiblePool = pool.filter((p) => normalizeCost(p.cost) <= normalizeCost(budget));
                     return (
-                      <div key={t.captainId} className="grid grid-cols-[1fr_2fr_1fr] gap-2 px-3 py-2 text-sm">
+                      <div key={t.captainId} className="grid grid-cols-1 gap-2 px-3 py-2 text-sm sm:grid-cols-[1fr_2fr_1fr]">
                         <div className="flex flex-col">
                           <span className="font-medium">{t.captainNickname}</span>
-                          <span className="text-[10px] text-muted-foreground">预算 {budget}</span>
+                          <span className="text-[10px] text-muted-foreground">预算 {formatCost(budget)}</span>
                         </div>
                         <Select
-                          value={a.playerId}
-                          onValueChange={(v) => setAssignments((cur) => ({ ...cur, [t.captainId]: { ...a, playerId: v } }))}
+                          value={a.registrationId}
+                          onValueChange={(v) => setAssignments((cur) => ({ ...cur, [t.captainId]: { ...a, registrationId: v } }))}
                         >
                           <SelectTrigger><SelectValue placeholder="选择选手" /></SelectTrigger>
                           <SelectContent>
@@ -234,7 +236,7 @@ export function RoundConfigDialog({
                             )}
                             {eligiblePool.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
-                                {p.nickname} <span className="ml-2 font-mono text-xs text-muted-foreground">{p.gameId} · {p.cost}</span>
+                                {p.nickname} <span className="ml-2 font-mono text-xs text-muted-foreground">{p.gameId} · {formatCost(p.cost)}</span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -264,7 +266,9 @@ export function RoundConfigDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
           <Button onClick={submit} disabled={submitting}>
-            {submitting ? '启动中…' : '启动'}
+            <LoadingButtonContent loading={submitting} loadingText="启动中…">
+              启动
+            </LoadingButtonContent>
           </Button>
         </DialogFooter>
       </DialogContent>

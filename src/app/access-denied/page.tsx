@@ -1,50 +1,31 @@
 import Link from 'next/link';
+import { AuthCard } from '@/components/auth/AuthCard';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 export default function AccessDeniedPage() {
   return (
-    <div
-      className="tc-board"
-      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-    >
-      <div className="tc-card" style={{ width: 460, padding: 32, position: 'relative' }}>
-        <span className="corner tl" style={{ borderColor: 'var(--tc-red)' }} />
-        <span className="corner tr" style={{ borderColor: 'var(--tc-red)' }} />
-        <span className="corner bl" style={{ borderColor: 'var(--tc-red)' }} />
-        <span className="corner br" style={{ borderColor: 'var(--tc-red)' }} />
-
-        <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <div style={{ width: 4, height: 28, background: 'var(--tc-red)', boxShadow: '0 0 12px var(--tc-red)' }} />
-          <div>
-            <div className="tc-h1" style={{ fontSize: 20, color: 'var(--tc-red)' }}>
-              ACCESS<span style={{ color: 'var(--tc-text)' }}>{'//'}</span>DENIED
-            </div>
-            <div className="tc-label">UNAUTHORIZED · SECURITY POLICY</div>
-          </div>
-        </header>
-
-        <div
-          style={{
-            margin: '12px 0 18px',
-            padding: '10px 12px',
-            background: 'rgba(255,61,92,0.08)',
-            borderLeft: '3px solid var(--tc-red)',
-            fontFamily: 'var(--tc-font-mono)',
-            fontSize: 11,
-            color: 'var(--tc-text-dim)',
-            lineHeight: 1.6,
-          }}
-        >
-          您当前的账户不是现役队长，暂时无法进入选人系统。
-          <br />
-          <span style={{ color: 'var(--tc-text-faint)' }}>err_code · ROLE_NOT_ELIGIBLE</span>
+    <AuthCard title="访问被拒绝" description="当前账户没有访问该页面所需的权限。">
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="font-mono">
+            ACCESS_DENIED
+          </Badge>
+          <Badge variant="secondary">权限不足</Badge>
         </div>
-
-        <div className="tc-divider" style={{ margin: '0 0 14px' }} />
-
-        <Link href="/api/auth/signout" className="tc-btn" style={{ width: '100%', justifyContent: 'center' }}>
-          ▸ SIGN OUT
-        </Link>
+        <p className="text-sm text-muted-foreground">
+          请使用具备相应权限的账户登录，例如管理员账号或队伍账号。
+        </p>
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <div className="font-mono text-[11px] uppercase text-muted-foreground/80">
+            err_code · ACCESS_DENIED
+          </div>
+          <p className="mt-1">如刚切换过系统版本，请先登出再重新登录。</p>
+        </div>
       </div>
-    </div>
+      <Button asChild variant="outline" className="mt-4 w-full">
+        <Link href="/api/auth/signout">登出</Link>
+      </Button>
+    </AuthCard>
   );
 }

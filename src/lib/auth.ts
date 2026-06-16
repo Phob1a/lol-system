@@ -1,45 +1,43 @@
 import type { NextAuthOptions } from 'next-auth';
+import { getServerSession } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
-  pages: {
-    signIn: '/login',
-  },
+  pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
-      name: 'gameId',
+      name: 'username',
       credentials: {
-        gameId: { label: '游戏 ID', type: 'text' },
+        username: { label: '账号', type: 'text' },
         password: { label: '密码', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.gameId || !credentials?.password) return null;
+        if (!credentials?.username || !credentials.password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { gameId: credentials.gameId.trim() },
-          include: {
-            player: {
-              select: { isCaptain: true, isRetired: true, nickname: true },
-            },
-          },
+          where: { username: credentials.username },
+          include: { team: { include: { tournament: true } } },
         });
         if (!user) return null;
 
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) return null;
 
+        // Team accounts of an archived tournament cannot log in.
+        if (user.role === 'CAPTAIN') {
+          if (!user.team || user.team.tournament.status === 'ARCHIVED') return null;
+        }
+
         return {
           id: user.id,
-          gameId: user.gameId,
+          username: user.username,
           role: user.role,
           mustChangePwd: user.mustChangePwd,
-          // For captains, expose draft eligibility flags so middleware can gate /captain.
-          isCaptain: user.player?.isCaptain ?? false,
-          isRetired: user.player?.isRetired ?? false,
-          nickname: user.player?.nickname ?? user.gameId,
+          teamId: user.team?.id ?? null,
+          tournamentId: user.team?.tournamentId ?? null,
         };
       },
     }),
@@ -48,14 +46,12 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.gameId = user.gameId;
+        token.username = user.username;
         token.role = user.role;
         token.mustChangePwd = user.mustChangePwd;
-        token.isCaptain = user.isCaptain;
-        token.isRetired = user.isRetired;
-        token.nickname = user.nickname;
+        token.teamId = user.teamId;
+        token.tournamentId = user.tournamentId;
       }
-      // After change-password completes, the page calls update({ mustChangePwd: false }).
       if (trigger === 'update' && session?.mustChangePwd === false) {
         token.mustChangePwd = false;
       }
@@ -63,19 +59,16 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       session.user = {
-        id: token.id as string,
-        gameId: token.gameId as string,
-        role: token.role as 'ADMIN' | 'CAPTAIN',
-        mustChangePwd: token.mustChangePwd as boolean,
-        isCaptain: token.isCaptain as boolean,
-        isRetired: token.isRetired as boolean,
-        nickname: token.nickname as string,
+        id: token.id,
+        username: token.username,
+        role: token.role,
+        mustChangePwd: token.mustChangePwd,
+        teamId: token.teamId,
+        tournamentId: token.tournamentId,
       };
       return session;
     },
   },
 };
 
-// Convenience helper for server components.
-import { getServerSession } from 'next-auth';
 export const getSession = () => getServerSession(authOptions);

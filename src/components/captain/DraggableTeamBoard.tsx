@@ -12,24 +12,39 @@ import {
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
-import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
+import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
+import { Badge } from '@/components/ui/badge';
+import { formatCost } from '@/lib/costs';
+import { cn } from '@/lib/utils';
 
 type Props = {
   team: TeamPreview & { id: string };
   /** Snapshot version for optimistic-conflict detection; bump invalidates local state. */
   seq: number;
+  /** Enables pool-player drop affordance on empty own-team slots. */
+  pickDropEnabled?: boolean;
+  /** Use an ancestor DndContext when the pool and board need to share one drag surface. */
+  dndMode?: 'internal' | 'external';
 };
 
-type LocalSlot = { position: Position; player: PlayerRef | null };
+type LocalSlot = { position: Position; registration: RegistrationRef | null };
 
-export function DraggableTeamBoard({ team, seq }: Props) {
-  const [slots, setSlots] = useState<LocalSlot[]>(team.slots);
+export function DraggableTeamBoard({
+  team,
+  seq,
+  pickDropEnabled = false,
+  dndMode = 'internal',
+}: Props) {
+  const [slots, setSlots] = useState<LocalSlot[]>(
+    team.slots.map((s) => ({ position: s.position, registration: s.player })),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setSlots(team.slots);
+    setSlots(team.slots.map((s) => ({ position: s.position, registration: s.player })));
   }, [team.slots, seq]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -40,14 +55,14 @@ export function DraggableTeamBoard({ team, seq }: Props) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        slots: next.map((s) => ({ position: s.position, playerId: s.player?.id ?? null })),
+        slots: next.map((s) => ({ position: s.position, registrationId: s.registration?.id ?? null })),
       }),
     });
     setSubmitting(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       toast.error(body.error ?? '调整失败');
-      setSlots(team.slots);
+      setSlots(team.slots.map((s) => ({ position: s.position, registration: s.player })));
       return;
     }
     toast.success('已调整位置');
@@ -55,7 +70,7 @@ export function DraggableTeamBoard({ team, seq }: Props) {
 
   function onDragEnd(event: DragEndEvent) {
     const fromPos = event.active.data.current?.position as Position | undefined;
-    const toPos = event.over?.id as Position | undefined;
+    const toPos = event.over?.data.current?.position as Position | undefined;
     if (!fromPos || !toPos || fromPos === toPos) return;
 
     const fromIdx = slots.findIndex((s) => s.position === fromPos);
@@ -63,102 +78,112 @@ export function DraggableTeamBoard({ team, seq }: Props) {
     if (fromIdx === -1 || toIdx === -1) return;
 
     const next = slots.slice();
-    const fromPlayer = next[fromIdx].player;
-    const toPlayer = next[toIdx].player;
-    next[fromIdx] = { ...next[fromIdx], player: toPlayer };
-    next[toIdx] = { ...next[toIdx], player: fromPlayer };
+    const fromRegistration = next[fromIdx].registration;
+    const toRegistration = next[toIdx].registration;
+    next[fromIdx] = { ...next[fromIdx], registration: toRegistration };
+    next[toIdx] = { ...next[toIdx], registration: fromRegistration };
     setSlots(next);
     void persist(next);
   }
 
-  const accent = 'var(--tc-cyan)';
+  const hoverTeam: TeamHoverSummary = {
+    captainNickname: team.captainNickname,
+    captainGameId: team.captainGameId,
+    budgetLeft: team.budgetLeft,
+    slots: slots.map((slot) => ({
+      position: slot.position,
+      player: slot.registration,
+    })),
+  };
 
-  return (
-    <div
-      className="tc-card"
-      style={{
-        padding: 12,
-        position: 'relative',
-        border: `1px solid ${accent}`,
-        background: 'rgba(0,229,255,0.06)',
-        boxShadow: 'inset 0 0 18px rgba(0,229,255,0.12)',
-      }}
-    >
-      <span className="corner tl" style={{ borderColor: accent }} />
-      <span className="corner tr" style={{ borderColor: accent }} />
-      <span className="corner bl" style={{ borderColor: accent }} />
-      <span className="corner br" style={{ borderColor: accent }} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="tc-display" style={{ fontSize: 14, color: 'var(--tc-cyan)' }}>
-            {team.captainNickname}
-            <span className="tc-chip tc-chip-on" style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px' }}>
-              MINE · DRAG TO SWAP
-            </span>
+  const board = (
+    <div className="rounded-xl border-2 border-primary bg-primary/5 shadow p-3 relative">
+      <TeamHoverCard team={hoverTeam} disabled={submitting}>
+        <div className="flex justify-between items-baseline gap-2 mb-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-primary truncate">
+              {team.captainNickname}
+              <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+                MINE · DRAG TO SWAP
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">@{team.captainGameId}</div>
           </div>
-          <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-            @{team.captainGameId}
+          <div className="text-right shrink-0">
+            <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
+            <div className="text-base font-bold text-amber-600 tabular-nums">
+              {formatCost(team.budgetLeft)}
+              <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
+            </div>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="tc-label" style={{ fontSize: 9 }}>BUDGET</div>
-          <div className="tc-num" style={{ fontSize: 15, color: 'var(--tc-amber)' }}>
-            {team.budgetLeft}
-            <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-dim)', marginLeft: 2 }}>CR</span>
-          </div>
-        </div>
+      </TeamHoverCard>
+
+      <div className="flex flex-col gap-1">
+        {slots.map((slot) => (
+          <DroppableSlot
+            key={slot.position}
+            slot={slot}
+            disabled={submitting}
+            pickDropEnabled={pickDropEnabled}
+          />
+        ))}
       </div>
-
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
-          {slots.map((slot) => (
-            <DroppableSlot key={slot.position} slot={slot} disabled={submitting} />
-          ))}
-        </div>
-      </DndContext>
     </div>
   );
+
+  if (dndMode === 'external') return board;
+  return <DndContext sensors={sensors} onDragEnd={onDragEnd}>{board}</DndContext>;
 }
 
-function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean }) {
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: slot.position });
+function DroppableSlot({
+  slot,
+  disabled,
+  pickDropEnabled,
+}: {
+  slot: LocalSlot;
+  disabled: boolean;
+  pickDropEnabled: boolean;
+}) {
+  const canDropPick = pickDropEnabled && slot.registration === null && !disabled;
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `team-slot-${slot.position}`,
+    data: { position: slot.position, acceptsPick: canDropPick },
+  });
   return (
     <div
       ref={setDropRef}
-      style={{
-        position: 'relative',
-        display: 'grid',
-        gridTemplateColumns: '46px 1fr auto',
-        gap: 8,
-        alignItems: 'center',
-        padding: '6px 8px',
-        background: isOver
-          ? 'rgba(0,229,255,0.14)'
-          : slot.player
-          ? 'rgba(255,255,255,0.025)'
-          : 'rgba(255,255,255,0.01)',
-        border: `1px solid ${isOver ? 'var(--tc-cyan)' : 'var(--tc-line)'}`,
-        boxShadow: isOver ? '0 0 12px rgba(0,229,255,0.35)' : 'none',
-        transition: 'background .12s, border-color .12s',
-        fontSize: 11,
-      }}
+      data-testid={`team-slot-drop-${slot.position}`}
+      data-pick-drop-enabled={String(canDropPick)}
+      className={cn(
+        'grid items-center gap-2 px-2 py-1.5 rounded-md border text-xs transition-colors',
+        isOver
+          ? 'ring-2 ring-primary bg-accent border-primary'
+          : slot.registration
+          ? 'border-border bg-muted/30'
+          : canDropPick
+          ? 'border-dashed border-primary/60 bg-primary/5'
+          : 'border-border bg-muted/10',
+      )}
+      style={{ gridTemplateColumns: '46px 1fr auto' }}
     >
-      <span className="tc-label" style={{ fontSize: 9 }}>
+      <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">
         {POSITION_LABEL[slot.position]}
       </span>
-      {slot.player ? (
-        <PlayerHoverCard player={slot.player} disabled={disabled}>
+      {slot.registration ? (
+        <PlayerHoverCard player={slot.registration} disabled={disabled}>
           <DraggablePlayer slot={slot} disabled={disabled} />
         </PlayerHoverCard>
       ) : (
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>— empty —</span>
+        <span className="text-xs text-muted-foreground font-mono">— empty —</span>
       )}
       <span
-        className="tc-num"
-        style={{ fontSize: 11, color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)' }}
+        className={cn(
+          'tabular-nums text-xs font-medium',
+          slot.registration ? 'text-amber-600' : 'text-muted-foreground',
+        )}
       >
-        {slot.player ? slot.player.cost : '—'}
+        {slot.registration ? formatCost(slot.registration.cost) : '—'}
       </span>
     </div>
   );
@@ -167,10 +192,10 @@ function DroppableSlot({ slot, disabled }: { slot: LocalSlot; disabled: boolean 
 function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `slot-${slot.position}`,
-    data: { position: slot.position },
+    data: { type: 'slot-player', position: slot.position },
     disabled,
   });
-  if (!slot.player) return null;
+  if (!slot.registration) return null;
   return (
     <span
       ref={setNodeRef}
@@ -186,21 +211,12 @@ function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolea
         minWidth: 0,
       }}
     >
-      <span style={{ color: 'var(--tc-text-faint)', fontSize: 10 }}>⋮⋮</span>
-      <span
-        className="tc-display"
-        style={{
-          fontSize: 12,
-          color: 'var(--tc-text)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {slot.player.nickname}
+      <span className="text-muted-foreground text-[10px]">⋮⋮</span>
+      <span className="text-xs font-medium text-foreground truncate">
+        {slot.registration.nickname}
       </span>
-      <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)' }}>
-        @{slot.player.gameId}
+      <span className="text-[9px] text-muted-foreground font-mono shrink-0">
+        @{slot.registration.gameId}
       </span>
     </span>
   );

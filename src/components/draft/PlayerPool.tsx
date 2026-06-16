@@ -1,40 +1,123 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDraggable } from '@dnd-kit/core';
 import {
   filterPlayers,
   sortPlayers,
   DEFAULT_FILTER,
   DEFAULT_SORT,
-  type PlayerForPool,
+  type RegistrationForPool,
   type PlayerFilter,
   type SortKey,
 } from '@/lib/filters';
 import type { PositionLiteral } from '@/lib/players/schema';
 import { POSITION_OPTIONS } from '@/components/players/positions';
-import { TcPos } from '@/components/tactical/TcPos';
+import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { formatCost } from '@/lib/costs';
+import { cn } from '@/lib/utils';
 
 type Props = {
-  players: PlayerForPool[];
+  players: RegistrationForPool[];
   /** Per-row action area (e.g. "选他" button when on the clock). */
-  renderActions?: (player: PlayerForPool) => React.ReactNode;
+  renderActions?: (player: RegistrationForPool) => React.ReactNode;
+  /** Return drag payload for eligible pick cards; null keeps the card static. */
+  getDragData?: (player: RegistrationForPool) => Record<string, unknown> | null;
+  /** Fallback pick request for double-click/double-tap on an eligible draggable card. */
+  onPickRequest?: (player: RegistrationForPool) => void;
 };
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'gameId-asc', label: 'BY ID' },
-  { value: 'primary-asc', label: 'BY POS' },
-  { value: 'cost-asc', label: 'COST ↑' },
-  { value: 'cost-desc', label: 'COST ↓' },
+  { value: 'gameId-asc', label: '默认' },
+  { value: 'primary-asc', label: '按位置' },
+  { value: 'cost-asc', label: '费用 ↑' },
+  { value: 'cost-desc', label: '费用 ↓' },
 ];
 
-export function PlayerPool({ players, renderActions }: Props) {
+const PICKED_OPTIONS: { value: NonNullable<PlayerFilter['pickedStatus']>; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'unpicked', label: '未选' },
+  { value: 'picked', label: '已选' },
+];
+
+/** Chinese single-character marker for a position value. */
+const POS_CHAR: Record<string, string> = {
+  TOP: '上',
+  JUNGLE: '野',
+  MID: '中',
+  ADC: '射',
+  SUPPORT: '辅',
+};
+
+function PosChip({ pos, filled }: { pos: string; filled?: boolean }) {
+  const char = POS_CHAR[pos] ?? pos[0];
+  return (
+    <span
+      className={cn(
+        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-xs font-medium',
+        filled
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-transparent text-muted-foreground',
+      )}
+    >
+      {char}
+    </span>
+  );
+}
+
+/** Segmented toggle button used across the filter panel. */
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded border px-2.5 py-1 text-xs transition-colors',
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-transparent text-muted-foreground hover:border-foreground hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function PlayerPool({ players, renderActions, getDragData, onPickRequest }: Props) {
   const [filter, setFilter] = useState<PlayerFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Raw strings for the cost-range inputs, kept separate from the parsed
+  // numbers in `filter` so a partially-typed decimal (e.g. "12.") survives.
+  const [costMinInput, setCostMinInput] = useState('');
+  const [costMaxInput, setCostMaxInput] = useState('');
 
   const visible = useMemo(
     () => sortPlayers(filterPlayers(players, filter), sort),
     [players, filter, sort],
   );
+
+  // Count of active conditions inside the collapsible panel. Search is excluded
+  // (it stays visible above); sort is not a "filter" and is not counted.
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if ((filter.primaryPositions?.length ?? 0) > 0) n++;
+    if ((filter.secondaryPositions?.length ?? 0) > 0) n++;
+    if (filter.costMin != null) n++;
+    if (filter.costMax != null) n++;
+    if ((filter.pickedStatus ?? 'all') !== 'all') n++;
+    return n;
+  }, [filter]);
 
   function togglePos(field: 'primaryPositions' | 'secondaryPositions', pos: PositionLiteral) {
     setFilter((f) => {
@@ -47,204 +130,188 @@ export function PlayerPool({ players, renderActions }: Props) {
   function reset() {
     setFilter(DEFAULT_FILTER);
     setSort(DEFAULT_SORT);
+    setFiltersOpen(false);
+    setCostMinInput('');
+    setCostMaxInput('');
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div className="tc-card" style={{ padding: 12, position: 'relative' }}>
-        <span className="corner tl" /><span className="corner tr" />
-        <span className="corner bl" /><span className="corner br" />
+    <div className="flex flex-col gap-2.5 p-2.5">
+      {/* ── Filter region ── */}
+      <div className="space-y-3 rounded-lg border bg-card p-3">
+        {/* Search — always visible */}
+        <Input
+          placeholder="搜索昵称 / 游戏 ID"
+          value={filter.search ?? ''}
+          onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
+          className="h-9 text-sm"
+        />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center' }}>
-          <input
-            placeholder="search nickname or gameId…"
-            value={filter.search ?? ''}
-            onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
-            className="tc-mono"
-            style={{
-              background: 'var(--tc-bg-0)',
-              color: 'var(--tc-text)',
-              border: '1px solid var(--tc-line2)',
-              padding: '7px 10px',
-              fontSize: 11,
-              letterSpacing: 1,
-              outline: 'none',
-            }}
-          />
-          <div style={{ display: 'flex', gap: 4 }}>
-            {SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setSort(opt.value)}
-                className={`tc-chip ${sort === opt.value ? 'tc-chip-on' : ''}`}
-                style={{ cursor: 'pointer', border: sort === opt.value ? 'none' : '1px solid var(--tc-line2)' }}
+        {/* Status bar: count · 筛选 toggle · 重置 */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">
+            <span className="font-semibold text-foreground">显示 {visible.length}</span> / {players.length} 人
+          </span>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className={cn(
+              'ml-auto inline-flex items-center gap-1 rounded border px-2.5 py-1 transition-colors',
+              filtersOpen
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
+            )}
+          >
+            筛选 {filtersOpen ? '▴' : '▾'}
+            {activeFilterCount > 0 && (
+              <span
+                className={cn(
+                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium',
+                  filtersOpen
+                    ? 'bg-primary-foreground text-primary'
+                    : 'bg-primary text-primary-foreground',
+                )}
               >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <button onClick={reset} className="tc-btn" style={{ padding: '4px 12px', fontSize: 10 }}>
-            ⟲ RESET
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded border border-border px-2.5 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+          >
+            重置
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-          <div>
-            <span className="tc-label">PRIMARY (OR)</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-              {POSITION_OPTIONS.map((p) => {
-                const on = filter.primaryPositions?.includes(p.value);
-                return (
-                  <button
+        {/* Collapsible filter panel */}
+        {filtersOpen && (
+          <div className="space-y-3 border-t pt-3">
+            {/* Sort */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">排序</p>
+              <div className="flex flex-wrap gap-1.5">
+                {SORT_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    active={sort === opt.value}
+                    onClick={() => setSort(opt.value)}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </div>
+
+            {/* Primary positions */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">主位置</p>
+              <div className="flex flex-wrap gap-1.5">
+                {POSITION_OPTIONS.map((p) => (
+                  <FilterChip
                     key={p.value}
+                    active={!!filter.primaryPositions?.includes(p.value)}
                     onClick={() => togglePos('primaryPositions', p.value)}
-                    className={`tc-chip ${on ? 'tc-chip-on' : ''}`}
-                    style={{ cursor: 'pointer', fontSize: 10, border: on ? 'none' : '1px solid var(--tc-line2)' }}
                   >
-                    {p.value}
-                  </button>
-                );
-              })}
+                    {p.label}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <span className="tc-label">SECONDARY (OR)</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-              {POSITION_OPTIONS.map((p) => {
-                const on = filter.secondaryPositions?.includes(p.value);
-                return (
-                  <button
+
+            {/* Secondary positions */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">副位置</p>
+              <div className="flex flex-wrap gap-1.5">
+                {POSITION_OPTIONS.map((p) => (
+                  <FilterChip
                     key={p.value}
+                    active={!!filter.secondaryPositions?.includes(p.value)}
                     onClick={() => togglePos('secondaryPositions', p.value)}
-                    className={`tc-chip ${on ? 'tc-chip-on' : ''}`}
-                    style={{ cursor: 'pointer', fontSize: 10, border: on ? 'none' : '1px solid var(--tc-line2)' }}
                   >
-                    {p.value}
-                  </button>
-                );
-              })}
+                    {p.label}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
-          <NumField
-            label="COST ≥"
-            value={filter.costMin}
-            onChange={(v) => setFilter((f) => ({ ...f, costMin: v }))}
-          />
-          <NumField
-            label="COST ≤"
-            value={filter.costMax}
-            onChange={(v) => setFilter((f) => ({ ...f, costMax: v }))}
-          />
-          <div>
-            <span className="tc-label">PICKED</span>
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-              {(['all', 'unpicked', 'picked'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilter((f) => ({ ...f, pickedStatus: s }))}
-                  className={`tc-chip ${(filter.pickedStatus ?? 'all') === s ? 'tc-chip-on' : ''}`}
-                  style={{
-                    cursor: 'pointer',
-                    fontSize: 10,
-                    border: (filter.pickedStatus ?? 'all') === s ? 'none' : '1px solid var(--tc-line2)',
+            {/* Cost range */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">费用区间</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="最低"
+                  value={costMinInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCostMinInput(raw);
+                    const n = Number(raw);
+                    setFilter((f) => ({
+                      ...f,
+                      costMin: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
+                    }));
                   }}
-                >
-                  {s.toUpperCase()}
-                </button>
-              ))}
+                  className="h-8 text-xs"
+                />
+                <span className="text-muted-foreground">–</span>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="最高"
+                  value={costMaxInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCostMaxInput(raw);
+                    const n = Number(raw);
+                    setFilter((f) => ({
+                      ...f,
+                      costMax: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
+                    }));
+                  }}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Picked status */}
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">选取状态</p>
+              <div className="flex flex-wrap gap-1.5">
+                {PICKED_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    active={(filter.pickedStatus ?? 'all') === opt.value}
+                    onClick={() => setFilter((f) => ({ ...f, pickedStatus: opt.value }))}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
-        <div style={{ marginTop: 10 }} className="tc-mono">
-          <span style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-            showing {visible.length} of {players.length}
-          </span>
-        </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 6 }}>
+      {/* ── Player card grid ── */}
+      <div
+        data-testid="player-pool-grid"
+        className="grid gap-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}
+      >
         {visible.map((p) => (
-          <div
+          <PlayerPoolCard
             key={p.id}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
-              gap: 6,
-              padding: '8px 10px',
-              background: p.isPicked ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.03)',
-              border: `1px solid ${p.isPicked ? 'var(--tc-line)' : 'var(--tc-line2)'}`,
-              borderLeft: `3px solid ${p.isPicked ? 'var(--tc-line)' : 'var(--tc-purple)'}`,
-              opacity: p.isPicked ? 0.5 : 1,
-              fontFamily: 'var(--tc-font-mono)',
-              fontSize: 11,
-            }}
-          >
-            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div className="tc-display" style={{ fontSize: 13, color: 'var(--tc-text)' }}>
-                {p.nickname}
-                {p.isPicked && (
-                  <span
-                    className="tc-chip"
-                    style={{
-                      marginLeft: 6,
-                      fontSize: 9,
-                      padding: '1px 6px',
-                      background: 'rgba(255,61,92,0.18)',
-                      color: 'var(--tc-red)',
-                      borderColor: 'var(--tc-red)',
-                    }}
-                  >
-                    PICKED
-                  </span>
-                )}
-              </div>
-              <div className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-cyan)' }}>
-                @{p.gameId}
-              </div>
-              <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
-                {p.primaryPositions.map((pos) => (
-                  <TcPos key={`p-${pos}`} pos={pos} size={16} on />
-                ))}
-                {p.secondaryPositions.map((pos) => (
-                  <TcPos key={`s-${pos}`} pos={pos} size={16} />
-                ))}
-              </div>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                justifyContent: 'space-between',
-                gap: 6,
-              }}
-            >
-              <div className="tc-num" style={{ fontSize: 16, color: 'var(--tc-amber)' }}>
-                {p.cost}
-                <span className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-dim)', marginLeft: 2 }}>
-                  CR
-                </span>
-              </div>
-              {renderActions && <div>{renderActions(p)}</div>}
-            </div>
-          </div>
+            player={p}
+            dragData={getDragData?.(p) ?? null}
+            onPickRequest={onPickRequest}
+            action={renderActions?.(p)}
+          />
         ))}
         {visible.length === 0 && (
-          <div
-            className="tc-mono"
-            style={{
-              gridColumn: '1 / -1',
-              padding: 24,
-              textAlign: 'center',
-              color: 'var(--tc-text-faint)',
-              fontSize: 11,
-              border: '1px dashed var(--tc-line2)',
-            }}
-          >
+          <div className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
             没有匹配的选手
           </div>
         )}
@@ -253,37 +320,94 @@ export function PlayerPool({ players, renderActions }: Props) {
   );
 }
 
-function NumField({
-  label,
-  value,
-  onChange,
+function PlayerPoolCard({
+  player,
+  dragData,
+  onPickRequest,
+  action,
 }: {
-  label: string;
-  value: number | undefined;
-  onChange: (v: number | undefined) => void;
+  player: RegistrationForPool;
+  dragData: Record<string, unknown> | null;
+  onPickRequest?: (player: RegistrationForPool) => void;
+  action?: React.ReactNode;
 }) {
+  const draggable = dragData !== null;
+  const actionable = draggable && onPickRequest !== undefined;
+  const suppressClickRef = useRef(false);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pool-player-${player.id}`,
+    data: dragData ?? undefined,
+    disabled: !draggable,
+  });
+
+  useEffect(() => {
+    if (isDragging) {
+      suppressClickRef.current = true;
+      return;
+    }
+    // Drag ended: clear suppression after the trailing click from this pointer
+    // sequence has fired, so the next genuine double-click is not swallowed —
+    // including after a drag that dropped on an invalid target (failed pick).
+    const timer = setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isDragging]);
+
   return (
-    <div>
-      <span className="tc-label">{label}</span>
-      <input
-        type="number"
-        step="any"
-        min="0"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-        className="tc-mono"
-        style={{
-          width: '100%',
-          background: 'var(--tc-bg-0)',
-          color: 'var(--tc-text)',
-          border: '1px solid var(--tc-line2)',
-          padding: '5px 8px',
-          fontSize: 11,
-          letterSpacing: 1,
-          outline: 'none',
-          marginTop: 4,
+    <PlayerHoverCard player={player}>
+      <div
+        ref={setNodeRef}
+        data-testid={`player-pool-card-${player.id}`}
+        {...(draggable ? attributes : {})}
+        {...(draggable ? listeners : {})}
+        onDoubleClick={() => {
+          if (suppressClickRef.current) return;
+          if (actionable) onPickRequest(player);
         }}
-      />
-    </div>
+        className={cn(
+          'flex h-full min-h-[116px] flex-col justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/40',
+          player.isPicked && 'opacity-50',
+          draggable && 'cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-40',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-foreground">{player.nickname}</span>
+              {player.isPicked && (
+                <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
+                  已选
+                </Badge>
+              )}
+            </div>
+            <span className="block truncate text-xs text-muted-foreground">@{player.gameId}</span>
+          </div>
+
+          <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
+            <div className="text-sm font-semibold text-foreground">{formatCost(player.cost)}</div>
+            <div className="text-[10px] text-muted-foreground">费用</div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-end justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap gap-1">
+            {player.primaryPositions.map((pos) => (
+              <PosChip key={`p-${pos}`} pos={pos} filled />
+            ))}
+            {player.secondaryPositions.map((pos) => (
+              <PosChip key={`s-${pos}`} pos={pos} />
+            ))}
+          </div>
+          {actionable && (
+            <span className="shrink-0 rounded border border-primary/50 px-2 py-1 text-[10px] font-medium text-primary">
+              拖到空位
+            </span>
+          )}
+          {action && <div className="shrink-0">{action}</div>}
+        </div>
+      </div>
+    </PlayerHoverCard>
   );
 }

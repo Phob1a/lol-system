@@ -46,6 +46,15 @@ npm run dev
 | `npm run db:seed` | 仅 seed |
 | `npm run db:studio` | Prisma Studio |
 
+### 运行测试
+运行测试前，先创建一个名为 `lol_system_test` 的 Postgres 数据库，并在 `.env` 中设置 `TEST_DATABASE_URL`。`npm run test` 会自动将 schema 推送到该数据库。
+
+```bash
+createdb lol_system_test
+# 在 .env 中设置 TEST_DATABASE_URL，然后：
+npm run test
+```
+
 ### 端到端引擎冒烟
 ```bash
 DATABASE_URL=postgresql://bytedance@localhost:5432/lol_system_test \

@@ -2,29 +2,40 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import type { Player } from '@prisma/client';
+import type { Tournament, Position } from '@prisma/client';
 import type { DraftSnapshot } from '@/lib/draft/types';
 import { useDraftStream } from '@/hooks/useDraftStream';
-import { TcBar } from '@/components/tactical/TcBar';
 import { PlayerPool } from '@/components/draft/PlayerPool';
 import { TOTAL_ROUNDS } from '@/lib/draft/engine';
 import { POSITION_LABEL } from '@/components/players/positions';
-import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
+import { BroadcastLayout } from '@/components/draft/BroadcastLayout';
+import { OnTheClockHero, type HeroStatus } from '@/components/draft/OnTheClockHero';
+import { TeamGrid } from '@/components/draft/TeamGrid';
+import { EventStream } from '@/components/draft/EventStream';
 import { RoundConfigDialog } from './RoundConfigDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { formatCost } from '@/lib/costs';
 
-type PoolPlayer = Pick<
-  Player,
-  'id' | 'gameId' | 'nickname' | 'cost' | 'primaryPositions' | 'secondaryPositions' | 'isCaptain' | 'isRetired'
->;
+type PoolPlayer = {
+  id: string;
+  gameId: string;
+  nickname: string;
+  cost: number;
+  primaryPositions: Position[];
+  secondaryPositions: Position[];
+};
 
 type Props = {
+  tournament: Tournament;
   initialSnapshot: DraftSnapshot;
   activeCaptainCount: number;
   teamBudget: number;
   pool: PoolPlayer[];
 };
 
-export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, pool }: Props) {
+export function DraftControl({ tournament, initialSnapshot, activeCaptainCount, teamBudget, pool }: Props) {
   const { snapshot, connected, reload } = useDraftStream(initialSnapshot);
   const [acting, setActing] = useState<'start' | 'reset' | 'rewind' | null>(null);
   const [revokingPickId, setRevokingPickId] = useState<string | null>(null);
@@ -38,8 +49,8 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
   const finished = status === 'FINISHED';
 
   const pickedSet = useMemo(
-    () => new Set(snapshot?.pickedPlayerIds ?? []),
-    [snapshot?.pickedPlayerIds],
+    () => new Set(snapshot?.pickedRegistrationIds ?? []),
+    [snapshot?.pickedRegistrationIds],
   );
   const decoratedPool = useMemo(
     () => pool.map((p) => ({ ...p, isPicked: pickedSet.has(p.id) })),
@@ -62,11 +73,11 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
     for (const t of snapshot?.teams ?? []) m.set(t.id, t);
     return m;
   }, [snapshot]);
-  const playerNameById = useMemo(() => {
+  const registrationNameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const t of snapshot?.teams ?? []) {
       for (const slot of t.slots) {
-        if (slot.player) m.set(slot.player.id, slot.player.nickname);
+        if (slot.registration) m.set(slot.registration.id, slot.registration.nickname);
       }
     }
     return m;
@@ -130,281 +141,134 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
     void reload();
   }
 
-  const accent = running ? 'var(--tc-cyan)' : finished ? 'var(--tc-green)' : 'var(--tc-amber)';
-  const onTheClockName = onTheClockId
-    ? snapshot?.teams.find((t) => t.captainId === onTheClockId)?.captainNickname ?? onTheClockId
+  // Derive on-the-clock team for hero
+  const onTheClockTeam = onTheClockId
+    ? (snapshot?.teams.find((t) => t.captainId === onTheClockId) ?? null)
     : null;
 
-  return (
-    <div
-      className="tc-board"
-      style={{ minHeight: '100%', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}
-    >
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 4, height: 30, background: accent, boxShadow: `0 0 12px ${accent}` }} />
-          <div>
-            <div className="tc-h1" style={{ fontSize: 22 }}>
-              DRAFT<span style={{ color: accent }}>{'//'}</span>CONSOLE
-            </div>
-            <div className="tc-label">
-              STATUS {status} · ROUND {currentRound}/{TOTAL_ROUNDS} · {snapshot?.teams.length ?? 0} TEAMS · {pool.length} POOL
-              {onTheClockName && <> · ON CLOCK {onTheClockName.toUpperCase()}</>}
-            </div>
-          </div>
-        </div>
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-          <span style={{ color: connected ? 'var(--tc-green)' : 'var(--tc-amber)' }}>●</span>{' '}
-          {connected ? 'SSE_CONNECTED' : 'RECONNECTING'}
+  const heroProps: HeroStatus = useMemo(() => {
+    if (!session || status === 'NOT_STARTED') return { status: 'pending' };
+    if (finished) {
+      return {
+        status: 'completed',
+        teamCount: snapshot?.teams.length ?? 0,
+        totalPicks: snapshot?.picks.length ?? 0,
+      };
+    }
+    if (running && onTheClockTeam) {
+      const missing = onTheClockTeam.slots
+        .filter((s) => s.registration === null)
+        .map((s) => s.position);
+      const picked = Math.max(
+        0,
+        onTheClockTeam.slots.filter((s) => s.registration !== null).length - 1,
+      );
+      return {
+        status: 'on-the-clock',
+        teamName: onTheClockTeam.captainNickname,
+        round: currentRound,
+        budgetLeft: onTheClockTeam.budgetLeft,
+        missingPositions: missing,
+        pickedCount: picked,
+        slotCount: 5,
+      };
+    }
+    // IN_PROGRESS but nobody on the clock = between rounds.
+    return { status: 'waiting', round: currentRound, totalRounds: TOTAL_ROUNDS };
+  }, [session, status, finished, running, onTheClockTeam, currentRound, snapshot?.teams.length, snapshot?.picks.length]);
+
+  // Build EventStream events from non-revoked picks (most recent first)
+  const streamEvents = useMemo(() => {
+    const picks = snapshot?.picks ?? [];
+    return [...picks].reverse().map((pick) => {
+      const team = teamById.get(pick.teamId);
+      const regName = registrationNameById.get(pick.registrationId) ?? pick.registrationId;
+      const label = `「${team?.captainNickname ?? '—'}」选中 ${regName} · ${POSITION_LABEL[pick.position]} · ${formatCost(pick.costPaid)}`;
+      return { id: pick.id, label };
+    });
+  }, [snapshot?.picks, teamById, registrationNameById]);
+
+  // Controls slot — all existing draft operation controls
+  const controlsNode = (
+    <div className="rounded-lg border bg-card p-4 flex flex-wrap gap-2 items-center">
+      <div className="flex items-center gap-2 mr-1">
+        <span className={`h-2 w-2 rounded-full ${connected ? 'bg-primary' : 'bg-muted'}`} />
+        <span className="text-xs font-mono text-muted-foreground">
+          {connected ? 'LIVE' : 'RECONNECTING'}
         </span>
-      </header>
-
-      <div className="tc-divider" />
-
-      <div
-        className="tc-card"
-        style={{ padding: 14, position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}
-      >
-        <span className="corner tl" /><span className="corner tr" />
-        <span className="corner bl" /><span className="corner br" />
-
-        {!running && !finished && (
-          <button
-            onClick={startDraftAction}
-            disabled={acting !== null || activeCaptainCount === 0}
-            className="tc-btn tc-btn-primary"
-          >
-            ▸ {acting === 'start' ? 'STARTING…' : 'START DRAFT'}
-          </button>
-        )}
-        {canStartNextRound && (
-          <button onClick={() => setRoundDialogOpen(true)} className="tc-btn tc-btn-primary">
-            ▸ START ROUND {nextRoundNo}
-          </button>
-        )}
-        {canRewind && (
-          <button onClick={() => setRewindConfirm(true)} disabled={acting !== null} className="tc-btn">
-            {acting === 'rewind' ? '⟲ REWINDING…' : '⟲ REWIND ROUND'}
-          </button>
-        )}
-        {(running || finished) && (
-          <>
-            <a href="/api/draft/export?format=csv" download className="tc-btn">↓ EXPORT CSV</a>
-            <a href="/api/draft/export?format=json" download className="tc-btn">↓ EXPORT JSON</a>
-            <button onClick={() => setResetConfirm(true)} disabled={acting !== null} className="tc-btn tc-btn-danger">
-              ⨯ ABORT & RESET
-            </button>
-          </>
-        )}
-
-        <span style={{ marginLeft: 'auto' }} className="tc-mono">
-          {!running && !finished && (
-            <span style={{ color: 'var(--tc-text-dim)', fontSize: 11 }}>
-              {activeCaptainCount} captains ready · budget {teamBudget} CR
-            </span>
-          )}
-          {running && (
-            <span style={{ color: 'var(--tc-text-dim)', fontSize: 11 }}>
-              {snapshot?.pickedPlayerIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams
-            </span>
-          )}
-          {finished && (
-            <span style={{ color: 'var(--tc-green)', fontSize: 11 }}>
-              ✓ DRAFT COMPLETE · {snapshot?.pickedPlayerIds.length ?? 0} picks
-            </span>
-          )}
-        </span>
+        <Badge variant="outline" className="text-xs font-mono">
+          R{currentRound}/{TOTAL_ROUNDS}
+        </Badge>
       </div>
 
-      {(running || finished) && snapshot && snapshot.teams.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr', gap: 12 }}>
-          <div className="tc-card" style={{ padding: 14, position: 'relative' }}>
-            <span className="corner tl" /><span className="corner tr" />
-            <span className="corner bl" /><span className="corner br" />
-            <div className="tc-h3" style={{ marginBottom: 10 }}>
-              ▸ TEAMS · LIVE · {snapshot.teams.length}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-              {snapshot.teams.map((t) => {
-                const isOnClock = onTheClockId === t.captainId;
-                return (
-                  <div
-                    key={t.id}
-                    style={{
-                      padding: '10px 12px',
-                      border: `1px solid ${isOnClock ? 'var(--tc-cyan)' : 'var(--tc-line)'}`,
-                      background: isOnClock ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.02)',
-                      boxShadow: isOnClock ? 'inset 0 0 14px rgba(0,229,255,0.18)' : undefined,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span
-                        className="tc-display"
-                        style={{ fontSize: 14, color: isOnClock ? 'var(--tc-cyan)' : 'var(--tc-text)' }}
-                      >
-                        {t.captainNickname}
-                      </span>
-                      <span className="tc-num" style={{ fontSize: 13, color: 'var(--tc-amber)' }}>
-                        {t.budgetLeft}
-                        <span className="tc-mono" style={{ fontSize: 9, marginLeft: 2 }}>CR</span>
-                      </span>
-                    </div>
-                    <div className="tc-mono" style={{ fontSize: 9, color: 'var(--tc-text-faint)', marginTop: 2 }}>
-                      @{t.captainGameId} · {t.slots.filter((s) => s.player).length}/5 filled
-                    </div>
-                    <div style={{ marginTop: 8 }}>
-                      <TcBar pct={t.budgetLeft / Math.max(1, teamBudget)} w="100%" color="var(--tc-amber)" />
-                    </div>
-                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {t.slots.map((slot) => {
-                        const row = (
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '46px 1fr auto',
-                              gap: 6,
-                              alignItems: 'center',
-                              padding: '3px 6px',
-                              background: slot.player ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.01)',
-                              border: '1px solid var(--tc-line)',
-                              fontSize: 11,
-                            }}
-                          >
-                            <span className="tc-label" style={{ fontSize: 9 }}>
-                              {POSITION_LABEL[slot.position]}
-                            </span>
-                            {slot.player ? (
-                              <span
-                                style={{
-                                  minWidth: 0,
-                                  fontFamily: 'var(--tc-font-display)',
-                                  color: slot.player.id === t.captainId ? 'var(--tc-cyan)' : 'var(--tc-text)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {slot.player.nickname}
-                                {slot.player.id === t.captainId && (
-                                  <span
-                                    className="tc-mono"
-                                    style={{ marginLeft: 4, fontSize: 9, color: 'var(--tc-cyan)' }}
-                                  >
-                                    ◆ C
-                                  </span>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-                                — empty —
-                              </span>
-                            )}
-                            <span
-                              className="tc-num"
-                              style={{
-                                fontSize: 11,
-                                color: slot.player ? 'var(--tc-amber)' : 'var(--tc-text-faint)',
-                              }}
-                            >
-                              {slot.player ? slot.player.cost : '—'}
-                            </span>
-                          </div>
-                        );
-                        return slot.player ? (
-                          <PlayerHoverCard key={slot.position} player={slot.player}>
-                            {row}
-                          </PlayerHoverCard>
-                        ) : (
-                          <div key={slot.position}>{row}</div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="tc-card" style={{ padding: 14, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            <span className="corner tl" /><span className="corner tr" />
-            <span className="corner bl" /><span className="corner br" />
-            <div className="tc-h3" style={{ marginBottom: 10 }}>
-              ▸ PICKS HISTORY · {snapshot.picks.length}
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: 600 }}>
-              {snapshot.picks.length === 0 ? (
-                <div
-                  className="tc-mono"
-                  style={{ padding: 20, textAlign: 'center', color: 'var(--tc-text-faint)', fontSize: 11 }}
-                >
-                  无 pick · 等待第一手
-                </div>
-              ) : (
-                [...snapshot.picks].reverse().map((pick) => {
-                  const team = teamById.get(pick.teamId);
-                  const playerName = playerNameById.get(pick.playerId) ?? pick.playerId;
-                  return (
-                    <div
-                      key={pick.id}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '52px 1fr auto',
-                        gap: 8,
-                        padding: '6px 4px',
-                        alignItems: 'center',
-                        borderBottom: '1px dashed var(--tc-line)',
-                        fontFamily: 'var(--tc-font-mono)',
-                        fontSize: 11,
-                      }}
-                    >
-                      <span className="tc-chip" style={{ fontSize: 9, padding: '1px 6px' }}>
-                        R{pick.roundNo}.{pick.pickIndex + 1}
-                      </span>
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ color: 'var(--tc-cyan)' }}>{team?.captainNickname ?? '—'}</span>
-                        <span style={{ color: 'var(--tc-text-faint)' }}> → </span>
-                        <span style={{ color: 'var(--tc-text)' }}>{playerName}</span>
-                        <span style={{ color: 'var(--tc-text-faint)', marginLeft: 6 }}>
-                          {POSITION_LABEL[pick.position]} · {pick.costPaid}
-                        </span>
-                      </span>
-                      <button
-                        onClick={() => revokePickAction(pick.id)}
-                        disabled={revokingPickId !== null}
-                        className="tc-btn"
-                        style={{ padding: '1px 6px', fontSize: 9 }}
-                      >
-                        {revokingPickId === pick.id ? '…' : '⟲ REVOKE'}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="tc-card" style={{ padding: 18, position: 'relative' }}>
-          <span className="corner tl" /><span className="corner tr" />
-          <span className="corner bl" /><span className="corner br" />
-          <div className="tc-h3" style={{ marginBottom: 10 }}>▸ READY</div>
-          <p className="tc-mono" style={{ fontSize: 11, color: 'var(--tc-text-dim)' }}>
-            启动后将创建 {activeCaptainCount} 支战队，每位队长按主位入位，预算 {teamBudget} CR - 队长费用。名册与配置自动锁定。
-          </p>
-        </div>
+      {!running && !finished && (
+        <Button
+          onClick={startDraftAction}
+          disabled={acting !== null || activeCaptainCount === 0}
+        >
+          <LoadingButtonContent loading={acting === 'start'} loadingText="开始中…">
+            开始选秀
+          </LoadingButtonContent>
+        </Button>
+      )}
+      {canStartNextRound && (
+        <Button onClick={() => setRoundDialogOpen(true)}>
+          ▸ 开始第 {nextRoundNo} 轮
+        </Button>
+      )}
+      {canRewind && (
+        <Button variant="outline" onClick={() => setRewindConfirm(true)} disabled={acting !== null}>
+          <LoadingButtonContent loading={acting === 'rewind'} loadingText="回退中…">
+            回退轮次
+          </LoadingButtonContent>
+        </Button>
+      )}
+      {(running || finished) && (
+        <>
+          <Button variant="secondary" asChild>
+            <a href="/api/draft/export?format=csv" download>↓ CSV</a>
+          </Button>
+          <Button variant="secondary" asChild>
+            <a href="/api/draft/export?format=json" download>↓ JSON</a>
+          </Button>
+          <Button variant="destructive" onClick={() => setResetConfirm(true)} disabled={acting !== null}>
+            <LoadingButtonContent loading={acting === 'reset'} loadingText="重置中…">
+              重置
+            </LoadingButtonContent>
+          </Button>
+        </>
       )}
 
-      <section>
-        <div className="tc-h3" style={{ marginBottom: 8 }}>
-          ▸ POOL · {decoratedPool.length} CANDIDATES
-          {(running || finished) && (
-            <span className="tc-mono" style={{ marginLeft: 8, fontSize: 10, color: 'var(--tc-text-faint)' }}>
-              {snapshot?.pickedPlayerIds.length ?? 0} picked · {pool.length - (snapshot?.pickedPlayerIds.length ?? 0)} available
-            </span>
-          )}
-        </div>
-        <PlayerPool players={decoratedPool} />
-      </section>
+      <span className="ml-auto text-xs font-mono text-muted-foreground">
+        {!running && !finished && (
+          <span>{activeCaptainCount} captains · {formatCost(teamBudget)} CR</span>
+        )}
+        {running && (
+          <span>{snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams</span>
+        )}
+        {finished && (
+          <span className="text-primary">✓ COMPLETE · {snapshot?.pickedRegistrationIds.length ?? 0} picks</span>
+        )}
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      <BroadcastLayout
+        defaultMobileTab="grid"
+        controls={controlsNode}
+        hero={<OnTheClockHero {...heroProps} />}
+        grid={
+          <TeamGrid
+            teams={snapshot?.teams ?? []}
+            onTheClockId={onTheClockId}
+            maxBudget={tournament.teamBudget}
+          />
+        }
+        pool={<PlayerPool players={decoratedPool} />}
+        events={<EventStream events={streamEvents} />}
+      />
 
       {snapshot && roundDialogOpen && (
         <RoundConfigDialog
@@ -420,10 +284,9 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
 
       {resetConfirm && (
         <ConfirmModal
-          accent="var(--tc-red)"
-          title="⨯ RESET DRAFT"
+          title="⨯ 重置选秀"
           message="将清空所有战队、已选记录与事件日志，并解锁名册与配置。该操作无法撤销。"
-          confirmLabel="⨯ CONFIRM RESET"
+          confirmLabel="⨯ 确认重置"
           danger
           onConfirm={resetDraftAction}
           onCancel={() => setResetConfirm(false)}
@@ -431,20 +294,18 @@ export function DraftControl({ initialSnapshot, activeCaptainCount, teamBudget, 
       )}
       {rewindConfirm && (
         <ConfirmModal
-          accent="var(--tc-amber)"
-          title="⟲ REWIND ROUND"
+          title="⟲ 回退轮次"
           message={`将撤销第 ${currentRound} 轮的所有 pick，恢复预算与位置，并将 currentRound 设为 ${currentRound - 1}。`}
-          confirmLabel="⟲ CONFIRM REWIND"
+          confirmLabel="⟲ 确认回退"
           onConfirm={rewindRoundAction}
           onCancel={() => setRewindConfirm(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 
 function ConfirmModal({
-  accent,
   title,
   message,
   confirmLabel,
@@ -452,7 +313,6 @@ function ConfirmModal({
   onCancel,
   danger,
 }: {
-  accent: string;
   title: string;
   message: string;
   confirmLabel: string;
@@ -463,35 +323,19 @@ function ConfirmModal({
   return (
     <div
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(7,8,12,0.78)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className="fixed inset-0 z-[100] backdrop-blur-md flex items-center justify-center bg-background/80"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="tc-card"
-        style={{ width: 440, padding: 24, background: 'var(--tc-bg-1)', position: 'relative' }}
+        className="w-[calc(100vw_-_2rem)] max-w-[440px] rounded-lg border bg-card p-4 shadow-lg sm:p-6"
       >
-        <span className="corner tl" style={{ borderColor: accent }} />
-        <span className="corner tr" style={{ borderColor: accent }} />
-        <span className="corner bl" style={{ borderColor: accent }} />
-        <span className="corner br" style={{ borderColor: accent }} />
-        <div className="tc-h2" style={{ color: accent, marginBottom: 8 }}>{title}</div>
-        <div className="tc-mono" style={{ fontSize: 12, color: 'var(--tc-text-dim)', marginBottom: 16 }}>
-          {message}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="tc-btn" onClick={onCancel}>CANCEL</button>
-          <button className={`tc-btn ${danger ? 'tc-btn-danger' : 'tc-btn-primary'}`} onClick={onConfirm}>
+        <div className="text-lg font-semibold mb-2">{title}</div>
+        <div className="text-sm text-muted-foreground mb-4">{message}</div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>取消</Button>
+          <Button variant={danger ? 'destructive' : 'default'} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

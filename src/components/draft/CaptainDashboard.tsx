@@ -1,10 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Player } from '@prisma/client';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import type { Position } from '@prisma/client';
+import { toast } from 'sonner';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import type { DraftSnapshot } from '@/lib/draft/types';
-import type { TeamPreview, PlayerRef } from '@/lib/teams/preview';
+import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
 import { PlayerPool } from '@/components/draft/PlayerPool';
 import { TeamPanel } from '@/components/draft/TeamPanel';
 import { DraggableTeamBoard } from '@/components/captain/DraggableTeamBoard';
@@ -13,33 +21,33 @@ import {
   CaptainNotificationDialog,
   type CaptainNoticeKind,
 } from '@/components/captain/CaptainNotificationDialog';
-
-type PoolPlayer = Pick<
-  Player,
-  'id' | 'gameId' | 'nickname' | 'primaryPositions' | 'secondaryPositions' | 'cost' | 'isCaptain' | 'isRetired'
->;
+import { formatCost, normalizeCost } from '@/lib/costs';
+import { cn } from '@/lib/utils';
+import { resolveDraftPickDrop } from '@/lib/draft/drag-pick';
 
 type Props = {
   initialSnapshot: DraftSnapshot;
-  pool: PoolPlayer[];
+  pool: RegistrationRef[];
   virtualTeams: TeamPreview[];
-  ownGameId: string;
-  /** Captain's own Player.id — used to determine if they're on the clock. */
+  /** Registration.id of the captain who owns this session. */
   ownCaptainId: string | null;
   teamBudget: number;
 };
+
+type PickableRegistration = RegistrationRef & { isPicked?: boolean };
 
 export function CaptainDashboard({
   initialSnapshot,
   pool,
   virtualTeams,
-  ownGameId,
   ownCaptainId,
   teamBudget,
 }: Props) {
   const { snapshot, prevSnapshot, connected } = useDraftStream(initialSnapshot);
-  const [pickTarget, setPickTarget] = useState<PoolPlayer | null>(null);
+  const [pickTarget, setPickTarget] = useState<RegistrationRef | null>(null);
+  const [pickInitialPosition, setPickInitialPosition] = useState<Position | undefined>(undefined);
   const [noticeKind, setNoticeKind] = useState<CaptainNoticeKind | null>(null);
+  const [rearrangingSlots, setRearrangingSlots] = useState(false);
 
   const session = snapshot?.session ?? null;
   const running = session?.status === 'IN_PROGRESS';
@@ -56,7 +64,7 @@ export function CaptainDashboard({
       budgetLeft: t.budgetLeft,
       slots: t.slots.map((s) => ({
         position: s.position,
-        player: s.player as PlayerRef | null,
+        player: s.registration as RegistrationRef | null,
       })),
     }));
   }, [snapshot]);
@@ -68,8 +76,8 @@ export function CaptainDashboard({
 
   const teamsToRender = running || finished ? liveTeams : virtualTeams;
   const pickedSet = useMemo(
-    () => new Set(snapshot?.pickedPlayerIds ?? []),
-    [snapshot?.pickedPlayerIds],
+    () => new Set(snapshot?.pickedRegistrationIds ?? []),
+    [snapshot?.pickedRegistrationIds],
   );
   const decoratedPool = useMemo(
     () => pool.map((p) => ({ ...p, isPicked: pickedSet.has(p.id) })),
@@ -77,10 +85,20 @@ export function CaptainDashboard({
   );
 
   const myEmptySlots = useMemo(
-    () => ownLiveTeam?.slots.filter((s) => s.player === null).map((s) => s.position) ?? [],
+    () => ownLiveTeam?.slots.filter((s) => s.registration === null).map((s) => s.position) ?? [],
     [ownLiveTeam],
   );
   const myBudget = ownLiveTeam?.budgetLeft ?? 0;
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function canPickPlayer(player: PickableRegistration) {
+    return (
+      isMyTurn &&
+      !player.isPicked &&
+      normalizeCost(player.cost) <= normalizeCost(myBudget) &&
+      myEmptySlots.length > 0
+    );
+  }
 
   useEffect(() => {
     if (!snapshot || !ownCaptainId) return;
@@ -98,62 +116,117 @@ export function CaptainDashboard({
     else if (justOnClock) setNoticeKind('turn');
   }, [snapshot, prevSnapshot, ownCaptainId]);
 
-  const accent = isMyTurn
-    ? 'var(--tc-cyan)'
-    : running
-    ? 'var(--tc-green)'
-    : finished
-    ? 'var(--tc-purple)'
-    : 'var(--tc-amber)';
   const onTheClockNick = onTheClockId
     ? snapshot?.teams.find((t) => t.captainId === onTheClockId)?.captainNickname ?? onTheClockId
     : null;
 
+  async function persistOwnSlotSwap(from: Position, to: Position) {
+    if (!ownLiveTeam || from === to) return;
+    const fromIdx = ownLiveTeam.slots.findIndex((s) => s.position === from);
+    const toIdx = ownLiveTeam.slots.findIndex((s) => s.position === to);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const next = ownLiveTeam.slots.map((s) => ({ ...s }));
+    const fromRegistration = next[fromIdx].registration;
+    const toRegistration = next[toIdx].registration;
+    next[fromIdx] = { ...next[fromIdx], registration: toRegistration };
+    next[toIdx] = { ...next[toIdx], registration: fromRegistration };
+
+    setRearrangingSlots(true);
+    const res = await fetch(`/api/draft/team/${ownLiveTeam.id}/slots`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slots: next.map((s) => ({ position: s.position, registrationId: s.registration?.id ?? null })),
+      }),
+    });
+    setRearrangingSlots(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(body.error ?? '调整失败');
+      return;
+    }
+    toast.success('已调整位置');
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const pickIntent = resolveDraftPickDrop(event.active.data.current, event.over?.data.current);
+    if (pickIntent && isMyTurn && myEmptySlots.includes(pickIntent.position)) {
+      const player = decoratedPool.find((p) => p.id === pickIntent.playerId);
+      if (
+        player &&
+        !player.isPicked &&
+        normalizeCost(player.cost) <= normalizeCost(myBudget)
+      ) {
+        setPickTarget(player as RegistrationRef);
+        setPickInitialPosition(pickIntent.position);
+      }
+      return;
+    }
+
+    const active = event.active.data.current as { type?: string; position?: Position } | undefined;
+    const over = event.over?.data.current as { position?: Position } | undefined;
+    if (active?.type === 'slot-player' && active.position && over?.position) {
+      void persistOwnSlotSwap(active.position, over.position);
+    }
+  }
+
   return (
-    <div
-      className="tc-board"
-      style={{ minHeight: '100%', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}
-    >
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 4, height: 30, background: accent, boxShadow: `0 0 12px ${accent}` }} />
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
+      <header className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              'w-1 h-8 rounded-sm',
+              isMyTurn
+                ? 'bg-primary'
+                : running
+                ? 'bg-green-500'
+                : finished
+                ? 'bg-violet-500'
+                : 'bg-amber-500',
+            )}
+          />
           <div>
-            <div className="tc-h1" style={{ fontSize: 22 }}>
-              DRAFT<span style={{ color: accent }}>{'//'}</span>BAY
+            <div className="text-lg font-bold tracking-wide text-foreground">
+              DRAFT <span className="text-muted-foreground">{'//'}</span> BAY
             </div>
-            <div className="tc-label">
-              {!running && !finished && <>STATUS NOT_STARTED · BUDGET {teamBudget} CR · {teamsToRender.length} TEAMS</>}
+            <div className="text-xs text-muted-foreground">
+              {!running && !finished && (
+                <>STATUS NOT_STARTED · BUDGET {formatCost(teamBudget)} CR · {teamsToRender.length} TEAMS</>
+              )}
               {running && (
                 <>
-                  STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedPlayerIds.length ?? 0} PICKS
+                  STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS
                 </>
               )}
-              {finished && <>STATUS FINISHED · {snapshot?.pickedPlayerIds.length ?? 0} PICKS</>}
+              {finished && <>STATUS FINISHED · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS</>}
             </div>
           </div>
         </div>
-        <span className="tc-mono" style={{ fontSize: 10, color: 'var(--tc-text-faint)' }}>
-          <span style={{ color: connected ? 'var(--tc-green)' : 'var(--tc-amber)' }}>●</span>{' '}
+        <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+          <span className={connected ? 'text-green-500' : 'text-amber-500'}>●</span>
           {connected ? 'SSE_CONNECTED' : 'RECONNECTING'}
         </span>
       </header>
 
-      <div className="tc-divider" />
+      <div className="border-t" />
 
       {!running && !finished && (
-        <Banner accent="var(--tc-amber)" label="SESSION_PENDING">
+        <Banner variant="amber" label="SESSION_PENDING">
           选秀未开始 · 当前为只读视图，等待管理员开启选秀
         </Banner>
       )}
       {running && (
         <Banner
-          accent={accent}
+          variant={isMyTurn ? 'primary' : 'green'}
           label={isMyTurn ? 'PRIORITY_ALERT · ON_CLOCK' : 'SESSION_LIVE'}
           pulse={isMyTurn}
         >
           {isMyTurn ? (
             <>
-              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {myBudget} CR · {myEmptySlots.length} 个空位
+              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {formatCost(myBudget)} CR · {myEmptySlots.length} 个空位
             </>
           ) : (
             <>
@@ -164,31 +237,24 @@ export function CaptainDashboard({
         </Banner>
       )}
       {finished && (
-        <Banner accent="var(--tc-purple)" label="SESSION_COMPLETE">
+        <Banner variant="violet" label="SESSION_COMPLETE">
           ✓ 选秀已完成 · 最终阵容如下，可拖动调整己方位置
         </Banner>
       )}
 
       <section>
-        <div className="tc-h3" style={{ marginBottom: 8 }}>▸ TEAMS</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
+        <div className="text-xs font-semibold text-foreground mb-2">▸ TEAMS</div>
+        <div
+          className="grid gap-2.5"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
+        >
           {teamsToRender.length === 0 ? (
-            <div
-              className="tc-mono"
-              style={{
-                gridColumn: '1 / -1',
-                padding: 24,
-                textAlign: 'center',
-                color: 'var(--tc-text-faint)',
-                fontSize: 11,
-                border: '1px dashed var(--tc-line2)',
-              }}
-            >
+            <div className="col-span-full py-6 text-center text-xs text-muted-foreground border border-dashed rounded-md">
               暂无战队
             </div>
           ) : (
             teamsToRender.map((t) => {
-              const isOwn = t.captainGameId === ownGameId;
+              const isOwn = t.captainId === ownCaptainId;
               if (isOwn && ownLiveTeam) {
                 return (
                   <DraggableTeamBoard
@@ -201,10 +267,12 @@ export function CaptainDashboard({
                       budgetLeft: ownLiveTeam.budgetLeft,
                       slots: ownLiveTeam.slots.map((s) => ({
                         position: s.position,
-                        player: s.player as PlayerRef | null,
+                        player: s.registration as RegistrationRef | null,
                       })),
                     }}
                     seq={snapshot?.seq ?? 0}
+                    pickDropEnabled={isMyTurn}
+                    dndMode="external"
                   />
                 );
               }
@@ -215,25 +283,27 @@ export function CaptainDashboard({
       </section>
 
       <section>
-        <div className="tc-h3" style={{ marginBottom: 8 }}>▸ POOL · {decoratedPool.length} CANDIDATES</div>
+        <div className="text-xs font-semibold text-foreground mb-2">
+          ▸ POOL · {decoratedPool.length} CANDIDATES
+        </div>
         <PlayerPool
           players={decoratedPool}
-          renderActions={
+          getDragData={
             isMyTurn
-              ? (p) => (
-                  <button
-                    onClick={() => setPickTarget(p as PoolPlayer)}
-                    disabled={p.isPicked || p.cost > myBudget || myEmptySlots.length === 0}
-                    className="tc-btn tc-btn-primary"
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: 10,
-                      opacity: p.isPicked || p.cost > myBudget || myEmptySlots.length === 0 ? 0.4 : 1,
-                    }}
-                  >
-                    ▸ PICK
-                  </button>
-                )
+              ? (p) => {
+                  if (!canPickPlayer(p)) return null;
+                  return { type: 'pool-player', playerId: p.id };
+                }
+              : undefined
+          }
+          onPickRequest={
+            isMyTurn
+              ? (p) => {
+                  const player = p as PickableRegistration;
+                  if (!canPickPlayer(player)) return;
+                  setPickTarget(player);
+                  setPickInitialPosition(undefined);
+                }
               : undefined
           }
         />
@@ -242,12 +312,21 @@ export function CaptainDashboard({
       {pickTarget && snapshot && (
         <PickAction
           open
-          onOpenChange={(o) => !o && setPickTarget(null)}
-          onPicked={() => setPickTarget(null)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setPickTarget(null);
+              setPickInitialPosition(undefined);
+            }
+          }}
+          onPicked={() => {
+            setPickTarget(null);
+            setPickInitialPosition(undefined);
+          }}
           player={pickTarget}
           emptySlots={myEmptySlots}
           budgetLeft={myBudget}
           expectedSeq={snapshot.seq}
+          initialPosition={pickInitialPosition}
         />
       )}
 
@@ -260,37 +339,50 @@ export function CaptainDashboard({
           onConfirm={() => setNoticeKind(null)}
         />
       )}
-    </div>
+        {rearrangingSlots && (
+          <span className="sr-only" role="status">正在调整位置</span>
+        )}
+      </div>
+    </DndContext>
   );
 }
 
 function Banner({
-  accent,
+  variant,
   label,
   pulse,
   children,
 }: {
-  accent: string;
+  variant: 'primary' | 'green' | 'violet' | 'amber';
   label: string;
   pulse?: boolean;
   children: React.ReactNode;
 }) {
+  const borderStyles: Record<string, string> = {
+    primary: 'border-l-primary bg-primary/5',
+    green: 'border-l-green-500 bg-green-500/5',
+    violet: 'border-l-violet-500 bg-violet-500/5',
+    amber: 'border-l-amber-500 bg-amber-500/5',
+  };
+  const labelStyles: Record<string, string> = {
+    primary: 'text-primary',
+    green: 'text-green-600',
+    violet: 'text-violet-600',
+    amber: 'text-amber-600',
+  };
+
   return (
     <div
-      style={{
-        position: 'relative',
-        padding: '10px 14px',
-        background: `${accent}10`,
-        borderLeft: `3px solid ${accent}`,
-        animation: pulse ? 'tc-pulse 1.4s ease-in-out infinite' : undefined,
-      }}
+      className={cn(
+        'relative px-3.5 py-2.5 border-l-[3px] rounded-sm',
+        borderStyles[variant],
+        pulse && 'animate-pulse',
+      )}
     >
-      <div className="tc-label" style={{ color: accent, fontSize: 9 }}>
+      <div className={cn('text-[9px] font-semibold tracking-widest uppercase mb-0.5', labelStyles[variant])}>
         ▸ {label}
       </div>
-      <div className="tc-mono" style={{ fontSize: 12, color: 'var(--tc-text-dim)', marginTop: 3, lineHeight: 1.5 }}>
-        {children}
-      </div>
+      <div className="text-xs text-muted-foreground leading-relaxed">{children}</div>
     </div>
   );
 }

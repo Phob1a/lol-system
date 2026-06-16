@@ -3,22 +3,26 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { submitPick, getDraftSnapshot, DraftStateError } from '@/lib/draft/engine';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { POSITIONS } from '@/lib/players/schema';
 import { publish } from '@/server/draft-bus';
 
 export const runtime = 'nodejs';
 
 const Body = z.object({
-  playerId: z.string().min(1),
+  registrationId: z.string().min(1),
   position: z.enum(POSITIONS),
   expectedSeq: z.number().int(),
-  /** Admin-only: proxy-pick on behalf of this captainId (= Player.id of the captain). */
+  /** Admin-only: proxy-pick on behalf of this captainId (= Registration.id of the captain). */
   onBehalfOf: z.string().min(1).optional(),
 });
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: '未登录' }, { status: 401 });
+
+  const tournament = await getActiveTournament(prisma);
+  if (!tournament) return NextResponse.json({ error: '没有活跃赛事' }, { status: 409 });
 
   const json = await req.json().catch(() => null);
   const parsed = Body.safeParse(json);
@@ -35,32 +39,29 @@ export async function POST(req: Request) {
     if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: '仅管理员可代选' }, { status: 403 });
     }
-    byCaptainId = parsed.data.onBehalfOf;
+    byCaptainId = parsed.data.onBehalfOf; // a Registration id (the team's captainId)
   } else {
-    if (session.user.role !== 'CAPTAIN' || !session.user.isCaptain) {
-      return NextResponse.json(
-        { error: '非队长无法直接出手；管理员请使用 onBehalfOf' },
-        { status: 403 },
-      );
+    if (session.user.role !== 'CAPTAIN' || !session.user.teamId) {
+      return NextResponse.json({ error: '非队长账号无法出手' }, { status: 403 });
     }
-    // Look up captain's Player.id from their User record.
-    const player = await prisma.player.findFirst({
-      where: { user: { id: session.user.id } },
-      select: { id: true },
+    const team = await prisma.team.findUnique({
+      where: { id: session.user.teamId },
+      select: { captainId: true },
     });
-    if (!player) return NextResponse.json({ error: '账户未关联选手' }, { status: 404 });
-    byCaptainId = player.id;
+    if (!team) return NextResponse.json({ error: '队伍不存在' }, { status: 404 });
+    byCaptainId = team.captainId;
   }
 
   try {
     const result = await submitPick({
+      tournamentId: tournament.id,
       byCaptainId,
-      playerId: parsed.data.playerId,
+      registrationId: parsed.data.registrationId,
       position: parsed.data.position,
       expectedSeq: parsed.data.expectedSeq,
       actorUserId: session.user.id,
     });
-    const snapshot = await getDraftSnapshot();
+    const snapshot = await getDraftSnapshot(tournament.id);
     publish({ type: 'state.invalidated', seq: snapshot.seq });
     return NextResponse.json({ ...result, snapshot });
   } catch (e) {

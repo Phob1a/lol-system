@@ -40,3 +40,9 @@ coverage/
 
 # superpowers brainstorm artifacts
 .superpowers/
+
+# claude code worktrees and artifacts
+.claude/
+
+# playwright test artifacts
+test-results/

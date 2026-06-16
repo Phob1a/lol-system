@@ -1,5 +1,17 @@
 import type { DraftStatus, Position } from '@prisma/client';
-import type { PlayerRef } from '@/lib/teams/preview';
+
+/**
+ * Embedded registration reference carried in draft snapshots.
+ * `gameId` is flattened by the engine from the nested `player.gameId`.
+ */
+export type RegistrationRef = {
+  id: string;
+  nickname: string;
+  gameId: string;
+  primaryPositions: Position[];
+  secondaryPositions: Position[];
+  cost: number;
+};
 
 export type DraftSessionSnapshot = {
   id: string;
@@ -13,7 +25,7 @@ export type DraftSessionSnapshot = {
 export type DraftTeamSlotSnapshot = {
   id: string;
   position: Position;
-  player: PlayerRef | null;
+  registration: RegistrationRef | null;
 };
 
 export type DraftTeamSnapshot = {
@@ -31,7 +43,7 @@ export type DraftPickSnapshot = {
   pickIndex: number;
   byCaptainId: string;
   teamId: string;
-  playerId: string;
+  registrationId: string;
   position: Position;
   costPaid: number;
   pickedAt: string; // ISO
@@ -40,7 +52,7 @@ export type DraftPickSnapshot = {
 export type DraftSnapshot = {
   session: DraftSessionSnapshot | null;
   teams: DraftTeamSnapshot[];
-  pickedPlayerIds: string[];
+  pickedRegistrationIds: string[];
   /** Non-revoked picks ordered by (roundNo asc, pickIndex asc). */
   picks: DraftPickSnapshot[];
   // Used by clients to detect staleness; equal to session.seq when session exists.
