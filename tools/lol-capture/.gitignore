@@ -1,0 +1,5 @@
+/lol-capture
+/lol-capture.exe
+*.exe
+capture.log
+result_*.json
