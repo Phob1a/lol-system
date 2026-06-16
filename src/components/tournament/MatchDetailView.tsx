@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -110,6 +111,7 @@ function ChampionIcon({
 function MatchHeader({ detail }: { detail: MatchDetail }) {
   const teamAName = detail.teamA?.name ?? '待定';
   const teamBName = detail.teamB?.name ?? '待定';
+  const matchLabel = detail.label ?? detail.roundKey ?? '比赛详情';
 
   const teamAWins = detail.games.filter(
     (g) => g.winnerTeamId && g.winnerTeamId === detail.teamA?.id,
@@ -117,41 +119,86 @@ function MatchHeader({ detail }: { detail: MatchDetail }) {
   const teamBWins = detail.games.filter(
     (g) => g.winnerTeamId && g.winnerTeamId === detail.teamB?.id,
   ).length;
+  const winnerName =
+    detail.winnerTeamId === detail.teamA?.id
+      ? teamAName
+      : detail.winnerTeamId === detail.teamB?.id
+        ? teamBName
+        : null;
 
   return (
-    <div className="mb-6">
-      {(detail.label || detail.roundKey) && (
-        <p className="text-xs text-muted-foreground mb-1 text-center">
-          {[detail.roundKey, detail.label].filter(Boolean).join(' · ')}
-        </p>
-      )}
-      <div className="flex items-center justify-center gap-4 text-center">
-        <span
-          className={`text-lg font-semibold ${
-            detail.winnerTeamId === detail.teamA?.id ? 'text-primary' : ''
-          }`}
+    <section className="overflow-hidden rounded-lg border bg-card">
+      <div className="border-b px-4 py-3">
+        <Link
+          href="/tournament"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          {teamAName}
-        </span>
-        <div className="flex items-center gap-2 tabular-nums text-2xl font-bold">
-          <span>{teamAWins}</span>
-          <span className="text-muted-foreground text-base">:</span>
-          <span>{teamBWins}</span>
-        </div>
-        <span
-          className={`text-lg font-semibold ${
-            detail.winnerTeamId === detail.teamB?.id ? 'text-primary' : ''
-          }`}
-        >
-          {teamBName}
-        </span>
+          <ArrowLeft className="h-4 w-4" />
+          返回赛事页
+        </Link>
       </div>
-      {detail.status === 'FINISHED' && detail.winnerTeamId && (
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          {detail.winnerTeamId === detail.teamA?.id ? teamAName : teamBName} 胜
-        </p>
-      )}
-    </div>
+
+      <div className="grid gap-6 px-4 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-6">
+        <div className="min-w-0 text-center lg:text-left">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">
+            {[detail.roundKey, `BO${detail.bestOf}`].filter(Boolean).join(' · ')}
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-normal">{matchLabel}</h1>
+          {detail.status === 'FINISHED' && winnerName && (
+            <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              {winnerName} 胜
+            </p>
+          )}
+        </div>
+
+        <div className="mx-auto flex w-full max-w-sm items-center justify-between rounded-lg bg-muted/30 px-4 py-3 text-center lg:w-80">
+          <div className="min-w-0 flex-1">
+            <div
+              className={`truncate text-sm font-semibold ${
+                detail.winnerTeamId === detail.teamA?.id
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : ''
+              }`}
+            >
+              {teamAName}
+            </div>
+          </div>
+          <div className="mx-4 flex items-baseline gap-2 tabular-nums">
+            <span className="text-4xl font-black leading-none">{teamAWins}</span>
+            <span className="text-lg font-semibold text-muted-foreground">:</span>
+            <span className="text-4xl font-black leading-none">{teamBWins}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div
+              className={`truncate text-sm font-semibold ${
+                detail.winnerTeamId === detail.teamB?.id
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : ''
+              }`}
+            >
+              {teamBName}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center lg:max-w-xs">
+          <div className="rounded-lg border bg-background/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">局数</div>
+            <div className="mt-1 text-lg font-bold">{detail.games.length}</div>
+          </div>
+          <div className="rounded-lg border bg-background/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">赛制</div>
+            <div className="mt-1 text-lg font-bold">BO{detail.bestOf}</div>
+          </div>
+          <div className="rounded-lg border bg-background/60 px-3 py-2">
+            <div className="text-xs text-muted-foreground">状态</div>
+            <div className="mt-1 text-lg font-bold">
+              {detail.status === 'FINISHED' ? '已结束' : detail.status}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -368,28 +415,33 @@ function GamePanel({
     game.winnerTeamId !== null && game.winnerTeamId !== game.blueTeamId;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-lg border bg-card p-4">
       {/* Blue/Red team indicator bar */}
-      <div className="flex rounded overflow-hidden h-7 text-xs font-medium">
+      <div
+        className="flex min-h-8 overflow-hidden rounded text-xs font-medium"
+        aria-label={`第 ${game.index + 1} 局蓝红方`}
+      >
         <div
-          className={`flex-1 flex items-center justify-center bg-blue-500/20 text-blue-700 dark:text-blue-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 bg-blue-500/20 px-2 text-blue-700 dark:text-blue-300 ${
             blueWon ? 'font-bold' : ''
           }`}
         >
-          {blueTeamName} (蓝){blueWon ? ' ✓' : ''}
+          <span>{blueTeamName}（蓝）</span>
+          {blueWon ? <span aria-hidden="true">✓</span> : null}
         </div>
         <div
-          className={`flex-1 flex items-center justify-center bg-red-500/20 text-red-700 dark:text-red-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 bg-red-500/20 px-2 text-red-700 dark:text-red-300 ${
             redWon ? 'font-bold' : ''
           }`}
         >
-          {redTeamName} (红){redWon ? ' ✓' : ''}
+          <span>{redTeamName}（红）</span>
+          {redWon ? <span aria-hidden="true">✓</span> : null}
         </div>
       </div>
 
       {/* Duration */}
       {game.durationSeconds != null && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-medium text-muted-foreground">
           时长：{formatDuration(game.durationSeconds)}
         </p>
       )}
@@ -427,7 +479,9 @@ export function MatchDetailView({ detail }: { detail: MatchDetail }) {
       <MatchHeader detail={detail} />
 
       {detail.games.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">暂无对局明细</p>
+        <section className="rounded-lg border bg-card py-10 text-center">
+          <p className="text-sm text-muted-foreground">暂无对局明细</p>
+        </section>
       ) : (
         <Tabs defaultValue={`game-${detail.games[0].index}`} className="w-full">
           <TabsList className="mb-4">

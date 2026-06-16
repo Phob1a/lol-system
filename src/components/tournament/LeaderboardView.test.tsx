@@ -1,95 +1,152 @@
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { LeaderboardRow } from './LeaderboardView';
+import { LeaderboardView, type PlayerProfile } from './LeaderboardView';
 
-// Re-implement the local sortRows to test it in isolation
-// (it's not exported from the module but its logic is trivial enough to verify here)
-function sortRows(
-  rows: LeaderboardRow[],
-  key: keyof Omit<LeaderboardRow, 'registrationId' | 'playerId' | 'nickname'>,
-  dir: 'asc' | 'desc',
-): LeaderboardRow[] {
-  return [...rows].sort((a, b) => {
-    const av = a[key] as number;
-    const bv = b[key] as number;
-    return dir === 'desc' ? bv - av : av - bv;
-  });
-}
-
-function row(overrides: Partial<LeaderboardRow> = {}): LeaderboardRow {
+function profile(overrides: Partial<PlayerProfile> = {}): PlayerProfile {
   return {
-    registrationId: 'r1',
-    playerId: 'p1',
-    nickname: '测试',
-    games: 5,
-    wins: 3,
-    avgKills: 4,
-    avgDeaths: 2,
-    avgAssists: 6,
-    kda: 5.0,
-    avgCs: 180,
-    avgDamage: 20000,
-    avgGold: 12000,
-    mvpCount: 1,
+    registrationId: 'reg-nightfox',
+    playerId: 'player-nightfox',
+    nickname: 'NightFox',
+    teamName: '星河战队',
+    primaryPosition: 'MID',
+    summary: {
+      games: 12,
+      wins: 9,
+      winRate: 75,
+      avgKills: 4.8,
+      avgDeaths: 1.7,
+      avgAssists: 6.1,
+      kda: 6.42,
+      avgCs: 221,
+      avgDamage: 29400,
+      avgGold: 13200,
+      mvpCount: 4,
+    },
+    recentForm: [true, false, true, true, true, false, true, true],
+    commonChampions: [
+      {
+        championId: 'Ahri',
+        championName: '阿狸',
+        games: 5,
+        wins: 4,
+        winRate: 80,
+        kda: 7.1,
+        avgDamage: 30200,
+      },
+    ],
+    games: [
+      {
+        gameId: 'game-1',
+        matchId: 'match-1',
+        matchLabel: '半决赛 2',
+        opponent: '北境战队',
+        championId: 'Ahri',
+        championName: '阿狸',
+        kills: 7,
+        deaths: 1,
+        assists: 8,
+        cs: 240,
+        damage: 34120,
+        gold: 14860,
+        win: true,
+        isMvp: true,
+      },
+      {
+        gameId: 'game-2',
+        matchId: 'match-2',
+        matchLabel: '小组赛 R4',
+        opponent: '霜火战队',
+        championId: 'Sylas',
+        championName: '塞拉斯',
+        kills: 3,
+        deaths: 4,
+        assists: 5,
+        cs: 205,
+        damage: 21700,
+        gold: 11330,
+        win: false,
+        isMvp: false,
+      },
+    ],
     ...overrides,
   };
 }
 
-describe('LeaderboardView sort logic', () => {
-  it('sorts by kda desc — highest first', () => {
-    const rows = [
-      row({ registrationId: 'r1', kda: 3.0 }),
-      row({ registrationId: 'r2', kda: 7.5 }),
-      row({ registrationId: 'r3', kda: 1.2 }),
-    ];
-    const sorted = sortRows(rows, 'kda', 'desc');
-    expect(sorted.map((r) => r.registrationId)).toEqual(['r2', 'r1', 'r3']);
+describe('LeaderboardView profile explorer', () => {
+  it('selects the first profile by default and shows the mixed profile layout', () => {
+    render(<LeaderboardView initialProfiles={[profile()]} />);
+
+    expect(screen.getByRole('heading', { name: 'NightFox' })).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getAllByText('6.42').length).toBeGreaterThan(0);
+    expect(screen.getByText('最近 8 场走势')).toBeInTheDocument();
+    expect(screen.getByText('常用英雄')).toBeInTheDocument();
+    expect(screen.getByText('最近比赛记录')).toBeInTheDocument();
   });
 
-  it('sorts by kda asc — lowest first', () => {
-    const rows = [
-      row({ registrationId: 'r1', kda: 3.0 }),
-      row({ registrationId: 'r2', kda: 7.5 }),
-      row({ registrationId: 'r3', kda: 1.2 }),
-    ];
-    const sorted = sortRows(rows, 'kda', 'asc');
-    expect(sorted.map((r) => r.registrationId)).toEqual(['r3', 'r1', 'r2']);
+  it('switches selected profile from the selector', () => {
+    render(
+      <LeaderboardView
+        initialProfiles={[
+          profile(),
+          profile({
+            registrationId: 'reg-bluerain',
+            playerId: 'player-bluerain',
+            nickname: 'BlueRain',
+            teamName: '霜火战队',
+            primaryPosition: 'ADC',
+            summary: { ...profile().summary, winRate: 63.6, kda: 4.2, avgDamage: 31200 },
+            recentForm: [false, true],
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /BlueRain/ }));
+
+    expect(screen.getByRole('heading', { name: 'BlueRain' })).toBeInTheDocument();
+    expect(screen.getByText('63.6%')).toBeInTheDocument();
+    expect(screen.getAllByText('霜火战队').length).toBeGreaterThan(0);
   });
 
-  it('sorts by games desc', () => {
-    const rows = [
-      row({ registrationId: 'r1', games: 10 }),
-      row({ registrationId: 'r2', games: 2 }),
-      row({ registrationId: 'r3', games: 7 }),
-    ];
-    const sorted = sortRows(rows, 'games', 'desc');
-    expect(sorted[0].registrationId).toBe('r1');
-    expect(sorted[2].registrationId).toBe('r2');
+  it('filters player selector by nickname and team', () => {
+    render(
+      <LeaderboardView
+        initialProfiles={[
+          profile(),
+          profile({
+            registrationId: 'reg-kite',
+            playerId: 'player-kite',
+            nickname: 'Kite',
+            teamName: '北境战队',
+            primaryPosition: 'JUNGLE',
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('搜索选手 / 队伍 / 位置'), {
+      target: { value: '北境' },
+    });
+
+    expect(screen.queryByRole('button', { name: /NightFox/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Kite/ })).toBeInTheDocument();
   });
 
-  it('does not mutate the original array', () => {
-    const rows = [row({ registrationId: 'r1', kda: 1 }), row({ registrationId: 'r2', kda: 5 })];
-    const original = [...rows];
-    sortRows(rows, 'kda', 'desc');
-    expect(rows[0].registrationId).toBe(original[0].registrationId);
+  it('renders recent form as win/loss tiles', () => {
+    render(<LeaderboardView initialProfiles={[profile({ recentForm: [true, false, true] })]} />);
+
+    const strip = screen.getByLabelText('最近 8 场走势');
+    expect(within(strip).getAllByText('W')).toHaveLength(2);
+    expect(within(strip).getByText('L')).toBeInTheDocument();
   });
 
-  it('handles single-element array', () => {
-    const rows = [row({ registrationId: 'r1', kda: 4.0 })];
-    const sorted = sortRows(rows, 'kda', 'desc');
-    expect(sorted).toHaveLength(1);
-  });
+  it('shows an explicit match-detail link in recent games', () => {
+    render(<LeaderboardView initialProfiles={[profile()]} />);
 
-  it('handles empty array', () => {
-    expect(sortRows([], 'kda', 'desc')).toEqual([]);
-  });
-
-  it('sorts by mvpCount desc', () => {
-    const rows = [
-      row({ registrationId: 'r1', mvpCount: 0 }),
-      row({ registrationId: 'r2', mvpCount: 3 }),
-      row({ registrationId: 'r3', mvpCount: 1 }),
-    ];
-    const sorted = sortRows(rows, 'mvpCount', 'desc');
-    expect(sorted.map((r) => r.registrationId)).toEqual(['r2', 'r3', 'r1']);
+    expect(screen.getByRole('link', { name: '查看 半决赛 2' })).toHaveAttribute(
+      'href',
+      '/tournament/match/match-1',
+    );
   });
 });
