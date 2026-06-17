@@ -719,6 +719,7 @@ git commit -m "feat(import): admin routes list/detail/mapping/commit/discard"
 - [ ] **Step 3: 「上传 JSON」按钮**
 
 `ImportsManager` 加上传：读文件 → `POST /api/tournament/imports`（admin 登录态）→ 刷新列表。
+- 顺手修 P2（Codex 三号机 Task 5 review）：`src/app/api/tournament/imports/route.ts` 把 `await req.json()` 的 `SyntaxError`（畸形 JSON）包成 400，避免冒泡成 500。
 
 - [ ] **Step 4: 入口卡片 + commit**
 
