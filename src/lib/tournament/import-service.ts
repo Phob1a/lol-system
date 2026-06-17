@@ -118,9 +118,9 @@ export async function buildAutoMapping(db: Db, matchId: string, raw: unknown) {
   const aScore = mappingScore(aAsBlue.rows);
   const bScore = mappingScore(bAsBlue.rows);
 
-  if (aScore === bScore) {
-    throw new Error(`无法自动判断红蓝方：两种分配均命中 ${aScore}/10，请先核对选手 gameId 与名单`);
-  }
+  // 命中数相同（包括都 0）时不阻断审核：默认 teamA=蓝方，
+  // 审核页仍允许切换红蓝方并手动补映射。
+  if (aScore === bScore) return aAsBlue;
   return aScore > bScore ? aAsBlue : bAsBlue;
 }
 

@@ -274,11 +274,14 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
   // ── fetch mapping when matchId is selected ───────────────────────────────
 
   const fetchMapping = useCallback(
-    async (matchId: string) => {
+    async (matchId: string, blueTeamId?: string) => {
       if (!matchId) return;
       setMappingLoading(true);
       try {
-        const url = `/api/tournament/admin/imports/${importId}/mapping?matchId=${encodeURIComponent(matchId)}`;
+        const url =
+          `/api/tournament/admin/imports/${importId}/mapping` +
+          `?matchId=${encodeURIComponent(matchId)}` +
+          (blueTeamId ? `&blueTeamId=${encodeURIComponent(blueTeamId)}` : '');
         const res = await fetch(url);
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -320,6 +323,11 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     const match = matches.find((m) => m.id === matchId);
     setGameIndex(match ? String(nextImportIndex(match)) : '1');
     setMapping(null);
+  }
+
+  function handleSwapSides() {
+    if (!selectedMatchId || !mapping) return;
+    void fetchMapping(selectedMatchId, mapping.redTeamId);
   }
 
   function getStatValue(pid: number, key: keyof PlayerStats): string {
@@ -523,6 +531,16 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                 <div>
                   <span className="text-muted-foreground">红蓝方：</span>
                   蓝 {teamNameById(mapping.blueTeamId)} / 红 {teamNameById(mapping.redTeamId)}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-2 h-7 px-2"
+                    disabled={mappingLoading}
+                    onClick={handleSwapSides}
+                  >
+                    交换
+                  </Button>
                 </div>
               </div>
             )}

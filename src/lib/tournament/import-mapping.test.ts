@@ -206,10 +206,13 @@ it('buildAutoMapping 按选手命中结果自动判断 LCU 蓝方对应的站内
   expect(result.rows.every((r) => r.registrationId !== null)).toBe(true);
 });
 
-it('buildAutoMapping 两种红蓝分配命中数相同时拒绝，避免猜测', async () => {
+it('buildAutoMapping 两种红蓝分配命中数相同时默认 teamA=蓝方，不阻断审核', async () => {
   const { t, final } = await toFinal();
   await seedRosterWithGameIds(t.id, final.teamAId!, SAMPLE_BLUE.map((_, i) => `a-${i}`));
   await seedRosterWithGameIds(t.id, final.teamBId!, SAMPLE_RED.map((_, i) => `b-${i}`));
 
-  await expect(buildAutoMapping(testDb, final.id, sample)).rejects.toThrow(/无法自动判断红蓝方/);
+  const result = await buildAutoMapping(testDb, final.id, sample);
+  expect(result.blueTeamId).toBe(final.teamAId);
+  expect(result.redTeamId).toBe(final.teamBId);
+  expect(result.rows.every((r) => r.registrationId === null)).toBe(true);
 });
