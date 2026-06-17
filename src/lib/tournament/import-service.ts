@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { championKeyByNumericId } from './champions';
 import { TournamentError } from './errors';
-import { saveGameDetailTx, stageTagForMatch } from './game-detail-service';
+import { saveGameDetailTx, stageTagForMatch, type BanInput } from './game-detail-service';
 import { resolvePid, summarySchema, type CommitInput } from './import-schema';
 import type { Db } from './types';
 
@@ -107,6 +107,51 @@ export async function buildMapping(db: Db, matchId: string, blueTeamId: string, 
 
 function mappingScore(rows: MapRow[]) {
   return rows.filter((r) => r.registrationId !== null).length;
+}
+
+type ParsedSummary = ReturnType<typeof summarySchema.parse>;
+
+function buildImportedBanPicks(
+  s: ParsedSummary,
+  blueTeamId: string,
+  redTeamId: string,
+): BanInput[] {
+  const rows: Omit<BanInput, 'order'>[] = [];
+  const rawTeams = Array.isArray(s.teams) ? s.teams : [];
+  for (const rawTeam of rawTeams) {
+    if (!rawTeam || typeof rawTeam !== 'object') continue;
+    const team = rawTeam as { teamId?: unknown; bans?: unknown };
+    if (team.teamId !== 100 && team.teamId !== 200) continue;
+    if (!Array.isArray(team.bans)) continue;
+    const siteTeamId = team.teamId === 100 ? blueTeamId : redTeamId;
+    const bans = team.bans
+      .map((b) => {
+        const row = b as { championId?: unknown; pickTurn?: unknown };
+        return {
+          championId: typeof row.championId === 'number' ? row.championId : null,
+          pickTurn: typeof row.pickTurn === 'number' ? row.pickTurn : Number.MAX_SAFE_INTEGER,
+        };
+      })
+      .filter((b): b is { championId: number; pickTurn: number } => b.championId !== null)
+      .sort((a, b) => a.pickTurn - b.pickTurn);
+    for (const b of bans) {
+      const key = championKeyByNumericId(b.championId);
+      if (!key) throw new TournamentError('VALIDATION', `未知 BP 英雄 id：${b.championId}`);
+      rows.push({ teamId: siteTeamId, type: 'BAN', championId: key });
+    }
+  }
+
+  for (const p of s.players) {
+    const key = championKeyByNumericId(p.championId);
+    if (!key) throw new TournamentError('VALIDATION', `未知英雄 id：${p.championId}，请更新英雄数据`);
+    rows.push({
+      teamId: p.teamId === 100 ? blueTeamId : redTeamId,
+      type: 'PICK',
+      championId: key,
+    });
+  }
+
+  return rows.map((row, i) => ({ ...row, order: i + 1 }));
 }
 
 export async function buildAutoMapping(db: Db, matchId: string, raw: unknown) {
@@ -253,6 +298,7 @@ export async function commitImport(
           } as Prisma.InputJsonValue,
         };
       });
+      const banPicks = buildImportedBanPicks(s, body.blueTeamId, redTeamId);
 
       const recordedGames = await tx.game.findMany({
         where: { matchId: match.id },
@@ -284,6 +330,7 @@ export async function commitImport(
           winnerTeamId,
           blueTeamId: body.blueTeamId,
           durationSeconds: s.gameDuration ?? null,
+          bans: banPicks,
           playerStats: playerStats.map(({ _ext, ...ps }) => ps),
         },
         actorUserId,

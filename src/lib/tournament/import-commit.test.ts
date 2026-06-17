@@ -158,6 +158,20 @@ it('happy：完整提交 → 落库 + 标记 COMMITTED', async () => {
   expect(game.blueTeamId).toBe(ctx.blueTeamId);
   expect(game.durationSeconds).toBe(sample.gameDuration);
 
+  const banPicks = await testDb.gameBanPick.findMany({
+    where: { gameId },
+    orderBy: { order: 'asc' },
+  });
+  expect(banPicks).toHaveLength(20);
+  expect(banPicks.map((b) => b.order)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+  expect(banPicks.slice(0, 10).every((b) => b.type === 'BAN')).toBe(true);
+  expect(banPicks.slice(10).every((b) => b.type === 'PICK')).toBe(true);
+  expect(banPicks.slice(0, 5).every((b) => b.teamId === ctx.blueTeamId)).toBe(true);
+  expect(banPicks.slice(5, 10).every((b) => b.teamId === ctx.redTeamId)).toBe(true);
+  expect(banPicks.slice(10, 15).every((b) => b.teamId === ctx.blueTeamId)).toBe(true);
+  expect(banPicks.slice(15).every((b) => b.teamId === ctx.redTeamId)).toBe(true);
+  expect(banPicks.every((b) => /^[A-Za-z]/.test(b.championId))).toBe(true);
+
   const teamStats = await testDb.gameTeamStat.findMany({ where: { gameId } });
   expect(teamStats).toHaveLength(2);
   const blueTeamStat = teamStats.find((s) => s.lcuTeamId === 100)!;
