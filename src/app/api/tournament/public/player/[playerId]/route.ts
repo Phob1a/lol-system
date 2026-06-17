@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pla
   const { playerId } = await params;
   const tournament = await getActiveTournament(prisma);
   if (!tournament) return NextResponse.json({ error: '无活跃赛事' }, { status: 404 });
-  const stats = await getPlayerTournamentStats(prisma, playerId, tournament.id);
+  const stats = await getPlayerTournamentStats(prisma, playerId, tournament.id, { includeRawStats: true });
   if (!stats) return NextResponse.json({ error: '选手不存在' }, { status: 404 });
   return NextResponse.json({ stats });
 }
