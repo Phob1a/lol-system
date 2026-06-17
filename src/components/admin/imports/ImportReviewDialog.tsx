@@ -29,6 +29,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import {
+  championIconUrl,
+  championKeyByNumericId,
+  championName as dataDragonChampionName,
+} from '@/lib/tournament/champions';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,15 +76,6 @@ type ImportMeta = {
   winnerLcuTeamId: 100 | 200 | null;
 };
 
-type StatOverride = {
-  kills?: number;
-  deaths?: number;
-  assists?: number;
-  cs?: number;
-  damage?: number;
-  gold?: number;
-};
-
 type PlayerStats = {
   kills: number;
   deaths: number;
@@ -87,6 +83,23 @@ type PlayerStats = {
   cs: number;
   damage: number;
   gold: number;
+};
+
+type RawPlayer = {
+  participantId?: number;
+  name: string;
+  championId: number;
+  championName?: string;
+  spell1Id?: number;
+  spell2Id?: number;
+  teamId: number;
+  stats?: Record<string, unknown>;
+};
+
+type DetailView = {
+  title: string;
+  subtitle?: string;
+  data: Record<string, unknown>;
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -132,6 +145,106 @@ function extractPlayerStats(rawJson: unknown, capturedParticipantId: number): Pl
   } catch {
     return null;
   }
+}
+
+function extractRawPlayers(rawJson: unknown): RawPlayer[] {
+  const data = rawJson as { players?: RawPlayer[] };
+  return Array.isArray(data?.players) ? data.players : [];
+}
+
+function resolveRawPid(p: RawPlayer, index: number): number {
+  return (
+    p.participantId ??
+    (typeof p.stats?.participantId === 'number' ? (p.stats.participantId as number) : index + 1)
+  );
+}
+
+function findRawPlayer(rawJson: unknown, capturedParticipantId: number): RawPlayer | null {
+  return (
+    extractRawPlayers(rawJson).find((p, idx) => resolveRawPid(p, idx) === capturedParticipantId) ??
+    null
+  );
+}
+
+function findRawTeam(rawJson: unknown, lcuTeamId: 100 | 200): Record<string, unknown> | null {
+  const data = rawJson as { teams?: Array<Record<string, unknown>> };
+  const teams = Array.isArray(data?.teams) ? data.teams : [];
+  return teams.find((t) => t.teamId === lcuTeamId) ?? null;
+}
+
+function buildPlayerDetail(player: RawPlayer, pid: number): Record<string, unknown> {
+  const { stats, ...topLevel } = player;
+  return {
+    participantId: pid,
+    ...topLevel,
+    ...(stats ?? {}),
+  };
+}
+
+function valueText(v: unknown): string {
+  if (v == null) return '-';
+  if (typeof v === 'boolean') return v ? '是' : '否';
+  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  return JSON.stringify(v);
+}
+
+function DetailDialog({
+  detail,
+  onClose,
+}: {
+  detail: DetailView | null;
+  onClose: () => void;
+}) {
+  if (!detail) return null;
+  const entries = Object.entries(detail.data);
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[86vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{detail.title}</DialogTitle>
+          {detail.subtitle ? <DialogDescription>{detail.subtitle}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {entries.map(([key, value]) => (
+            <div key={key} className="rounded-md border p-2">
+              <div className="text-xs text-muted-foreground">{key}</div>
+              <div className="mt-1 break-words text-sm font-medium">{valueText(value)}</div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ChampionCell({ player }: { player: RawPlayer | null }) {
+  if (!player) return <span className="text-xs text-muted-foreground">-</span>;
+  const key = championKeyByNumericId(player.championId);
+  const displayName = key
+    ? (dataDragonChampionName(key) ?? player.championName ?? key)
+    : (player.championName ?? `C${player.championId}`);
+  return (
+    <div className="flex min-w-32 items-center gap-2">
+      {key ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={championIconUrl(key)}
+          alt={displayName}
+          width={28}
+          height={28}
+          className="h-7 w-7 rounded-sm object-cover"
+        />
+      ) : (
+        <div className="flex h-7 w-7 items-center justify-center rounded-sm border text-xs text-muted-foreground">
+          ?
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="truncate text-sm">{displayName}</div>
+        <div className="text-xs text-muted-foreground">#{player.championId}</div>
+      </div>
+    </div>
+  );
 }
 
 function extractImportMeta(rawJson: unknown, durationSeconds?: number | null): ImportMeta {
@@ -209,13 +322,13 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
 
   const [regSelections, setRegSelections] = useState<Record<number, string>>({});
 
-  // ── per-player stat overrides ─────────────────────────────────────────────
-
-  const [statOverrides, setStatOverrides] = useState<Record<number, StatOverride>>({});
-
   // ── default stats extracted from rawJson ──────────────────────────────────
 
   const [defaultStats, setDefaultStats] = useState<Record<number, PlayerStats>>({});
+
+  // ── raw detail viewer ─────────────────────────────────────────────────────
+
+  const [detailView, setDetailView] = useState<DetailView | null>(null);
 
   // ── saving ────────────────────────────────────────────────────────────────
 
@@ -298,7 +411,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
           sels[row.capturedParticipantId] = row.registrationId ?? '';
         }
         setRegSelections(sels);
-        setStatOverrides({});
       } catch {
         toast.error('加载映射失败');
       } finally {
@@ -330,32 +442,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     void fetchMapping(selectedMatchId, mapping.redTeamId);
   }
 
-  function getStatValue(pid: number, key: keyof PlayerStats): string {
-    const ov = statOverrides[pid];
-    if (ov && key in ov) return String(ov[key as keyof StatOverride] ?? '');
-    const def = defaultStats[pid];
-    return def ? String(def[key]) : '';
-  }
-
-  function setStatValue(pid: number, key: keyof StatOverride, raw: string) {
-    const val = raw === '' ? undefined : Number(raw);
-    const defVal = defaultStats[pid]?.[key as keyof PlayerStats];
-    setStatOverrides((prev) => {
-      const curr = { ...(prev[pid] ?? {}) };
-      if (val === undefined || val === defVal) {
-        delete curr[key];
-      } else {
-        curr[key] = val;
-      }
-      if (Object.keys(curr).length === 0) {
-        const next = { ...prev };
-        delete next[pid];
-        return next;
-      }
-      return { ...prev, [pid]: curr };
-    });
-  }
-
   // ── derived ───────────────────────────────────────────────────────────────
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
@@ -371,6 +457,27 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     mapping && importMeta?.winnerLcuTeamId
       ? teamNameById(importMeta.winnerLcuTeamId === 100 ? mapping.blueTeamId : mapping.redTeamId)
       : null;
+  const playerByPid = (pid: number) =>
+    importDetail?.rawJson ? findRawPlayer(importDetail.rawJson, pid) : null;
+  const showTeamDetail = (lcuTeamId: 100 | 200) => {
+    if (!importDetail?.rawJson || !mapping) return;
+    const data = findRawTeam(importDetail.rawJson, lcuTeamId);
+    if (!data) return;
+    setDetailView({
+      title: `${lcuTeamId === 100 ? '蓝方' : '红方'}队伍详情`,
+      subtitle: teamNameById(lcuTeamId === 100 ? mapping.blueTeamId : mapping.redTeamId),
+      data,
+    });
+  };
+  const showPlayerDetail = (row: MappingRow) => {
+    const player = playerByPid(row.capturedParticipantId);
+    if (!player) return;
+    setDetailView({
+      title: `${row.capturedName} 选手详情`,
+      subtitle: `${teamNameById(row.siteTeamId)} · ${row.lcuTeamId === 100 ? '蓝方' : '红方'}`,
+      data: buildPlayerDetail(player, row.capturedParticipantId),
+    });
+  };
 
   // ── submit ────────────────────────────────────────────────────────────────
 
@@ -397,14 +504,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
       registrationId: regSelections[row.capturedParticipantId],
     }));
 
-    const overridesEntries = Object.entries(statOverrides).filter(
-      ([, ov]) => Object.keys(ov).length > 0,
-    );
-    const overrides =
-      overridesEntries.length > 0
-        ? Object.fromEntries(overridesEntries.map(([k, v]) => [Number(k), v]))
-        : undefined;
-
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
@@ -414,7 +513,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
         blueTeamId: mapping.blueTeamId,
         mappings,
       };
-      if (overrides) body.overrides = overrides;
 
       const res = await fetch(`/api/tournament/admin/imports/${importId}/commit`, {
         method: 'POST',
@@ -541,6 +639,24 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                   >
                     交换
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-2 h-7 px-2"
+                    onClick={() => showTeamDetail(100)}
+                  >
+                    蓝方详情
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-2 h-7 px-2"
+                    onClick={() => showTeamDetail(200)}
+                  >
+                    红方详情
+                  </Button>
                 </div>
               </div>
             )}
@@ -554,15 +670,15 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                     <TableHeader>
                       <TableRow>
                         <TableHead>LCU 名称</TableHead>
+                        <TableHead>英雄</TableHead>
                         <TableHead>阵营</TableHead>
                         <TableHead>站内队伍</TableHead>
                         <TableHead>映射选手</TableHead>
-                        <TableHead className="text-center">击杀</TableHead>
-                        <TableHead className="text-center">死亡</TableHead>
-                        <TableHead className="text-center">助攻</TableHead>
+                        <TableHead className="text-center">KDA</TableHead>
                         <TableHead className="text-center">CS</TableHead>
                         <TableHead className="text-center">伤害</TableHead>
                         <TableHead className="text-center">金币</TableHead>
+                        <TableHead className="text-center">详情</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -571,6 +687,8 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                         const isBlue = row.lcuTeamId === 100;
                         const currentSel = regSelections[pid] ?? '';
                         const isMissing = !currentSel;
+                        const stats = defaultStats[pid];
+                        const rawPlayer = playerByPid(pid);
                         return (
                           <TableRow
                             key={pid}
@@ -578,6 +696,9 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                           >
                             <TableCell className="font-mono text-xs">
                               {row.capturedName}
+                            </TableCell>
+                            <TableCell>
+                              <ChampionCell player={rawPlayer} />
                             </TableCell>
                             <TableCell>
                               <Badge variant={isBlue ? 'default' : 'secondary'}>
@@ -615,28 +736,28 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            {(
-                              [
-                                'kills',
-                                'deaths',
-                                'assists',
-                                'cs',
-                                'damage',
-                                'gold',
-                              ] as const
-                            ).map((key) => (
-                              <TableCell key={key}>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  className="h-8 w-20 text-center text-sm"
-                                  value={getStatValue(pid, key)}
-                                  onChange={(e) =>
-                                    setStatValue(pid, key, e.target.value)
-                                  }
-                                />
-                              </TableCell>
-                            ))}
+                            <TableCell className="text-center tabular-nums">
+                              {stats ? `${stats.kills}/${stats.deaths}/${stats.assists}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.cs ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.damage ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.gold ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => showPlayerDetail(row)}
+                              >
+                                详情
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -662,6 +783,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
             </div>
           </div>
         )}
+        <DetailDialog detail={detailView} onClose={() => setDetailView(null)} />
       </DialogContent>
     </Dialog>
   );

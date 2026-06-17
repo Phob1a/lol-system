@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePid, summarySchema } from './import-schema';
+import { commitSchema, resolvePid, summarySchema } from './import-schema';
 import sampleWithPid from '@/lib/test/fixtures/sample-summary-with-pid.json';
 import sample from '@/lib/test/fixtures/sample-summary.json';
 
@@ -59,5 +59,23 @@ describe('summarySchema', () => {
     const input = { ...sample, gameId: '9007199254740993' }; // MAX_SAFE_INTEGER + 2
     const result = summarySchema.parse(input);
     expect(result.gameId).toBe(9007199254740993n);
+  });
+});
+
+describe('commitSchema', () => {
+  it('rejects manual stat overrides; import review may only change mappings', () => {
+    const body = {
+      matchId: 'match1',
+      expectedVersion: 1,
+      gameIndex: 1,
+      blueTeamId: 'team1',
+      mappings: Array.from({ length: 10 }, (_, i) => ({
+        capturedParticipantId: i + 1,
+        registrationId: `reg-${i + 1}`,
+      })),
+      overrides: { 1: { kills: 99 } },
+    };
+
+    expect(() => commitSchema.parse(body)).toThrow();
   });
 });

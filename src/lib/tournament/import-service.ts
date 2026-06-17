@@ -234,17 +234,16 @@ export async function commitImport(
         const key = championKeyByNumericId(p.championId);
         if (!key)
           throw new TournamentError('VALIDATION', `未知英雄 id：${p.championId}，请更新英雄数据`);
-        const o = body.overrides?.[String(pid)] ?? {};
         return {
           teamId: siteTeamId,
           registrationId: regId,
           championId: key,
-          kills: o.kills ?? st.kills ?? 0,
-          deaths: o.deaths ?? st.deaths ?? 0,
-          assists: o.assists ?? st.assists ?? 0,
-          cs: o.cs ?? ((st.totalMinionsKilled ?? 0) + (st.neutralMinionsKilled ?? 0)),
-          damage: o.damage ?? st.totalDamageDealtToChampions ?? 0,
-          gold: o.gold ?? st.goldEarned ?? 0,
+          kills: st.kills ?? 0,
+          deaths: st.deaths ?? 0,
+          assists: st.assists ?? 0,
+          cs: (st.totalMinionsKilled ?? 0) + (st.neutralMinionsKilled ?? 0),
+          damage: st.totalDamageDealtToChampions ?? 0,
+          gold: st.goldEarned ?? 0,
           _ext: {
             ...st,
             championId: p.championId,
