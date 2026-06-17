@@ -17,6 +17,7 @@ var (
 	kernel32           = syscall.NewLazyDLL("kernel32.dll")
 	procWriteConsoleW  = kernel32.NewProc("WriteConsoleW")
 	procGetConsoleMode = kernel32.NewProc("GetConsoleMode")
+	procWideCharToMB   = kernel32.NewProc("WideCharToMultiByte")
 )
 
 func init() {
@@ -26,17 +27,18 @@ func init() {
 	_, _, _ = kernel32.NewProc("SetConsoleCP").Call(uintptr(cpUTF8))
 }
 
-// consoleWrite 把 s 写到控制台（UTF-16，不受代码页影响）；非控制台则按 UTF-8 字节写。
+// consoleWrite 把 s 写到控制台（UTF-16，不受代码页影响）；非控制台按系统 ANSI
+// 代码页写，照顾旧版 cmd/PowerShell/双击包装器对 stdout 的解码习惯。
 func consoleWrite(s string) {
 	h, err := syscall.GetStdHandle(syscall.STD_OUTPUT_HANDLE)
 	if err != nil || h == syscall.InvalidHandle {
-		_, _ = os.Stdout.WriteString(s)
+		writeANSIOrUTF8(s)
 		return
 	}
 	var mode uint32
 	if r, _, _ := procGetConsoleMode.Call(uintptr(h), uintptr(unsafe.Pointer(&mode))); r == 0 {
-		// 不是真正的控制台（重定向到文件/管道），按 UTF-8 原样写。
-		_, _ = os.Stdout.WriteString(s)
+		// 不是真正的控制台（重定向到文件/管道/旧包装器），按系统 ANSI 代码页写。
+		writeANSIOrUTF8(s)
 		return
 	}
 	u16, err := syscall.UTF16FromString(s)
@@ -57,4 +59,49 @@ func consoleWrite(s string) {
 		uintptr(unsafe.Pointer(&written)),
 		0,
 	)
+}
+
+func writeANSIOrUTF8(s string) {
+	if b, ok := ansiBytes(s); ok {
+		_, _ = os.Stdout.Write(b)
+		return
+	}
+	_, _ = os.Stdout.WriteString(s)
+}
+
+func ansiBytes(s string) ([]byte, bool) {
+	u16, err := syscall.UTF16FromString(s)
+	if err != nil || len(u16) <= 1 {
+		return nil, false
+	}
+	const cpACP = 0
+	n := len(u16) - 1
+	needed, _, _ := procWideCharToMB.Call(
+		uintptr(cpACP),
+		0,
+		uintptr(unsafe.Pointer(&u16[0])),
+		uintptr(n),
+		0,
+		0,
+		0,
+		0,
+	)
+	if needed == 0 {
+		return nil, false
+	}
+	buf := make([]byte, needed)
+	written, _, _ := procWideCharToMB.Call(
+		uintptr(cpACP),
+		0,
+		uintptr(unsafe.Pointer(&u16[0])),
+		uintptr(n),
+		uintptr(unsafe.Pointer(&buf[0])),
+		needed,
+		0,
+		0,
+	)
+	if written == 0 {
+		return nil, false
+	}
+	return buf[:written], true
 }

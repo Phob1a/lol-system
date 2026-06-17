@@ -36,9 +36,16 @@ type MatchSummary = {
   id: string;
   version: number;
   label: string | null;
+  scheduledAt: string | null;
   teamA: { id: string; name: string } | null;
   teamB: { id: string; name: string } | null;
   status: string;
+  games?: Array<{
+    index: number;
+    isDraft: boolean;
+    hasBans: boolean;
+    hasStats: boolean;
+  }>;
 };
 
 type MappingRow = {
@@ -55,6 +62,13 @@ type MappingResult = {
   blueTeamId: string;
   redTeamId: string;
   rows: MappingRow[];
+};
+
+type ImportMeta = {
+  gameMode?: string | null;
+  gameType?: string | null;
+  durationSeconds?: number | null;
+  winnerLcuTeamId: 100 | 200 | null;
 };
 
 type StatOverride = {
@@ -111,13 +125,52 @@ function extractPlayerStats(rawJson: unknown, capturedParticipantId: number): Pl
       kills: n('kills'),
       deaths: n('deaths'),
       assists: n('assists'),
-      cs: n('totalMinionsKilled'),
+      cs: n('totalMinionsKilled') + n('neutralMinionsKilled'),
       damage: n('totalDamageDealtToChampions'),
       gold: n('goldEarned'),
     };
   } catch {
     return null;
   }
+}
+
+function extractImportMeta(rawJson: unknown, durationSeconds?: number | null): ImportMeta {
+  const data = rawJson as {
+    gameMode?: string | null;
+    gameType?: string | null;
+    gameDuration?: number | null;
+    players?: Array<{ teamId?: number; stats?: Record<string, unknown> }>;
+  };
+  const players = Array.isArray(data?.players) ? data.players : [];
+  const t100 = players.filter((p) => p.teamId === 100);
+  const t200 = players.filter((p) => p.teamId === 200);
+  const allWin = (rows: typeof t100) => rows.length === 5 && rows.every((p) => p.stats?.win === true);
+  const allLose = (rows: typeof t100) => rows.length === 5 && rows.every((p) => p.stats?.win === false);
+  let winnerLcuTeamId: 100 | 200 | null = null;
+  if (allWin(t100) && allLose(t200)) winnerLcuTeamId = 100;
+  else if (allLose(t100) && allWin(t200)) winnerLcuTeamId = 200;
+  return {
+    gameMode: data?.gameMode ?? null,
+    gameType: data?.gameType ?? null,
+    durationSeconds: durationSeconds ?? data?.gameDuration ?? null,
+    winnerLcuTeamId,
+  };
+}
+
+function formatDuration(secs?: number | null): string {
+  if (!secs || secs <= 0) return '-';
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+}
+
+function nextImportIndex(match: MatchSummary): number {
+  const draft = match.games?.find((g) => g.isDraft && !g.hasBans && !g.hasStats);
+  if (draft) return draft.index;
+  return (match.games?.length ?? 0) + 1;
+}
+
+function isImportableMatch(m: MatchSummary): boolean {
+  if (!m.teamA || !m.teamB || !m.scheduledAt || m.status !== 'SCHEDULED') return false;
+  return !(m.games ?? []).some((g) => !g.isDraft || g.hasBans || g.hasStats);
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -130,6 +183,9 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     source: string;
     externalGameId: string;
     status: string;
+    gameMode: string | null;
+    gameType: string | null;
+    durationSeconds: number | null;
     rawJson: unknown;
   } | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
@@ -142,7 +198,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
   // ── selection ─────────────────────────────────────────────────────────────
 
   const [selectedMatchId, setSelectedMatchId] = useState<string>('');
-  const [selectedBlueTeamId, setSelectedBlueTeamId] = useState<string>('');
   const [gameIndex, setGameIndex] = useState<string>('1');
 
   // ── mapping ───────────────────────────────────────────────────────────────
@@ -172,7 +227,18 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     setDetailLoading(true);
     fetch(`/api/tournament/admin/imports/${importId}`)
       .then((r) => r.json())
-      .then((body: { import?: { id: string; source: string; externalGameId: string; status: string; rawJson: unknown } }) => {
+      .then((body: {
+        import?: {
+          id: string;
+          source: string;
+          externalGameId: string;
+          status: string;
+          gameMode: string | null;
+          gameType: string | null;
+          durationSeconds: number | null;
+          rawJson: unknown;
+        };
+      }) => {
         setImportDetail(body.import ?? null);
       })
       .catch(() => toast.error('加载导入详情失败'))
@@ -187,7 +253,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
       .then((r) => r.json())
       .then((body: { state?: { matches?: MatchSummary[] } }) => {
         const all = body.state?.matches ?? [];
-        setMatches(all.filter((m) => m.teamA && m.teamB && m.status === 'SCHEDULED'));
+        setMatches(all.filter(isImportableMatch));
       })
       .catch(() => toast.error('加载赛程失败'))
       .finally(() => setMatchesLoading(false));
@@ -205,16 +271,14 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     setDefaultStats(stats);
   }, [importDetail, mapping]);
 
-  // ── fetch mapping when matchId + blueTeamId are selected ─────────────────
+  // ── fetch mapping when matchId is selected ───────────────────────────────
 
   const fetchMapping = useCallback(
-    async (matchId: string, blueTeamId: string) => {
-      if (!matchId || !blueTeamId) return;
+    async (matchId: string) => {
+      if (!matchId) return;
       setMappingLoading(true);
       try {
-        const url =
-          `/api/tournament/admin/imports/${importId}/mapping` +
-          `?matchId=${encodeURIComponent(matchId)}&blueTeamId=${encodeURIComponent(blueTeamId)}`;
+        const url = `/api/tournament/admin/imports/${importId}/mapping?matchId=${encodeURIComponent(matchId)}`;
         const res = await fetch(url);
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -242,18 +306,19 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
   );
 
   useEffect(() => {
-    if (selectedMatchId && selectedBlueTeamId) {
-      void fetchMapping(selectedMatchId, selectedBlueTeamId);
+    if (selectedMatchId) {
+      void fetchMapping(selectedMatchId);
     } else {
       setMapping(null);
     }
-  }, [selectedMatchId, selectedBlueTeamId, fetchMapping]);
+  }, [selectedMatchId, fetchMapping]);
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
   function handleMatchChange(matchId: string) {
     setSelectedMatchId(matchId);
-    setSelectedBlueTeamId('');
+    const match = matches.find((m) => m.id === matchId);
+    setGameIndex(match ? String(nextImportIndex(match)) : '1');
     setMapping(null);
   }
 
@@ -286,6 +351,18 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
   // ── derived ───────────────────────────────────────────────────────────────
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId) ?? null;
+  const importMeta = importDetail
+    ? extractImportMeta(importDetail.rawJson, importDetail.durationSeconds)
+    : null;
+  const teamNameById = (id: string) => {
+    if (selectedMatch?.teamA?.id === id) return selectedMatch.teamA.name;
+    if (selectedMatch?.teamB?.id === id) return selectedMatch.teamB.name;
+    return id;
+  };
+  const winnerTeamName =
+    mapping && importMeta?.winnerLcuTeamId
+      ? teamNameById(importMeta.winnerLcuTeamId === 100 ? mapping.blueTeamId : mapping.redTeamId)
+      : null;
 
   // ── submit ────────────────────────────────────────────────────────────────
 
@@ -326,7 +403,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
         matchId: selectedMatch.id,
         expectedVersion: selectedMatch.version,
         gameIndex: idx,
-        blueTeamId: selectedBlueTeamId,
+        blueTeamId: mapping.blueTeamId,
         mappings,
       };
       if (overrides) body.overrides = overrides;
@@ -410,29 +487,6 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
               </Select>
             </div>
 
-            {/* ── 选择蓝方 ── */}
-            {selectedMatch && (
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">蓝方</Label>
-                <Select
-                  value={selectedBlueTeamId}
-                  onValueChange={setSelectedBlueTeamId}
-                >
-                  <SelectTrigger className="max-w-sm">
-                    <SelectValue placeholder="选择蓝方队伍…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={selectedMatch.teamA!.id}>
-                      {selectedMatch.teamA!.name}（蓝方）
-                    </SelectItem>
-                    <SelectItem value={selectedMatch.teamB!.id}>
-                      {selectedMatch.teamB!.name}（蓝方）
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {/* ── 局序号 ── */}
             {selectedMatch && (
               <div className="space-y-2">
@@ -452,6 +506,27 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
               <p className="text-sm text-muted-foreground">加载映射中…</p>
             )}
 
+            {mapping && !mappingLoading && (
+              <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <span className="text-muted-foreground">模式：</span>
+                  {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">时长：</span>
+                  {formatDuration(importMeta?.durationSeconds)}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">胜者：</span>
+                  {winnerTeamName ?? '-'}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">红蓝方：</span>
+                  蓝 {teamNameById(mapping.blueTeamId)} / 红 {teamNameById(mapping.redTeamId)}
+                </div>
+              </div>
+            )}
+
             {/* ── 映射表格 ── */}
             {mapping && !mappingLoading && (
               <div className="space-y-2">
@@ -462,6 +537,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                       <TableRow>
                         <TableHead>LCU 名称</TableHead>
                         <TableHead>阵营</TableHead>
+                        <TableHead>站内队伍</TableHead>
                         <TableHead>映射选手</TableHead>
                         <TableHead className="text-center">击杀</TableHead>
                         <TableHead className="text-center">死亡</TableHead>
@@ -489,6 +565,9 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                               <Badge variant={isBlue ? 'default' : 'secondary'}>
                                 {isBlue ? '蓝' : '红'}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {teamNameById(row.siteTeamId)}
                             </TableCell>
                             <TableCell>
                               <Select

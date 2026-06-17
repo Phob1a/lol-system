@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { championKeyByNumericId } from './champions';
 import { TournamentError } from './errors';
-import { saveGameDetailTx } from './game-detail-service';
+import { saveGameDetailTx, stageTagForMatch } from './game-detail-service';
 import { resolvePid, summarySchema, type CommitInput } from './import-schema';
 import type { Db } from './types';
 
@@ -71,6 +71,15 @@ async function rosterByTeam(db: Db, tournamentId: string, teamId: string): Promi
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+function objField<T extends string | number | boolean>(
+  obj: Record<string, unknown> | undefined,
+  key: string,
+  kind: 'string' | 'number' | 'boolean',
+): T | null {
+  const v = obj?.[key];
+  return typeof v === kind ? (v as T) : null;
+}
+
 export async function buildMapping(db: Db, matchId: string, blueTeamId: string, raw: unknown) {
   const s = summarySchema.parse(raw);
   const match = await db.match.findUniqueOrThrow({ where: { id: matchId } });
@@ -94,6 +103,25 @@ export async function buildMapping(db: Db, matchId: string, blueTeamId: string, 
     };
   });
   return { matchId, blueTeamId, redTeamId, rows };
+}
+
+function mappingScore(rows: MapRow[]) {
+  return rows.filter((r) => r.registrationId !== null).length;
+}
+
+export async function buildAutoMapping(db: Db, matchId: string, raw: unknown) {
+  const match = await db.match.findUniqueOrThrow({ where: { id: matchId } });
+  if (!match.teamAId || !match.teamBId) throw new Error('比赛双方未确定');
+
+  const aAsBlue = await buildMapping(db, matchId, match.teamAId, raw);
+  const bAsBlue = await buildMapping(db, matchId, match.teamBId, raw);
+  const aScore = mappingScore(aAsBlue.rows);
+  const bScore = mappingScore(bAsBlue.rows);
+
+  if (aScore === bScore) {
+    throw new Error(`无法自动判断红蓝方：两种分配均命中 ${aScore}/10，请先核对选手 gameId 与名单`);
+  }
+  return aScore > bScore ? aAsBlue : bAsBlue;
 }
 
 export function resolveImportAuth(
@@ -156,6 +184,10 @@ export async function commitImport(
       const match = await tx.match.findUniqueOrThrow({ where: { id: body.matchId } });
       if (![match.teamAId, match.teamBId].includes(body.blueTeamId))
         throw new TournamentError('VALIDATION', 'blueTeamId 不属于该对阵');
+      if (!match.scheduledAt)
+        throw new TournamentError('VALIDATION', '仅已预约的赛程可导入对局');
+      if (match.status !== 'SCHEDULED')
+        throw new TournamentError('CONFLICT', '仅未完成的赛程可导入对局');
       const redTeamId = match.teamAId === body.blueTeamId ? match.teamBId! : match.teamAId!;
 
       // —— 严格 LCU 阵营 + 胜负校验 ——
@@ -223,14 +255,22 @@ export async function commitImport(
         };
       });
 
+      const recordedGames = await tx.game.findMany({
+        where: { matchId: match.id },
+        include: { _count: { select: { bans: true, playerStats: true } } },
+      });
+      if (recordedGames.some((g) => !g.isDraft || g._count.bans > 0 || g._count.playerStats > 0))
+        throw new TournamentError('CONFLICT', '该赛程已有录入数据');
+      const stageTag = stageTagForMatch(match);
+
       const existing = await tx.game.findFirst({
         where: { matchId: match.id, index: body.gameIndex },
-        include: { playerStats: { take: 1 } },
+        include: { _count: { select: { bans: true, playerStats: true } } },
       });
       const count = await tx.game.count({ where: { matchId: match.id } });
       let gameIdArg: string | undefined;
       if (existing) {
-        if (!existing.isDraft || existing.playerStats.length > 0)
+        if (!existing.isDraft || existing._count.bans > 0 || existing._count.playerStats > 0)
           throw new TournamentError('CONFLICT', `第 ${body.gameIndex} 局已有正式数据`);
         gameIdArg = existing.id;
       } else if (body.gameIndex !== count + 1) {
@@ -249,6 +289,47 @@ export async function commitImport(
         },
         actorUserId,
       });
+
+      const rawTeams = new Map<number, Record<string, unknown>>();
+      for (const t of s.teams ?? []) {
+        if (t && typeof t === 'object') {
+          const row = t as Record<string, unknown>;
+          const teamId = objField<number>(row, 'teamId', 'number');
+          if (teamId === 100 || teamId === 200) rawTeams.set(teamId, row);
+        }
+      }
+      await tx.gameTeamStat.deleteMany({ where: { gameId } });
+      for (const lcuTeamId of [100, 200] as const) {
+        const rawTeam = rawTeams.get(lcuTeamId);
+        const siteTeamId = lcuTeamId === 100 ? body.blueTeamId : redTeamId;
+        const bans = Array.isArray(rawTeam?.bans)
+          ? (rawTeam.bans as Prisma.InputJsonValue)
+          : undefined;
+        await tx.gameTeamStat.create({
+          data: {
+            gameId,
+            teamId: siteTeamId,
+            lcuTeamId,
+            win: lcuTeamId === 100 ? winnerTeamId === body.blueTeamId : winnerTeamId === redTeamId,
+            stageTag,
+            firstBlood: objField<boolean>(rawTeam, 'firstBlood', 'boolean'),
+            firstTower: objField<boolean>(rawTeam, 'firstTower', 'boolean'),
+            firstBaron: objField<boolean>(rawTeam, 'firstBaron', 'boolean'),
+            firstDragon: objField<boolean>(rawTeam, 'firstDargon', 'boolean'),
+            firstInhibitor: objField<boolean>(rawTeam, 'firstInhibitor', 'boolean'),
+            towerKills: objField<number>(rawTeam, 'towerKills', 'number'),
+            inhibitorKills: objField<number>(rawTeam, 'inhibitorKills', 'number'),
+            dragonKills: objField<number>(rawTeam, 'dragonKills', 'number'),
+            baronKills: objField<number>(rawTeam, 'baronKills', 'number'),
+            riftHeraldKills: objField<number>(rawTeam, 'riftHeraldKills', 'number'),
+            hordeKills: objField<number>(rawTeam, 'hordeKills', 'number'),
+            vilemawKills: objField<number>(rawTeam, 'vilemawKills', 'number'),
+            dominionVictoryScore: objField<number>(rawTeam, 'dominionVictoryScore', 'number'),
+            bans,
+            extStats: rawTeam as Prisma.InputJsonValue | undefined,
+          },
+        });
+      }
 
       for (const ps of playerStats) {
         await tx.gamePlayerStat.update({

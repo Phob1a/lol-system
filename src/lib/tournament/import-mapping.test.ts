@@ -1,6 +1,6 @@
 import { beforeEach, expect, it } from 'vitest';
 import { resetDb, testDb } from '@/lib/test/db';
-import { buildMapping } from './import-service';
+import { buildAutoMapping, buildMapping } from './import-service';
 import { setupGroupStage } from './score-service.test-helpers';
 import { recordGame } from './score-service';
 import { closeGroupStage } from './bracket-service';
@@ -193,4 +193,23 @@ it('返回 matchId / blueTeamId / redTeamId 字段正确', async () => {
   expect(result.matchId).toBe(final.id);
   expect(result.blueTeamId).toBe(final.teamAId);
   expect(result.redTeamId).toBe(final.teamBId);
+});
+
+it('buildAutoMapping 按选手命中结果自动判断 LCU 蓝方对应的站内队伍', async () => {
+  const { t, final } = await toFinal();
+  await seedRosterWithGameIds(t.id, final.teamAId!, SAMPLE_RED);
+  await seedRosterWithGameIds(t.id, final.teamBId!, SAMPLE_BLUE);
+
+  const result = await buildAutoMapping(testDb, final.id, sample);
+  expect(result.blueTeamId).toBe(final.teamBId);
+  expect(result.redTeamId).toBe(final.teamAId);
+  expect(result.rows.every((r) => r.registrationId !== null)).toBe(true);
+});
+
+it('buildAutoMapping 两种红蓝分配命中数相同时拒绝，避免猜测', async () => {
+  const { t, final } = await toFinal();
+  await seedRosterWithGameIds(t.id, final.teamAId!, SAMPLE_BLUE.map((_, i) => `a-${i}`));
+  await seedRosterWithGameIds(t.id, final.teamBId!, SAMPLE_RED.map((_, i) => `b-${i}`));
+
+  await expect(buildAutoMapping(testDb, final.id, sample)).rejects.toThrow(/无法自动判断红蓝方/);
 });

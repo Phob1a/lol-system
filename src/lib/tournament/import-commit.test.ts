@@ -94,6 +94,10 @@ type Ctx = {
 /** blueTeamId=final.teamAId（蓝=teamId 100 名单），redTeamId=final.teamBId（红=teamId 200 名单）。 */
 async function setupImportCtx(rawOverride?: unknown): Promise<Ctx> {
   const { t, final } = await toFinal();
+  await testDb.match.update({
+    where: { id: final.id },
+    data: { scheduledAt: new Date('2026-06-17T12:00:00Z') },
+  });
   const blueTeamId = final.teamAId!;
   const redTeamId = final.teamBId!;
   const blueRegIds = await seedRosterWithGameIds(t.id, blueTeamId, SAMPLE_BLUE);
@@ -152,10 +156,26 @@ it('happy：完整提交 → 落库 + 标记 COMMITTED', async () => {
   // 红方（teamId 200）win=true → 胜者是红方
   expect(game.winnerTeamId).toBe(ctx.redTeamId);
   expect(game.blueTeamId).toBe(ctx.blueTeamId);
+  expect(game.durationSeconds).toBe(sample.gameDuration);
+
+  const teamStats = await testDb.gameTeamStat.findMany({ where: { gameId } });
+  expect(teamStats).toHaveLength(2);
+  const blueTeamStat = teamStats.find((s) => s.lcuTeamId === 100)!;
+  const redTeamStat = teamStats.find((s) => s.lcuTeamId === 200)!;
+  expect(blueTeamStat.teamId).toBe(ctx.blueTeamId);
+  expect(blueTeamStat.stageTag).toBe('FINAL');
+  expect(blueTeamStat.win).toBe(false);
+  expect(blueTeamStat.dragonKills).toBe(2);
+  expect(redTeamStat.teamId).toBe(ctx.redTeamId);
+  expect(redTeamStat.win).toBe(true);
+  expect(redTeamStat.firstTower).toBe(true);
+  expect(redTeamStat.baronKills).toBe(1);
+  expect(redTeamStat.extStats).toMatchObject({ teamId: 200, win: 'Win' });
 
   const stats = await testDb.gamePlayerStat.findMany({ where: { gameId } });
   expect(stats).toHaveLength(10);
   for (const s of stats) {
+    expect(s.stageTag).toBe('FINAL');
     expect(s.extStats).not.toBeNull();
     expect(s.championId).toMatch(/^[A-Za-z]/); // DD key 以字母开头，不是数字
   }
@@ -163,6 +183,26 @@ it('happy：完整提交 → 落库 + 标记 COMMITTED', async () => {
   const imp = (await testDb.matchImport.findUnique({ where: { id: ctx.importId } }))!;
   expect(imp.status).toBe('COMMITTED');
   expect(imp.committedGameId).toBe(gameId);
+});
+
+it('未预约赛程不可导入', async () => {
+  const ctx = await setupImportCtx();
+  await testDb.match.update({ where: { id: ctx.matchId }, data: { scheduledAt: null } });
+
+  await expect(
+    commitImport(
+      testDb,
+      ctx.importId,
+      {
+        matchId: ctx.matchId,
+        expectedVersion: ctx.matchVersion,
+        gameIndex: 1,
+        blueTeamId: ctx.blueTeamId,
+        mappings: ctx.fullMappings,
+      },
+      'admin1',
+    ),
+  ).rejects.toMatchObject({ code: 'VALIDATION' });
 });
 
 it('某 capturedParticipantId 无映射 → VALIDATION', async () => {

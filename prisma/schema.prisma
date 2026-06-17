@@ -96,7 +96,7 @@ model Registration {
 
   tournamentRosters TournamentTeamPlayer[]
   gameStats         GamePlayerStat[]
-  gamesAsMvp        Game[]               @relation("GameMvp")
+  gamesAsMvp        Game[]                 @relation("GameMvp")
 
   @@unique([tournamentId, playerId])
   @@index([tournamentId])
@@ -118,12 +118,12 @@ model User {
 }
 
 model Team {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   tournamentId String
   name         String
-  captainId    String @unique
-  userId       String @unique
-  budgetLeft   Float  @default(0)
+  captainId    String  @unique
+  userId       String  @unique
+  budgetLeft   Float   @default(0)
   slogan       String?
 
   tournament Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -134,14 +134,15 @@ model Team {
 
   tournamentTeams  TournamentTeam[]
   groupMemberships TournamentGroupTeam[]
-  matchesAsA       Match[] @relation("MatchTeamA")
-  matchesAsB       Match[] @relation("MatchTeamB")
-  matchesWon       Match[] @relation("MatchWinner")
+  matchesAsA       Match[]               @relation("MatchTeamA")
+  matchesAsB       Match[]               @relation("MatchTeamB")
+  matchesWon       Match[]               @relation("MatchWinner")
 
-  gamesAsBlue  Game[]          @relation("GameBlueTeam")
-  gamesWon     Game[]          @relation("GameWinnerTeam")
-  banPicks     GameBanPick[]   @relation("GameBanPickTeam")
-  playerStats  GamePlayerStat[] @relation("GamePlayerStatTeam")
+  gamesAsBlue Game[]           @relation("GameBlueTeam")
+  gamesWon    Game[]           @relation("GameWinnerTeam")
+  banPicks    GameBanPick[]    @relation("GameBanPickTeam")
+  playerStats GamePlayerStat[] @relation("GamePlayerStatTeam")
+  teamStats   GameTeamStat[]   @relation("GameTeamStatTeam")
 
   createdAt DateTime @default(now())
 
@@ -266,6 +267,13 @@ enum BanPickType {
   PICK
 }
 
+enum GameStageTag {
+  GROUP
+  KNOCKOUT
+  SEMIFINAL
+  FINAL
+}
+
 enum TournamentStatus {
   SETUP
   REGISTRATION
@@ -289,12 +297,12 @@ model Tournament {
   updatedAt  DateTime         @updatedAt
   archivedAt DateTime?
 
-  registrations Registration[]
-  teams         Team[]
-  draftSession  DraftSession?
-  stages        TournamentStage[]
+  registrations   Registration[]
+  teams           Team[]
+  draftSession    DraftSession?
+  stages          TournamentStage[]
   tournamentTeams TournamentTeam[]
-  matches       Match[]
+  matches         Match[]
 
   @@map("tournaments")
 }
@@ -381,12 +389,12 @@ model Match {
   note               String?
   version            Int         @default(0)
 
-  tournament Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  stage      TournamentStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  group      TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  teamA      Team?            @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Restrict)
-  teamB      Team?            @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Restrict)
-  winner     Team?            @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: Restrict)
+  tournament Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stage      TournamentStage        @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group      TournamentGroup?       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teamA      Team?                  @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Restrict)
+  teamB      Team?                  @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Restrict)
+  winner     Team?                  @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: Restrict)
   games      Game[]
   outEdges   MatchAdvancementEdge[] @relation("FromMatch")
   inEdges    MatchAdvancementEdge[] @relation("ToMatch")
@@ -425,9 +433,10 @@ model Game {
   match           Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
   blueTeam        Team?            @relation("GameBlueTeam", fields: [blueTeamId], references: [id], onDelete: Restrict)
   winnerTeam      Team?            @relation("GameWinnerTeam", fields: [winnerTeamId], references: [id], onDelete: Restrict)
-  mvpRegistration Registration?   @relation("GameMvp", fields: [mvpRegistrationId], references: [id], onDelete: Restrict)
+  mvpRegistration Registration?    @relation("GameMvp", fields: [mvpRegistrationId], references: [id], onDelete: Restrict)
   bans            GameBanPick[]
   playerStats     GamePlayerStat[]
+  teamStats       GameTeamStat[]
 
   @@unique([matchId, index])
   @@index([matchId])
@@ -452,7 +461,7 @@ model GameBanPick {
 }
 
 model GamePlayerStat {
-  id             String @id @default(cuid())
+  id             String        @id @default(cuid())
   gameId         String
   teamId         String
   registrationId String
@@ -463,6 +472,7 @@ model GamePlayerStat {
   cs             Int
   damage         Int
   gold           Int
+  stageTag       GameStageTag?
   extStats       Json?
 
   game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -473,6 +483,38 @@ model GamePlayerStat {
   @@index([registrationId])
   @@index([championId])
   @@map("game_player_stats")
+}
+
+model GameTeamStat {
+  id                   String        @id @default(cuid())
+  gameId               String
+  teamId               String
+  lcuTeamId            Int
+  win                  Boolean
+  stageTag             GameStageTag?
+  firstBlood           Boolean?
+  firstTower           Boolean?
+  firstBaron           Boolean?
+  firstDragon          Boolean?
+  firstInhibitor       Boolean?
+  towerKills           Int?
+  inhibitorKills       Int?
+  dragonKills          Int?
+  baronKills           Int?
+  riftHeraldKills      Int?
+  hordeKills           Int?
+  vilemawKills         Int?
+  dominionVictoryScore Int?
+  bans                 Json?
+  extStats             Json?
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  team Team @relation("GameTeamStatTeam", fields: [teamId], references: [id], onDelete: Restrict)
+
+  @@unique([gameId, teamId])
+  @@unique([gameId, lcuTeamId])
+  @@index([teamId])
+  @@map("game_team_stats")
 }
 
 model AuditLog {

@@ -6,9 +6,10 @@
 // 任何一步失败都会打印明确错误，并停在窗口等待回车，方便排查。
 //
 // 可选参数：
-//   --custom-only        只抓最近一局自定义对局（生产/内战阶段用，避免误抓匹配/排位）
-//   --server <url>       抓完自动上传到服务器（不传则仅本地保存）
-//   --token  <val>       服务器 Bearer 令牌（与 --server 配合使用）
+//
+//	--custom-only        只抓最近一局自定义对局（生产/内战阶段用，避免误抓匹配/排位）
+//	--server <url>       抓完自动上传到服务器（不传则仅本地保存）
+//	--token  <val>       服务器 Bearer 令牌（与 --server 配合使用）
 package main
 
 import (
@@ -316,8 +317,13 @@ type participantIdentity struct {
 // 传 --custom-only：只抓最近的一局自定义对局（生产/内战阶段用，避免误抓匹配/排位）。
 var customOnly bool
 
+// embeddedServer / embeddedToken are optional build-time defaults set via:
+// go build -ldflags "-X main.embeddedServer=... -X main.embeddedToken=..."
+// Command-line --server/--token still override them.
+var embeddedServer, embeddedToken string
+
 func main() {
-	var server, token string
+	server, token := embeddedServer, embeddedToken
 	args := os.Args[1:]
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -341,7 +347,11 @@ func main() {
 	var ferr error
 	logFile, ferr = os.Create("capture.log")
 	if ferr != nil {
-		fmt.Println("警告：无法创建 capture.log：", ferr)
+		consoleWrite(fmt.Sprintf("警告：无法创建 capture.log：%v\n", ferr))
+	} else {
+		// Windows 记事本/部分聊天工具会把无 BOM 的 UTF-8 当作本地 ANSI 编码，
+		// 导致中文日志显示成乱码。写入 UTF-8 BOM 只影响文本查看，不影响后续日志内容。
+		_, _ = logFile.Write([]byte{0xEF, 0xBB, 0xBF})
 	}
 
 	logf("===== lol-capture 启动（手动执行版）=====")
@@ -525,7 +535,7 @@ func participantNames(d *gameDetail) map[int]string {
 }
 
 // playerSummary：每名选手的全量数据。stats 保留 LCU 原始 stats 的所有字段
-//（KDA/各类伤害/承伤/治疗/补刀/野怪/视野/插眼排眼/推塔水晶/控制/连杀多杀/一血/
+// （KDA/各类伤害/承伤/治疗/补刀/野怪/视野/插眼排眼/推塔水晶/控制/连杀多杀/一血/
 // 出装 item0-6/符文 perk*/段位等，约 118 项），name/championName/召唤师技能为附加便利字段。
 type playerSummary struct {
 	Name          string                 `json:"name"`

@@ -9,7 +9,7 @@ export const testDb = new PrismaClient({
 export async function resetDb(): Promise<void> {
   await testDb.$executeRawUnsafe(`
     TRUNCATE TABLE
-      "audit_logs", "game_player_stats", "game_ban_picks", "games",
+      "audit_logs", "game_team_stats", "game_player_stats", "game_ban_picks", "games",
       "match_advancement_edges", "matches", "tournament_group_teams",
       "tournament_groups", "tournament_stages", "tournament_team_players",
       "tournament_teams", "tournaments",

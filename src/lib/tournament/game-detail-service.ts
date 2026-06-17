@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { GameStageTag, Match, PrismaClient } from '@prisma/client';
 import { writeAudit } from './audit';
 import { TournamentError } from './errors';
 import { assertTournamentWritable } from './guards';
@@ -23,6 +23,13 @@ export type GameDetailInput = {
 };
 
 const MAX_DURATION = 7200;
+
+export function stageTagForMatch(match: Pick<Match, 'groupId' | 'roundKey'>): GameStageTag {
+  if (match.groupId) return 'GROUP';
+  if (match.roundKey === 'SF') return 'SEMIFINAL';
+  if (match.roundKey === 'FINAL') return 'FINAL';
+  return 'KNOCKOUT';
+}
 
 export async function saveGameDetailTx(
   tx: Db,
@@ -109,12 +116,13 @@ export async function saveGameDetailTx(
       statsClearedMvp = true;
     } else {
       validateStats(d.playerStats, match.teamAId, match.teamBId);
+      const stageTag = stageTagForMatch(match);
       for (const s of d.playerStats) {
         const inSnapshot = await tx.tournamentTeamPlayer.findFirst({
           where: { registrationId: s.registrationId, tournamentTeam: { tournamentId: match.tournamentId, teamId: s.teamId } },
         });
         if (!inSnapshot) throw new TournamentError('VALIDATION', '选手不在该队参赛名单快照');
-        await tx.gamePlayerStat.create({ data: { gameId: game.id, ...s } });
+        await tx.gamePlayerStat.create({ data: { gameId: game.id, stageTag, ...s } });
       }
     }
   }
