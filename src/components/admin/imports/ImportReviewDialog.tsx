@@ -172,6 +172,12 @@ function findRawTeam(rawJson: unknown, lcuTeamId: 100 | 200): Record<string, unk
   return teams.find((t) => t.teamId === lcuTeamId) ?? null;
 }
 
+function lcuSideName(lcuTeamId?: number | null): string {
+  if (lcuTeamId === 100) return '蓝方';
+  if (lcuTeamId === 200) return '红方';
+  return '-';
+}
+
 function buildPlayerDetail(player: RawPlayer, pid: number): Record<string, unknown> {
   const { stats, ...topLevel } = player;
   return {
@@ -457,8 +463,38 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
     mapping && importMeta?.winnerLcuTeamId
       ? teamNameById(importMeta.winnerLcuTeamId === 100 ? mapping.blueTeamId : mapping.redTeamId)
       : null;
+  const rawPreviewRows = importDetail?.rawJson
+    ? extractRawPlayers(importDetail.rawJson).map((player, index) => {
+      const pid = resolveRawPid(player, index);
+      return {
+        pid,
+        player,
+        stats: extractPlayerStats(importDetail.rawJson, pid),
+      };
+    })
+    : [];
+  const rawWinnerSide = importMeta?.winnerLcuTeamId
+    ? lcuSideName(importMeta.winnerLcuTeamId)
+    : '-';
   const playerByPid = (pid: number) =>
     importDetail?.rawJson ? findRawPlayer(importDetail.rawJson, pid) : null;
+  const showRawTeamDetail = (lcuTeamId: 100 | 200) => {
+    if (!importDetail?.rawJson) return;
+    const data = findRawTeam(importDetail.rawJson, lcuTeamId);
+    if (!data) return;
+    setDetailView({
+      title: `${lcuSideName(lcuTeamId)}队伍详情`,
+      subtitle: 'LCU 原始队伍数据',
+      data,
+    });
+  };
+  const showRawPlayerDetail = (player: RawPlayer, pid: number) => {
+    setDetailView({
+      title: `${player.name} 选手详情`,
+      subtitle: `${lcuSideName(player.teamId)} · LCU 原始选手数据`,
+      data: buildPlayerDetail(player, pid),
+    });
+  };
   const showTeamDetail = (lcuTeamId: 100 | 200) => {
     if (!importDetail?.rawJson || !mapping) return;
     const data = findRawTeam(importDetail.rawJson, lcuTeamId);
@@ -569,6 +605,118 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                 </span>
               )}
             </div>
+
+            {/* ── LCU 数据预览 ── */}
+            {importDetail && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-sm font-semibold">LCU 数据预览</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => showRawTeamDetail(100)}
+                    >
+                      蓝方详情
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => showRawTeamDetail(200)}
+                    >
+                      红方详情
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <span className="text-muted-foreground">模式：</span>
+                    {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">时长：</span>
+                    {formatDuration(importMeta?.durationSeconds)}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">胜者：</span>
+                    {rawWinnerSide}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">玩家：</span>
+                    {rawPreviewRows.length || '-'}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>LCU 名称</TableHead>
+                        <TableHead>英雄</TableHead>
+                        <TableHead>阵营</TableHead>
+                        <TableHead className="text-center">KDA</TableHead>
+                        <TableHead className="text-center">CS</TableHead>
+                        <TableHead className="text-center">伤害</TableHead>
+                        <TableHead className="text-center">金币</TableHead>
+                        <TableHead className="text-center">详情</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rawPreviewRows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
+                            暂无 LCU 玩家数据
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {rawPreviewRows.map(({ pid, player, stats }) => {
+                        const isBlue = player.teamId === 100;
+                        return (
+                          <TableRow key={pid}>
+                            <TableCell className="font-mono text-xs">
+                              {player.name}
+                            </TableCell>
+                            <TableCell>
+                              <ChampionCell player={player} />
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={isBlue ? 'default' : 'secondary'}>
+                                {lcuSideName(player.teamId)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats ? `${stats.kills}/${stats.deaths}/${stats.assists}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.cs ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.damage ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {stats?.gold ?? '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => showRawPlayerDetail(player, pid)}
+                              >
+                                详情
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
 
             {/* ── 选择比赛 ── */}
             <div className="space-y-2">
