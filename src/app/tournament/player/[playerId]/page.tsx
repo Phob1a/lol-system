@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   PlayerStatsView,
   type PlayerTournamentStats,
@@ -9,12 +9,14 @@ import {
 
 export default function PlayerStatsPage() {
   const params = useParams<{ playerId: string }>();
+  const searchParams = useSearchParams();
+  const debug = searchParams?.get('debug') === '1';
   const [stats, setStats] = useState<PlayerTournamentStats | null | undefined>(undefined);
 
   useEffect(() => {
     const id = params?.playerId;
     if (!id) return;
-    fetch(`/api/tournament/public/player/${id}`)
+    fetch(`/api/tournament/public/player/${id}${debug ? '?debug=1' : ''}`)
       .then(async (res) => {
         if (!res.ok) {
           setStats(null);
@@ -24,7 +26,7 @@ export default function PlayerStatsPage() {
         setStats(body.stats ?? null);
       })
       .catch(() => setStats(null));
-  }, [params?.playerId]);
+  }, [params?.playerId, debug]);
 
   if (stats === undefined) {
     return (
