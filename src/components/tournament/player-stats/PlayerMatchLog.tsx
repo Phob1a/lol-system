@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { DamageComposition, PlayerGameRow } from '@/lib/tournament/player-stats-service';
@@ -79,6 +80,15 @@ export function PlayerMatchLog({ games }: { games: PlayerGameRow[] }) {
                 </button>
                 {open ? (
                   <div className="grid gap-3 border-t bg-muted/10 p-3">
+                    <div className="flex justify-end">
+                      <Link
+                        href={`/tournament/match/${row.matchId}`}
+                        aria-label={`查看对局 ${row.matchLabel}`}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        查看对局详情 →
+                      </Link>
+                    </div>
                     {!ext ? (
                       <p className="text-sm text-muted-foreground">无扩展数据</p>
                     ) : (
