@@ -130,6 +130,8 @@ export function FormTrend({ trends }: { trends: PlayerTrendPoint[] }) {
                 stroke="#2563eb"
                 strokeWidth={2}
                 fill="url(#dmgArea)"
+                dot={{ r: 3, strokeWidth: 2 }}
+                activeDot={{ r: 5 }}
                 connectNulls
               />
               <Area
@@ -139,6 +141,8 @@ export function FormTrend({ trends }: { trends: PlayerTrendPoint[] }) {
                 stroke="#0f766e"
                 strokeWidth={2}
                 fill="url(#visArea)"
+                dot={{ r: 3, strokeWidth: 2 }}
+                activeDot={{ r: 5 }}
                 connectNulls
               />
             </AreaChart>

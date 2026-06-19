@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>选手详情页扩展示例</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #f1f5f9;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --blue: #2563eb;
+      --red: #dc2626;
+      --green: #16a34a;
+      --amber: #b45309;
+      --violet: #7c3aed;
+      --teal: #0f766e;
+      --slate: #334155;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 24px; line-height: 1.2; }
+    .subtle { color: var(--muted); font-size: 13px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .sidebar, .card, .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .sidebar {
+      overflow: hidden;
+      position: sticky;
+      top: 16px;
+    }
+
+    .search {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .search input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .player {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      gap: 10px;
+      width: 100%;
+      padding: 12px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .player.active { background: #eaf1ff; box-shadow: inset 3px 0 0 var(--blue); }
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 7px;
+      background: var(--slate);
+      color: white;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .metric { text-align: right; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; color: var(--ink); font-size: 16px; line-height: 1; }
+
+    .content { display: grid; gap: 16px; }
+
+    .hero {
+      overflow: hidden;
+      background: #1f2937;
+      color: white;
+    }
+
+    .hero-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 18px;
+      padding: 20px;
+    }
+
+    .identity {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+    }
+
+    .portrait {
+      display: grid;
+      place-items: center;
+      width: 84px;
+      height: 84px;
+      border: 1px solid rgba(255,255,255,.34);
+      border-radius: 8px;
+      background: rgba(255,255,255,.12);
+      font-weight: 900;
+      font-size: 28px;
+    }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .tag {
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: rgba(255,255,255,.1);
+      color: rgba(255,255,255,.9);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .hero-stat {
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255,255,255,.11);
+    }
+
+    .hero-stat span { display: block; color: rgba(255,255,255,.74); font-size: 12px; }
+    .hero-stat strong { display: block; margin-top: 8px; font-size: 26px; line-height: 1; }
+
+    .form-strip {
+      border-top: 1px solid rgba(255,255,255,.18);
+      padding: 14px 20px 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      background: rgba(255,255,255,.06);
+    }
+
+    .wl { display: grid; grid-template-columns: repeat(8, 34px); gap: 6px; }
+    .wl span {
+      display: grid;
+      place-items: center;
+      height: 30px;
+      border-radius: 6px;
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .win { background: var(--green); }
+    .loss { background: var(--red); }
+
+    .card { padding: 16px; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-head h2 { font-size: 16px; }
+
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .radar-card {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .radar {
+      width: 100%;
+      max-width: 320px;
+      aspect-ratio: 1;
+      justify-self: center;
+    }
+
+    .radar text {
+      fill: #475467;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .radar .grid {
+      fill: none;
+      stroke: #d9e0ea;
+      stroke-width: 1;
+    }
+
+    .radar .axis {
+      stroke: #e5e7eb;
+      stroke-width: 1;
+    }
+
+    .radar .shape {
+      fill: rgba(37, 99, 235, .22);
+      stroke: var(--blue);
+      stroke-width: 3;
+    }
+
+    .radar .dot {
+      fill: var(--blue);
+      stroke: #ffffff;
+      stroke-width: 2;
+    }
+
+    .radar-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .radar-row {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) 44px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .stat-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel-soft);
+    }
+    .stat-box span { display: block; color: var(--muted); font-size: 12px; }
+    .stat-box strong { display: block; margin-top: 8px; font-size: 22px; line-height: 1; }
+    .stat-box small { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .chart-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .chart-title strong { font-size: 14px; }
+    .chart-title span { color: var(--muted); font-size: 12px; }
+
+    .line-chart {
+      width: 100%;
+      height: 190px;
+      display: block;
+    }
+
+    .line-chart .grid-line {
+      stroke: #e5e7eb;
+      stroke-width: 1;
+    }
+
+    .line-chart .trend {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .line-chart .trend-alt {
+      fill: none;
+      stroke: var(--teal);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .line-chart .dot {
+      fill: var(--blue);
+      stroke: #ffffff;
+      stroke-width: 2;
+    }
+
+    .line-chart .area {
+      fill: rgba(37, 99, 235, .12);
+    }
+
+    .line-chart text {
+      fill: #667085;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      margin-right: 6px;
+      background: var(--blue);
+    }
+
+    .legend .teal::before { background: var(--teal); }
+    .legend .amber::before { background: var(--amber); }
+    .legend .violet::before { background: var(--violet); }
+
+    .review-note {
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fffbeb;
+      color: #78350f;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .review-note strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #92400e;
+    }
+
+    .stacked {
+      display: grid;
+      gap: 10px;
+    }
+
+    .stacked-row {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr) 50px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .stack {
+      display: flex;
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e5e7eb;
+    }
+
+    .seg-physical { background: var(--blue); }
+    .seg-magic { background: var(--violet); }
+    .seg-true { background: var(--amber); }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .heat {
+      display: grid;
+      place-items: center;
+      min-height: 44px;
+      border-radius: 7px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .heat small {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      font-weight: 700;
+      opacity: .85;
+    }
+
+    .h1 { background: #93c5fd; color: #172033; }
+    .h2 { background: #3b82f6; }
+    .h3 { background: #1d4ed8; }
+    .h4 { background: #0f766e; }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr) 42px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .timeline-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      position: relative;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      transform: translate(-50%, -50%);
+      background: var(--amber);
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, .16);
+    }
+
+    .highlight-list {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .highlight {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      min-width: 0;
+    }
+    .highlight strong { display: block; }
+    .highlight .score {
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 900;
+      justify-self: end;
+    }
+    .icon {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      color: white;
+      font-weight: 900;
+      font-size: 13px;
+    }
+    .i-blue { background: var(--blue); }
+    .i-amber { background: var(--amber); }
+    .i-violet { background: var(--violet); }
+    .i-teal { background: var(--teal); }
+
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 700;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      white-space: nowrap;
+    }
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: white;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .b-win { background: var(--green); }
+    .b-loss { background: var(--red); }
+    .b-mvp { background: var(--amber); }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    details + details { margin-top: 10px; }
+    summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 800;
+    }
+    summary::-webkit-details-marker { display: none; }
+    .detail-body {
+      border-top: 1px solid var(--line);
+      padding: 14px;
+      display: grid;
+      gap: 14px;
+      background: #fbfcfe;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .kv {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      background: white;
+    }
+    .kv span { display: block; color: var(--muted); font-size: 12px; }
+    .kv strong { display: block; margin-top: 6px; font-size: 16px; }
+
+    .items { display: flex; flex-wrap: wrap; gap: 6px; }
+    .item {
+      display: grid;
+      place-items: center;
+      min-width: 38px;
+      height: 28px;
+      border-radius: 6px;
+      background: #e2e8f0;
+      color: #0f172a;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 0 8px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 12px;
+      line-height: 1.5;
+      max-height: 260px;
+    }
+
+    @media (max-width: 980px) {
+      .shell { padding: 16px; }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .players-scroll {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 190px;
+        overflow-x: auto;
+      }
+      .player { width: 190px; border-right: 1px solid var(--line); }
+      .hero-main { grid-template-columns: 1fr; }
+      .highlight-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .radar-card { grid-template-columns: 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .grid-metrics, .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .form-strip { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar { display: block; }
+      .identity { grid-template-columns: 64px minmax(0, 1fr); }
+      .portrait { width: 64px; height: 64px; font-size: 22px; }
+      .hero-metrics { grid-template-columns: 1fr; }
+      .highlight-list { grid-template-columns: 1fr; }
+      .grid-metrics, .detail-grid { grid-template-columns: 1fr; }
+      .heatmap { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .stacked-row, .timeline-row { grid-template-columns: 1fr; }
+      .wl { grid-template-columns: repeat(4, 34px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <div>
+        <h1>选手详情页扩展示例</h1>
+        <p class="subtle">默认展示可读表现数据，每场可展开查看完整 extStats 原始字段。</p>
+      </div>
+      <p class="subtle">示例数据：夜阑惊梦 · 当前赛事</p>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="search">
+          <input value="夜阑" aria-label="搜索选手" />
+          <p class="subtle" style="margin-top:8px;">按 KDA / 胜率 / 伤害排序</p>
+        </div>
+        <div class="players-scroll">
+          <button class="player active">
+            <span class="avatar">夜</span>
+            <span class="truncate">
+              <strong class="truncate" style="display:block;">夜阑惊梦</strong>
+              <span class="subtle truncate" style="display:block;margin-top:4px;">红方 · JUNGLE · 3 场</span>
+            </span>
+            <span class="metric"><strong>4.15</strong>KDA</span>
+          </button>
+          <button class="player">
+            <span class="avatar">小</span>
+            <span class="truncate">
+              <strong class="truncate" style="display:block;">小猫猫哟</strong>
+              <span class="subtle truncate" style="display:block;margin-top:4px;">红方 · ADC · 3 场</span>
+            </span>
+            <span class="metric"><strong>4.83</strong>KDA</span>
+          </button>
+          <button class="player">
+            <span class="avatar">手</span>
+            <span class="truncate">
+              <strong class="truncate" style="display:block;">手写的从前</strong>
+              <span class="subtle truncate" style="display:block;margin-top:4px;">红方 · MID · 2 场</span>
+            </span>
+            <span class="metric"><strong>3.24</strong>KDA</span>
+          </button>
+        </div>
+      </aside>
+
+      <section class="content">
+        <section class="hero">
+          <div class="hero-main">
+            <div class="identity">
+              <div class="portrait">夜</div>
+              <div class="truncate">
+                <h2 style="font-size:34px;line-height:1.1;">夜阑惊梦</h2>
+                <p style="margin-top:8px;color:rgba(255,255,255,.78);">当前赛事 · 红方阵容 · 扩展数据覆盖 3/3 局</p>
+                <div class="tags">
+                  <span class="tag">代表英雄：斯莫德</span>
+                  <span class="tag">主位置：JUNGLE</span>
+                  <span class="tag">最近 3 场 2 胜</span>
+                  <span class="tag">平均视野分 34.7</span>
+                </div>
+              </div>
+            </div>
+            <div class="hero-metrics">
+              <div class="hero-stat"><span>胜率</span><strong>66.7%</strong></div>
+              <div class="hero-stat"><span>KDA</span><strong>4.15</strong></div>
+              <div class="hero-stat"><span>MVP</span><strong>1</strong></div>
+            </div>
+          </div>
+          <div class="form-strip">
+            <div>
+              <strong>最近走势</strong>
+              <p style="margin-top:4px;color:rgba(255,255,255,.74);font-size:13px;">红绿块只看胜负；详细表现往下看扩展分组。</p>
+            </div>
+            <div class="wl" aria-label="最近走势">
+              <span class="win">W</span><span class="loss">L</span><span class="win">W</span>
+              <span class="win">W</span><span class="loss">L</span><span class="win">W</span>
+              <span class="win">W</span><span class="loss">L</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>稳定核心数据</h2>
+            <span class="subtle">继续服务排行榜口径</span>
+          </div>
+          <div class="grid-metrics">
+            <div class="stat-box"><span>场均 K / D / A</span><strong>5.7 / 3.3 / 8.0</strong><small>KDA 4.15</small></div>
+            <div class="stat-box"><span>场均伤害</span><strong>21.4K</strong><small>对英雄伤害</small></div>
+            <div class="stat-box"><span>场均金币</span><strong>12.9K</strong><small>发育效率</small></div>
+            <div class="stat-box"><span>场均补刀</span><strong>188</strong><small>小兵 + 野怪</small></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>六边形能力图</h2>
+            <span class="subtle">从基础列 + extStats 聚合成 6 个可读维度</span>
+          </div>
+          <div class="radar-card">
+            <svg class="radar" viewBox="0 0 320 320" role="img" aria-label="夜阑惊梦六边形能力图">
+              <polygon class="grid" points="160,28 274,94 274,226 160,292 46,226 46,94" />
+              <polygon class="grid" points="160,61 246,111 246,209 160,259 74,209 74,111" />
+              <polygon class="grid" points="160,94 217,127 217,193 160,226 103,193 103,127" />
+              <line class="axis" x1="160" y1="160" x2="160" y2="28" />
+              <line class="axis" x1="160" y1="160" x2="274" y2="94" />
+              <line class="axis" x1="160" y1="160" x2="274" y2="226" />
+              <line class="axis" x1="160" y1="160" x2="160" y2="292" />
+              <line class="axis" x1="160" y1="160" x2="46" y2="226" />
+              <line class="axis" x1="160" y1="160" x2="46" y2="94" />
+              <polygon class="shape" points="160,50 251,107 231,201 160,242 88,202 72,109" />
+              <circle class="dot" cx="160" cy="50" r="5" />
+              <circle class="dot" cx="251" cy="107" r="5" />
+              <circle class="dot" cx="231" cy="201" r="5" />
+              <circle class="dot" cx="160" cy="242" r="5" />
+              <circle class="dot" cx="88" cy="202" r="5" />
+              <circle class="dot" cx="72" cy="109" r="5" />
+              <text x="160" y="18" text-anchor="middle">输出</text>
+              <text x="294" y="92" text-anchor="start">经济</text>
+              <text x="294" y="231" text-anchor="start">视野</text>
+              <text x="160" y="312" text-anchor="middle">生存</text>
+              <text x="26" y="231" text-anchor="end">目标</text>
+              <text x="26" y="92" text-anchor="end">团战</text>
+            </svg>
+            <div class="radar-list">
+              <div class="radar-row"><strong>输出</strong><div class="bar"><span style="width:84%"></span></div><span>84</span></div>
+              <div class="radar-row"><strong>经济</strong><div class="bar"><span style="width:80%"></span></div><span>80</span></div>
+              <div class="radar-row"><strong>视野</strong><div class="bar"><span style="width:62%"></span></div><span>62</span></div>
+              <div class="radar-row"><strong>生存</strong><div class="bar"><span style="width:70%"></span></div><span>70</span></div>
+              <div class="radar-row"><strong>目标</strong><div class="bar"><span style="width:64%"></span></div><span>64</span></div>
+              <div class="radar-row"><strong>团战</strong><div class="bar"><span style="width:76%"></span></div><span>76</span></div>
+              <p class="subtle">示例算法：每个维度先用赛事内分位数标准化到 0-100；无 extStats 的旧局不参与扩展维度计算。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>扩展概览</h2>
+            <span class="subtle">来自 GamePlayerStat.extStats</span>
+          </div>
+          <div class="grid-metrics">
+            <div class="stat-box"><span>视野</span><strong>34.7</strong><small>插眼 9.3 · 排眼 2.0 · 真眼 3.0</small></div>
+            <div class="stat-box"><span>承伤 / 减免</span><strong>28.1K</strong><small>场均减免 18.6K</small></div>
+            <div class="stat-box"><span>目标伤害</span><strong>10.8K</strong><small>防御塔伤害 2.3K</small></div>
+            <div class="stat-box"><span>治疗 / 控制</span><strong>4.2K</strong><small>控制时间 21.4 秒</small></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>图表仪表盘</h2>
+            <span class="subtle">第一版只放 extStats 能稳定支撑的图</span>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <div class="chart-title">
+                <strong>近 3 场输出 / 视野趋势</strong>
+                <span>两条线均归一化到 0-100</span>
+              </div>
+              <svg class="line-chart" viewBox="0 0 520 190" role="img" aria-label="近 3 场归一化输出和视野趋势">
+                <line class="grid-line" x1="38" y1="34" x2="500" y2="34" />
+                <line class="grid-line" x1="38" y1="78" x2="500" y2="78" />
+                <line class="grid-line" x1="38" y1="122" x2="500" y2="122" />
+                <line class="grid-line" x1="38" y1="166" x2="500" y2="166" />
+                <text x="18" y="38" text-anchor="middle">100</text>
+                <text x="18" y="126" text-anchor="middle">50</text>
+                <text x="18" y="170" text-anchor="middle">0</text>
+                <polygon class="area" points="70,58 260,138 450,104 450,166 70,166" />
+                <polyline class="trend" points="70,58 260,138 450,104" />
+                <polyline class="trend-alt" points="70,130 260,112 450,58" />
+                <circle class="dot" cx="70" cy="58" r="5" />
+                <circle class="dot" cx="260" cy="138" r="5" />
+                <circle class="dot" cx="450" cy="104" r="5" />
+                <text x="70" y="184" text-anchor="middle">半决赛 G1</text>
+                <text x="260" y="184" text-anchor="middle">小组赛 R4</text>
+                <text x="450" y="184" text-anchor="middle">小组赛 R3</text>
+              </svg>
+              <div class="legend">
+                <span>对英雄伤害分位</span>
+                <span class="teal">视野分分位</span>
+              </div>
+              <p class="subtle" style="margin-top:8px;">少于 3 场时降级成逐场数字，不画趋势线。</p>
+            </div>
+
+            <div class="chart-panel">
+              <div class="chart-title">
+                <strong>伤害构成</strong>
+                <span>物理 / 魔法 / 真实</span>
+              </div>
+              <div class="stacked">
+                <div class="stacked-row">
+                  <strong>半决赛 G1</strong>
+                  <div class="stack"><span class="seg-physical" style="width:72%"></span><span class="seg-magic" style="width:21%"></span><span class="seg-true" style="width:7%"></span></div>
+                  <span>30.4K</span>
+                </div>
+                <div class="stacked-row">
+                  <strong>小组赛 R4</strong>
+                  <div class="stack"><span class="seg-physical" style="width:46%"></span><span class="seg-magic" style="width:39%"></span><span class="seg-true" style="width:15%"></span></div>
+                  <span>14.0K</span>
+                </div>
+                <div class="stacked-row">
+                  <strong>小组赛 R3</strong>
+                  <div class="stack"><span class="seg-physical" style="width:18%"></span><span class="seg-magic" style="width:74%"></span><span class="seg-true" style="width:8%"></span></div>
+                  <span>19.8K</span>
+                </div>
+              </div>
+              <div class="legend">
+                <span>物理</span>
+                <span class="violet">魔法</span>
+                <span class="amber">真实</span>
+              </div>
+            </div>
+
+            <div class="chart-panel">
+              <div class="chart-title">
+                <strong>高光徽标</strong>
+                <span>只展示有/无与次数，不写事件时间</span>
+              </div>
+              <div class="highlight-list" style="grid-template-columns:1fr;gap:10px;">
+                <div class="highlight">
+                  <span class="icon i-blue">FB</span>
+                  <span><strong>首杀参与</strong><span class="subtle">firstBloodKill / Assist</span></span>
+                  <span class="score">2</span>
+                </div>
+                <div class="highlight">
+                  <span class="icon i-amber">塔</span>
+                  <span><strong>首塔参与</strong><span class="subtle">firstTowerKill / Assist</span></span>
+                  <span class="score">1</span>
+                </div>
+              </div>
+              <p class="subtle" style="margin-top:10px;">LCU match-history 当前没有事件时间戳，所以第一版只显示布尔/次数。</p>
+            </div>
+
+            <div class="chart-panel">
+              <div class="chart-title">
+                <strong>推迟图表</strong>
+                <span>需要先补数据或钉死口径</span>
+              </div>
+              <div class="review-note">
+                <strong>不进第一版</strong>
+                对局热力图暂缓：如果要做，必须固定为单一指标，例如“对英雄伤害赛事内分位”，不能混胜负、MVP、伤害。
+              </div>
+              <div class="review-note" style="margin-top:10px;">
+                <strong>删除时间线</strong>
+                首杀/首塔只有布尔字段，没有分钟时间；大龙伤害峰值也没有对应字段。除非后续抓 timeline API，否则不画时间线。
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>高光事件</h2>
+            <span class="subtle">只展示可解释事件，避免把原始字段直接堆到主界面</span>
+          </div>
+          <div class="highlight-list">
+            <div class="highlight">
+              <span class="icon i-blue">FB</span>
+              <span><strong>首杀参与</strong><span class="subtle">firstBloodKill / Assist</span></span>
+              <span class="score">2</span>
+            </div>
+            <div class="highlight">
+              <span class="icon i-amber">塔</span>
+              <span><strong>推塔</strong><span class="subtle">turretKills</span></span>
+              <span class="score">5</span>
+            </div>
+            <div class="highlight">
+              <span class="icon i-violet">×3</span>
+              <span><strong>最高多杀</strong><span class="subtle">largestMultiKill</span></span>
+              <span class="score">3</span>
+            </div>
+            <div class="highlight">
+              <span class="icon i-teal">眼</span>
+              <span><strong>排眼</strong><span class="subtle">wardsKilled</span></span>
+              <span class="score">6</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>最近比赛</h2>
+            <span class="subtle">表格只放高频字段，更多内容展开看</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>结果</th><th>比赛</th><th>英雄</th><th>K / D / A</th><th>伤害</th><th>金币</th><th>视野</th><th>详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="badge b-win">胜</span></td><td>半决赛 G1</td><td>斯莫德</td><td>8 / 3 / 9</td><td>30,423</td><td>12,436</td><td>30</td><td>见下方展开</td></tr>
+                <tr><td><span class="badge b-loss">负</span></td><td>小组赛 R4</td><td>佛耶戈</td><td>3 / 3 / 9</td><td>14,043</td><td>12,614</td><td>34</td><td>见下方展开</td></tr>
+                <tr><td><span class="badge b-win">胜</span></td><td>小组赛 R3</td><td>阿兹尔</td><td>6 / 4 / 6</td><td>19,800</td><td>13,660</td><td>40</td><td><span class="badge b-mvp">MVP</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <h2>逐场扩展与原始字段</h2>
+            <span class="subtle">默认收起，避免主界面被 100+ 字段淹没</span>
+          </div>
+
+          <details open>
+            <summary><span>半决赛 G1 · 斯莫德 · 胜</span><span class="subtle">装备 / 技能 / 视野 / 原始 stats</span></summary>
+            <div class="detail-body">
+              <div class="detail-grid">
+                <div class="kv"><span>召唤师技能</span><strong>14 / 4</strong></div>
+                <div class="kv"><span>英雄等级</span><strong>16</strong></div>
+                <div class="kv"><span>目标伤害</span><strong>11,240</strong></div>
+                <div class="kv"><span>承伤</span><strong>31,540</strong></div>
+                <div class="kv"><span>视野分</span><strong>30</strong></div>
+                <div class="kv"><span>插眼 / 排眼</span><strong>8 / 2</strong></div>
+                <div class="kv"><span>真眼</span><strong>2</strong></div>
+                <div class="kv"><span>最长存活</span><strong>482s</strong></div>
+              </div>
+              <div>
+                <p class="subtle" style="margin-bottom:8px;">装备 item0-item6</p>
+                <div class="items"><span class="item">3078</span><span class="item">3158</span><span class="item">3094</span><span class="item">3031</span><span class="item">3363</span><span class="item">1038</span><span class="item">2055</span></div>
+              </div>
+              <details>
+                <summary><span>原始 extStats 字段</span><span class="subtle">完整 key/value，排查和未来统计用</span></summary>
+                <pre>{
+  "participantId": 10,
+  "champLevel": 16,
+  "kills": 8,
+  "deaths": 3,
+  "assists": 21,
+  "totalDamageDealtToChampions": 30423,
+  "physicalDamageDealtToChampions": 21840,
+  "magicDamageDealtToChampions": 6420,
+  "trueDamageDealtToChampions": 2163,
+  "damageDealtToObjectives": 11240,
+  "damageDealtToTurrets": 2310,
+  "totalDamageTaken": 31540,
+  "damageSelfMitigated": 18600,
+  "visionScore": 30,
+  "wardsPlaced": 8,
+  "wardsKilled": 2,
+  "visionWardsBoughtInGame": 2,
+  "item0": 3078,
+  "item1": 3158,
+  "item2": 3094,
+  "item3": 3031,
+  "item4": 3363,
+  "item5": 1038,
+  "item6": 2055
+}</pre>
+              </details>
+            </div>
+          </details>
+
+          <details>
+            <summary><span>小组赛 R4 · 佛耶戈 · 负</span><span class="subtle">无 MVP，扩展字段可查</span></summary>
+            <div class="detail-body">
+              <div class="detail-grid">
+                <div class="kv"><span>召唤师技能</span><strong>4 / 11</strong></div>
+                <div class="kv"><span>英雄等级</span><strong>15</strong></div>
+                <div class="kv"><span>目标伤害</span><strong>7,980</strong></div>
+                <div class="kv"><span>承伤</span><strong>26,420</strong></div>
+                <div class="kv"><span>视野分</span><strong>34</strong></div>
+                <div class="kv"><span>插眼 / 排眼</span><strong>11 / 2</strong></div>
+                <div class="kv"><span>真眼</span><strong>3</strong></div>
+                <div class="kv"><span>最长存活</span><strong>390s</strong></div>
+              </div>
+              <details>
+                <summary><span>原始 extStats 字段</span><span class="subtle">完整字段仍保留</span></summary>
+                <pre>{
+  "participantId": 7,
+  "champLevel": 15,
+  "totalDamageDealtToChampions": 14043,
+  "visionScore": 34,
+  "wardsPlaced": 11,
+  "wardsKilled": 2,
+  "neutralMinionsKilledEnemyJungle": 8,
+  "neutralMinionsKilledTeamJungle": 44
+}</pre>
+              </details>
+            </div>
+          </details>
+        </section>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

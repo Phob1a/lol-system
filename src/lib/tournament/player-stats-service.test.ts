@@ -416,3 +416,36 @@ it('计算参团率、生涯纪录、最长连胜、角色标签（无 extStats 
   expect(res.careerHighs.longestTimeSpentLiving).toBeNull();
   expect(res.roleTag).toBeNull();
 });
+
+it('参团率边界：全队 0 击杀的对局被跳过，无有效局时 KP 为 null', async () => {
+  const { t, final } = await finalWithRosters();
+  const a = await expandRosterTo5(t.id, final.teamAId!);
+  const b = await expandRosterTo5(t.id, final.teamBId!);
+  const zeroKill = (teamId: string, regs: string[], off: number) =>
+    regs.map((registrationId, k) => ({
+      teamId,
+      registrationId,
+      championId: C[(k + off) % C.length],
+      kills: 0,
+      deaths: 2,
+      assists: 0,
+      cs: 150,
+      damage: 8000,
+      gold: 9000,
+    }));
+  await saveGameDetail(testDb, {
+    matchId: final.id,
+    expectedVersion: final.version,
+    detail: {
+      winnerTeamId: final.teamBId,
+      playerStats: [...zeroKill(final.teamAId!, a, 0), ...stats(final.teamBId!, b, 5)],
+    },
+    actorUserId: 'u',
+  });
+  const reg = (await testDb.registration.findUnique({ where: { id: a[0] } }))!;
+  const res = (await getPlayerTournamentStats(testDb, reg.playerId, t.id))!;
+
+  // 该选手唯一一局全队 0 击杀 → 该局被跳过 → 无有效局 → KP 为 null
+  expect(res.killParticipation).toBeNull();
+  expect(res.careerHighs.maxKills?.value).toBe(0);
+});

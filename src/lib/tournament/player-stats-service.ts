@@ -764,7 +764,7 @@ function computeCareerHighs(rows: PlayerGameRow[], longestTimeSpentLiving: numbe
 function deriveRoleTag(radar: PlayerRadarScores): string | null {
   const dims: Array<{ key: keyof RadarRaw; label: string }> = [
     { key: 'output', label: '输出核心' },
-    { key: 'survival', label: '坦克' },
+    { key: 'survival', label: '生存型' },
     { key: 'vision', label: '视野型' },
     { key: 'teamfight', label: '团战型' },
     { key: 'objective', label: '目标型' },
