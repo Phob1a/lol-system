@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { ArenaEmptyState, ArenaPanel } from '@/components/public-arena';
 import {
   fromLocalDatetimeString,
   toLocalDatetimeString,
@@ -116,35 +117,47 @@ export function ReservationDashboard() {
   }
 
   if (loading && !state) {
-    return <div className="text-sm text-muted-foreground">加载中…</div>;
+    return (
+      <ArenaPanel className="mx-auto w-full max-w-lg p-6 text-center text-sm text-slate-300">
+        加载预约数据中…
+      </ArenaPanel>
+    );
   }
 
   if (!state?.tournamentId) {
-    return <div className="text-sm text-muted-foreground">暂无可预约赛事</div>;
+    return (
+      <ArenaEmptyState
+        eyebrow="RESERVATION OFFLINE"
+        title="暂无可预约赛事"
+        description="进入小组赛或淘汰赛后，这里会显示可预约比赛与已预约时间。"
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
       <section className="space-y-3">
         <div>
-          <h1 className="text-xl font-semibold">比赛预约</h1>
-          <p className="text-sm text-muted-foreground">预约或修改自己队伍的比赛时间。</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/70">
+            MATCH SCHEDULER
+          </p>
+          <h1 className="mt-2 text-2xl font-black text-white">比赛预约</h1>
+          <p className="mt-1 text-sm text-slate-300">预约或修改自己队伍的比赛时间。</p>
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold">已预约</h2>
+      <ArenaPanel className="space-y-3" title="已预约" eyebrow="LOCKED WINDOWS">
         {state.scheduled.length === 0 && (
-          <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-md border border-cyan-200/15 bg-white/5 py-8 text-center text-sm text-slate-400">
             暂无已预约比赛
           </div>
         )}
         <div className="grid gap-3">
           {state.scheduled.map((match) => (
-            <div key={match.id} className="rounded-md border p-3">
+            <div key={match.id} className="rounded-md border border-cyan-200/15 bg-slate-950/35 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="font-medium">{matchLabel(match)}</div>
+                  <div className="font-medium text-white">{matchLabel(match)}</div>
                   <div className="mt-1 text-sm text-muted-foreground">
                     {match.stage.name} · {match.label ?? match.roundKey ?? '比赛'} ·{' '}
                     {formatScheduledAt(match.scheduledAt)}
@@ -191,19 +204,18 @@ export function ReservationDashboard() {
             </div>
           ))}
         </div>
-      </section>
+      </ArenaPanel>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold">可预约</h2>
+      <ArenaPanel className="space-y-3" title="可预约" eyebrow="AVAILABLE WINDOWS">
         {state.candidates.length === 0 && (
-          <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+          <div className="rounded-md border border-cyan-200/15 bg-white/5 py-8 text-center text-sm text-slate-400">
             暂无可预约比赛
           </div>
         )}
         <div className="grid gap-3">
           {state.candidates.map((match) => (
-            <div key={match.id} className="rounded-md border p-3">
-              <div className="font-medium">{matchLabel(match)}</div>
+            <div key={match.id} className="rounded-md border border-cyan-200/15 bg-slate-950/35 p-3">
+              <div className="font-medium text-white">{matchLabel(match)}</div>
               <div className="mt-1 text-sm text-muted-foreground">
                 {match.stage.name} · {match.label ?? match.roundKey ?? '比赛'}
               </div>
@@ -231,7 +243,7 @@ export function ReservationDashboard() {
             </div>
           ))}
         </div>
-      </section>
+      </ArenaPanel>
     </div>
   );
 }

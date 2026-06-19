@@ -4,13 +4,22 @@ import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { computeTeamPreviews } from '@/lib/teams/preview';
 import { CaptainDashboard } from '@/components/draft/CaptainDashboard';
+import { ArenaEmptyState } from '@/components/public-arena';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CaptainPage() {
   const session = await getSession();
   const tournament = await getActiveTournament(prisma);
-  if (!tournament) return <div className="text-muted-foreground">暂无进行中的赛事</div>;
+  if (!tournament) {
+    return (
+      <ArenaEmptyState
+        eyebrow="DRAFT OFFLINE"
+        title="暂无进行中的赛事"
+        description="赛事开启后，这里会进入选秀工作台，并同步队伍预算、选人池和实时选秀状态。"
+      />
+    );
+  }
 
   const ownTeam = session?.user.teamId
     ? await prisma.team.findUnique({

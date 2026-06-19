@@ -22,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { cn } from '@/lib/utils';
 
 // Use the input type (with optional fields from .default()) as the form generic,
 // so react-hook-form and zodResolver agree on the same type shape.
@@ -75,11 +76,15 @@ function PositionCheckboxGroup({ label, fieldName, idPrefix, form }: PositionChe
   );
 }
 
-type Props = { tournamentName: string };
+type Props = {
+  tournamentName: string;
+  variant?: 'default' | 'arena';
+};
 
-export function RegistrationForm({ tournamentName }: Props) {
+export function RegistrationForm({ tournamentName, variant = 'default' }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const arena = variant === 'arena';
 
   const form = useForm<FormValues>({
     resolver: zodResolver(PublicRegistrationInput),
@@ -118,16 +123,21 @@ export function RegistrationForm({ tournamentName }: Props) {
   if (submitted) {
     return (
       <div className="flex flex-col items-center gap-4 py-12 text-center">
-        <div className="text-4xl">✓</div>
-        <h2 className="text-xl font-semibold">报名成功！</h2>
-        <p className="text-muted-foreground">您的报名信息已提交，请等待赛事管理员审核。</p>
+        <div className={cn('text-4xl', arena && 'text-cyan-100')}>✓</div>
+        <h2 className={cn('text-xl font-semibold', arena && 'text-white')}>报名成功！</h2>
+        <p className={cn('text-muted-foreground', arena && 'text-slate-300')}>
+          您的报名信息已提交，请等待赛事管理员审核。
+        </p>
       </div>
     );
   }
 
   return (
     <Form {...form}>
-      <p className="mb-4 text-sm text-muted-foreground">赛事：{tournamentName}</p>
+      <div className={cn(arena && 'arena-form')}>
+        <p className={cn('mb-4 text-sm text-muted-foreground', arena && 'text-slate-300')}>
+          赛事：{tournamentName}
+        </p>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         {/* Game ID */}
         <FormField
@@ -239,12 +249,21 @@ export function RegistrationForm({ tournamentName }: Props) {
           )}
         />
 
-        <Button type="submit" disabled={submitting} className="w-full">
+        <Button
+          type="submit"
+          disabled={submitting}
+          className={cn(
+            'w-full',
+            arena &&
+              'bg-cyan-200 text-slate-950 shadow-[0_0_26px_rgba(94,231,255,0.28)] hover:bg-cyan-100',
+          )}
+        >
           <LoadingButtonContent loading={submitting} loadingText="提交中…">
             提交报名
           </LoadingButtonContent>
         </Button>
       </form>
+      </div>
     </Form>
   );
 }

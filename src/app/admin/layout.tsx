@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { WorkspaceHeader } from '@/components/workspace-console/WorkspaceHeader';
+import { WorkspaceMetric } from '@/components/workspace-console/WorkspaceMetric';
+import { WorkspaceShell } from '@/components/workspace-console/WorkspaceShell';
 
 export default async function AdminLayout({
   children,
@@ -12,19 +15,27 @@ export default async function AdminLayout({
   if (session.user.role !== 'ADMIN') redirect('/access-denied');
 
   return (
-    <div className="min-h-screen bg-background lg:flex">
-      <AppSidebar />
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b px-4 lg:px-6">
-          <span className="text-sm text-muted-foreground">管理后台</span>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{session.user.username}</span>
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
-            <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
-          </div>
-        </header>
-        <main className="flex min-h-0 flex-1 flex-col p-4 lg:p-6">{children}</main>
-      </div>
-    </div>
+    <WorkspaceShell
+      sidebar={<AppSidebar />}
+      header={
+        <WorkspaceHeader
+          eyebrow="Admin Console"
+          title="管理后台"
+          description="赛事、报名、队伍、选秀与审计"
+          signals={<WorkspaceMetric label="Operator" value={session.user.username} />}
+          actions={
+            // eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page
+            <a
+              href="/api/auth/signout"
+              className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-200/35 hover:text-white"
+            >
+              登出
+            </a>
+          }
+        />
+      }
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

@@ -7,12 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { ArenaPanel } from '@/components/public-arena';
 import { formatCost } from '@/lib/costs';
 
 export type RosterRow = {
@@ -73,14 +68,15 @@ export function TeamManager({ name, slogan, roster }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold">队伍管理</h1>
+    <div className="mx-auto w-full max-w-3xl space-y-5">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/70">
+          TEAM PROFILE
+        </p>
+        <h1 className="mt-2 text-2xl font-black text-white">队伍管理</h1>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">队伍信息</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <ArenaPanel title="队伍信息" eyebrow="IDENTITY" className="space-y-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="team-name" className="text-xs text-muted-foreground">队名</label>
             <Input
@@ -107,24 +103,20 @@ export function TeamManager({ name, slogan, roster }: Props) {
               </LoadingButtonContent>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </ArenaPanel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">队伍阵容</CardTitle>
-        </CardHeader>
-        <CardContent className="divide-y">
+      <ArenaPanel title="队伍阵容" eyebrow="ROSTER">
+        <div className="divide-y divide-cyan-200/15">
           {roster.map((row) => (
             <div key={row.position} className="flex items-center gap-3 py-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-cyan-200/25 bg-cyan-200/[0.12] text-sm font-bold text-cyan-50">
                 {POS_CHAR[row.position] ?? row.position}
               </span>
               {row.nickname ? (
                 <>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-foreground">
+                      <span className="truncate text-sm font-medium text-white">
                         {row.nickname}
                       </span>
                       {row.isCaptain && (
@@ -136,7 +128,7 @@ export function TeamManager({ name, slogan, roster }: Props) {
                     <span className="text-xs text-muted-foreground">@{row.gameId}</span>
                   </div>
                   <div className="text-right leading-tight">
-                    <div className="text-sm font-semibold text-foreground">
+                    <div className="text-sm font-semibold text-white">
                       {row.cost == null ? '—' : formatCost(row.cost)}
                     </div>
                     <div className="text-[10px] text-muted-foreground">费用</div>
@@ -147,8 +139,8 @@ export function TeamManager({ name, slogan, roster }: Props) {
               )}
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </ArenaPanel>
     </div>
   );
 }

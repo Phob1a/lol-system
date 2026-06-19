@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { TeamManager, type RosterRow } from '@/components/captain/TeamManager';
+import { ArenaEmptyState } from '@/components/public-arena';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,13 @@ export default async function CaptainTeamPage() {
     },
   });
   if (!team) {
-    return <div className="text-muted-foreground">未找到你的队伍</div>;
+    return (
+      <ArenaEmptyState
+        eyebrow="TEAM LINK MISSING"
+        title="未找到你的队伍"
+        description="当前队长账号尚未绑定有效队伍，请联系赛事管理员检查队伍账号与赛事归属。"
+      />
+    );
   }
   // Reject past-tournament captain accounts.
   if (team.tournamentId !== tournament.id) redirect('/captain');

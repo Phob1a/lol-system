@@ -120,6 +120,76 @@
     );
     opacity: 0.26;
   }
+
+  .workspace-console {
+    --background: 218 74% 7%;
+    --foreground: 199 100% 95%;
+    --card: 215 70% 12%;
+    --card-foreground: 199 100% 95%;
+    --popover: 215 70% 10%;
+    --popover-foreground: 199 100% 95%;
+    --primary: 188 96% 67%;
+    --primary-foreground: 222 75% 8%;
+    --secondary: 217 47% 18%;
+    --secondary-foreground: 199 100% 95%;
+    --muted: 217 42% 16%;
+    --muted-foreground: 214 24% 72%;
+    --accent: 188 70% 16%;
+    --accent-foreground: 188 100% 88%;
+    --border: 190 55% 24%;
+    --input: 190 55% 24%;
+    --ring: 188 96% 67%;
+  }
+
+  .workspace-console .bg-card {
+    background:
+      linear-gradient(135deg, rgba(94, 231, 255, 0.08), transparent 38%),
+      rgba(9, 23, 43, 0.78);
+  }
+
+  .workspace-console .border,
+  .workspace-console .border-b,
+  .workspace-console .border-r {
+    border-color: rgba(96, 211, 255, 0.22);
+  }
+
+  .workspace-console input,
+  .workspace-console textarea,
+  .workspace-console select {
+    border-color: rgba(96, 211, 255, 0.28);
+    background-color: rgba(2, 8, 23, 0.45);
+    color: var(--arena-text);
+  }
+
+  .workspace-console input::placeholder,
+  .workspace-console textarea::placeholder {
+    color: rgba(203, 213, 225, 0.55);
+  }
+
+  .workspace-console table {
+    color: var(--arena-text);
+  }
+
+  .arena-form input,
+  .arena-form textarea {
+    border-color: rgba(96, 211, 255, 0.28);
+    background-color: rgba(2, 8, 23, 0.48);
+    color: var(--arena-text);
+  }
+
+  .arena-form,
+  .arena-form label {
+    color: var(--arena-text);
+  }
+
+  .arena-form .text-muted-foreground {
+    color: rgba(203, 213, 225, 0.72);
+  }
+
+  .arena-form input::placeholder,
+  .arena-form textarea::placeholder {
+    color: rgba(203, 213, 225, 0.58);
+  }
 }
 
 @media (max-width: 767px) {

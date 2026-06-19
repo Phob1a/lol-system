@@ -3,6 +3,9 @@ import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { CaptainNav } from '@/components/layout/CaptainNav';
+import { WorkspaceHeader } from '@/components/workspace-console/WorkspaceHeader';
+import { WorkspaceMetric } from '@/components/workspace-console/WorkspaceMetric';
+import { WorkspaceShell } from '@/components/workspace-console/WorkspaceShell';
 
 const TEAM_MGMT_OPEN = ['GROUPING', 'GROUP_STAGE', 'KNOCKOUT', 'FINISHED'];
 
@@ -21,17 +24,33 @@ export default async function CaptainLayout({
   const showTeamManagement = tournament ? TEAM_MGMT_OPEN.includes(tournament.status) : false;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-14 items-center gap-4 border-b px-6">
-        <span className="text-sm font-semibold text-foreground">LoL 选人系统</span>
-        <CaptainNav showTeamManagement={showTeamManagement} />
-        <div className="ml-auto flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">{session.user.username}</span>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
-          <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
+    <WorkspaceShell
+      header={
+        <div className="relative z-10 border-b border-cyan-200/15 bg-slate-950/55 backdrop-blur-xl">
+          <WorkspaceHeader
+            eyebrow="Captain Console"
+            title="队长工作台"
+            description={tournament?.name ?? '等待赛事开启'}
+            signals={<WorkspaceMetric label="Captain" value={session.user.username} />}
+            actions={
+              // eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page
+              <a
+                href="/api/auth/signout"
+                className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-200/35 hover:text-white"
+              >
+                登出
+              </a>
+            }
+            className="border-b-0 bg-transparent"
+          />
+          <div className="px-4 pb-4 lg:px-6">
+            <CaptainNav showTeamManagement={showTeamManagement} />
+          </div>
         </div>
-      </header>
-      <main className="flex min-h-0 flex-1 flex-col p-6">{children}</main>
-    </div>
+      }
+      contentClassName="p-4 lg:p-6"
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

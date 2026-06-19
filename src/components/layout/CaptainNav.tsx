@@ -18,7 +18,7 @@ export function CaptainNav({ showTeamManagement }: Props) {
       : []),
   ];
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="flex flex-wrap items-center gap-2">
       {links.map((l) => {
         const active =
           l.href === '/captain' ? pathname === '/captain' : pathname.startsWith(l.href);
@@ -27,10 +27,10 @@ export function CaptainNav({ showTeamManagement }: Props) {
             key={l.href}
             href={l.href}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm transition-colors',
+              'rounded border px-3 py-2 text-sm font-semibold transition',
               active
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                ? 'border-cyan-200/45 bg-cyan-200 text-slate-950 shadow-[0_0_24px_rgba(94,231,255,0.24)]'
+                : 'border-white/10 bg-white/5 text-slate-300 hover:border-cyan-200/30 hover:text-white',
             )}
           >
             {l.label}
