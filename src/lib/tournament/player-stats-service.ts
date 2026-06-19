@@ -132,12 +132,35 @@ export type PlayerExtendedSummary = {
   trends: PlayerTrendPoint[];
 };
 
+export type PlayerCareerHighGame = {
+  gameId: string;
+  matchLabel: string;
+  championId: string;
+  championName: string | null;
+  value: number;
+};
+
+export type PlayerCareerHighs = {
+  maxDamage: PlayerCareerHighGame | null;
+  maxKills: PlayerCareerHighGame | null;
+  maxKda: PlayerCareerHighGame | null;
+  longestTimeSpentLiving: number | null;
+};
+
 export type PlayerTournamentStats = {
   registrationId: string | null;
   playerId: string; nickname: string;
   teamName: string | null;
   primaryPosition: string | null;
   summary: { games: number; wins: number; winRate: number; avgKills: number; avgDeaths: number; avgAssists: number; kda: number; avgCs: number; avgDamage: number; avgGold: number; mvpCount: number };
+  /** 赛事内平均参团率（百分比, 保留 1 位）; 无可计算对局时为 null。 */
+  killParticipation: number | null;
+  /** 赛事内最长连胜场数。 */
+  bestWinStreak: number;
+  /** 单场生涯纪录。 */
+  careerHighs: PlayerCareerHighs;
+  /** 由能力雷达分位推导的角色定位标签; 无扩展数据时为 null。 */
+  roleTag: string | null;
   extended: PlayerExtendedSummary;
   recentForm: boolean[];
   commonChampions: PlayerChampionSummary[];
@@ -152,6 +175,8 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type StatRecord = {
+  gameId: string;
+  teamId: string;
   registrationId: string;
   kills: number;
   deaths: number;
@@ -546,6 +571,10 @@ export async function getPlayerTournamentStats(db: Db, playerId: string, tournam
     teamName: roster?.tournamentTeam.team.name ?? null,
     primaryPosition: reg?.primaryPositions[0] ?? null,
     summary: { games: 0, wins: 0, winRate: 0, avgKills: 0, avgDeaths: 0, avgAssists: 0, kda: 0, avgCs: 0, avgDamage: 0, avgGold: 0, mvpCount: 0 },
+    killParticipation: null,
+    bestWinStreak: 0,
+    careerHighs: { maxDamage: null, maxKills: null, maxKda: null, longestTimeSpentLiving: null },
+    roleTag: null,
     extended: { sourceGames: 0, totalGames: 0, averages: emptyAverages(), totals: emptyTotals(), radar: emptyRadar(), trends: [] },
     recentForm: [],
     commonChampions: [],
@@ -563,6 +592,8 @@ export async function getPlayerTournamentStats(db: Db, playerId: string, tournam
   const allStats = await db.gamePlayerStat.findMany({
     where: { game: { isDraft: false, match: { tournamentId } } },
     select: {
+      gameId: true,
+      teamId: true,
       registrationId: true,
       kills: true,
       deaths: true,
@@ -597,6 +628,7 @@ export async function getPlayerTournamentStats(db: Db, playerId: string, tournam
     { k: 0, d: 0, a: 0, cs: 0, dmg: 0, gold: 0, w: 0, mvp: 0 },
   );
   const commonChampions = computeCommonChampions(rows);
+  const extended = computeExtendedSummary(rows, normalized, allStats, reg.id);
   return {
     registrationId: reg.id,
     playerId,
@@ -611,7 +643,11 @@ export async function getPlayerTournamentStats(db: Db, playerId: string, tournam
       avgCs: round1(sum.cs / n), avgDamage: round1(sum.dmg / n), avgGold: round1(sum.gold / n),
       mvpCount: sum.mvp,
     },
-    extended: computeExtendedSummary(rows, normalized, allStats, reg.id),
+    killParticipation: computeKillParticipation(stats, allStats),
+    bestWinStreak: computeBestWinStreak(rows),
+    careerHighs: computeCareerHighs(rows, extended.totals.longestTimeSpentLiving),
+    roleTag: deriveRoleTag(extended.radar),
+    extended,
     recentForm: rows.slice(0, 8).map((row) => row.win),
     commonChampions,
     games: rows,
@@ -659,6 +695,87 @@ function computeCommonChampions(rows: PlayerGameRow[]): PlayerChampionSummary[] 
       avgDamage: round1(v.damage / v.games),
     }))
     .sort((a, b) => b.games - a.games || b.winRate - a.winRate || b.kda - a.kda);
+}
+
+/**
+ * 赛事内平均参团率。raw 不含 Riot killParticipation，需聚合同局同队队友击杀：
+ * 全队总击杀 = Σ(同 gameId + teamId 的 GamePlayerStat.kills)（导入强制全队 10 人，故每局齐全）。
+ * 单局 KP = (个人击杀 + 助攻) / 全队总击杀；全队 0 击杀的局跳过，无有效局返回 null。
+ */
+function computeKillParticipation(
+  playerStats: Array<{ gameId: string; teamId: string; kills: number; assists: number }>,
+  allStats: StatRecord[],
+): number | null {
+  const teamKills = new Map<string, number>();
+  for (const s of allStats) {
+    const key = `${s.gameId}|${s.teamId}`;
+    teamKills.set(key, (teamKills.get(key) ?? 0) + s.kills);
+  }
+  const ratios: number[] = [];
+  for (const s of playerStats) {
+    const total = teamKills.get(`${s.gameId}|${s.teamId}`) ?? 0;
+    if (total > 0) ratios.push(((s.kills + s.assists) / total) * 100);
+  }
+  return ratios.length === 0 ? null : round1(ratios.reduce((acc, v) => acc + v, 0) / ratios.length);
+}
+
+/** 赛事内最长连胜场数（与对局顺序无关，最长连续胜场即可）。 */
+function computeBestWinStreak(rows: PlayerGameRow[]): number {
+  let best = 0;
+  let current = 0;
+  for (const row of rows) {
+    if (row.win) {
+      current += 1;
+      if (current > best) best = current;
+    } else {
+      current = 0;
+    }
+  }
+  return best;
+}
+
+/** 单场生涯纪录：最高伤害 / 最多击杀 / 最高 KDA 局，外加赛事最长存活。 */
+function computeCareerHighs(rows: PlayerGameRow[], longestTimeSpentLiving: number | null): PlayerCareerHighs {
+  const pick = (valueOf: (row: PlayerGameRow) => number): PlayerCareerHighGame | null => {
+    let best: PlayerCareerHighGame | null = null;
+    for (const row of rows) {
+      const value = valueOf(row);
+      if (best === null || value > best.value) {
+        best = {
+          gameId: row.gameId,
+          matchLabel: row.matchLabel,
+          championId: row.championId,
+          championName: row.championName,
+          value,
+        };
+      }
+    }
+    return best;
+  };
+  return {
+    maxDamage: pick((row) => row.damage),
+    maxKills: pick((row) => row.kills),
+    maxKda: pick((row) => round2((row.kills + row.assists) / Math.max(1, row.deaths))),
+    longestTimeSpentLiving,
+  };
+}
+
+/** 由能力雷达分位推导角色定位标签；分位全缺失返回 null，最高维 <60 视为均衡型。 */
+function deriveRoleTag(radar: PlayerRadarScores): string | null {
+  const dims: Array<{ key: keyof RadarRaw; label: string }> = [
+    { key: 'output', label: '输出核心' },
+    { key: 'survival', label: '坦克' },
+    { key: 'vision', label: '视野型' },
+    { key: 'teamfight', label: '团战型' },
+    { key: 'objective', label: '目标型' },
+    { key: 'economy', label: '发育型' },
+  ];
+  const scored = dims
+    .map((dim) => ({ label: dim.label, value: radar[dim.key] }))
+    .filter((dim): dim is { label: string; value: number } => dim.value !== null);
+  if (scored.length === 0) return null;
+  const top = scored.reduce((best, dim) => (dim.value > best.value ? dim : best));
+  return top.value < 60 ? '均衡型' : top.label;
 }
 
 export async function listPlayerTournamentProfiles(db: Db, tournamentId: string): Promise<PlayerTournamentStats[]> {
