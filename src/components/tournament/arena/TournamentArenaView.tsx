@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { PublicState } from '@/hooks/useTournamentState';
 import {
   getArenaStats,
@@ -46,12 +47,12 @@ export function TournamentArenaView({ state, loaded }: TournamentArenaViewProps)
           <p className="mt-3 text-sm leading-6 text-slate-300">
             公开竞技场会在赛事创建后显示赛程、对阵图和数据榜入口。
           </p>
-          <a
+          <Link
             href="/"
             className="mt-6 inline-flex rounded border border-cyan-200/35 bg-cyan-200/10 px-4 py-2 text-sm font-semibold text-cyan-50"
           >
             返回首页
-          </a>
+          </Link>
         </div>
       </div>
     );

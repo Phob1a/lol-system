@@ -9,13 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 type Props = {
   tournaments: Tournament[];
   selectedId: string;
+  className?: string;
 };
 
-export function SeasonSelector({ tournaments, selectedId }: Props) {
+export function SeasonSelector({ tournaments, selectedId, className }: Props) {
   const router = useRouter();
 
   return (
@@ -23,7 +25,12 @@ export function SeasonSelector({ tournaments, selectedId }: Props) {
       value={selectedId}
       onValueChange={(id) => router.push(`/live?season=${id}`)}
     >
-      <SelectTrigger className="w-48">
+      <SelectTrigger
+        className={cn(
+          'w-48 border-cyan-200/25 bg-cyan-200/5 text-cyan-50',
+          className,
+        )}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -67,11 +67,14 @@ describe('MatchDetailView', () => {
   it('renders a match-detail landing shape with return link, score, and game sections', () => {
     render(<MatchDetailView detail={detail} />);
 
+    expect(screen.getByText('LOL-SYSTEM / MATCH REPORT')).toBeInTheDocument();
+    expect(screen.getByText('MATCH REPORT')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '返回赛事页' })).toHaveAttribute(
       'href',
       '/tournament',
     );
-    expect(screen.getByRole('heading', { name: '半决赛 2' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Score Stage' })).toBeInTheDocument();
+    expect(screen.getAllByText('半决赛 2').length).toBeGreaterThan(0);
     expect(screen.getByText('SF · BO3')).toBeInTheDocument();
     expect(screen.getByText('星河战队 胜')).toBeInTheDocument();
 

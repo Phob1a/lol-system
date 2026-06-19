@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArenaCta,
+  ArenaEmptyState,
+  ArenaPanel,
+  ArenaTabsFrame,
+  PublicArenaHud,
+  PublicArenaShell,
+} from '@/components/public-arena';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -127,53 +134,43 @@ function MatchHeader({ detail }: { detail: MatchDetail }) {
         : null;
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
-      <div className="border-b px-4 py-3">
-        <Link
-          href="/tournament"
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回赛事页
-        </Link>
-      </div>
-
-      <div className="grid gap-6 px-4 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-6">
+    <ArenaPanel eyebrow="MATCH REPORT" title="Score Stage" className="p-5 md:p-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
         <div className="min-w-0 text-center lg:text-left">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">
+          <p className="text-xs font-semibold uppercase text-cyan-200/70">
             {[detail.roundKey, `BO${detail.bestOf}`].filter(Boolean).join(' · ')}
           </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-normal">{matchLabel}</h1>
+          <p className="mt-2 text-3xl font-extrabold tracking-normal text-white">{matchLabel}</p>
           {detail.status === 'FINISHED' && winnerName && (
-            <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            <p className="mt-2 text-sm font-medium text-emerald-300">
               {winnerName} 胜
             </p>
           )}
         </div>
 
-        <div className="mx-auto flex w-full max-w-sm items-center justify-between rounded-lg bg-muted/30 px-4 py-3 text-center lg:w-80">
+        <div className="mx-auto flex w-full max-w-sm items-center justify-between rounded border border-cyan-200/15 bg-slate-950/35 px-4 py-3 text-center lg:w-80">
           <div className="min-w-0 flex-1">
             <div
               className={`truncate text-sm font-semibold ${
                 detail.winnerTeamId === detail.teamA?.id
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : ''
+                  ? 'text-emerald-300'
+                  : 'text-slate-200'
               }`}
             >
               {teamAName}
             </div>
           </div>
           <div className="mx-4 flex items-baseline gap-2 tabular-nums">
-            <span className="text-4xl font-black leading-none">{teamAWins}</span>
-            <span className="text-lg font-semibold text-muted-foreground">:</span>
-            <span className="text-4xl font-black leading-none">{teamBWins}</span>
+            <span className="text-4xl font-black leading-none text-white">{teamAWins}</span>
+            <span className="text-lg font-semibold text-slate-500">:</span>
+            <span className="text-4xl font-black leading-none text-white">{teamBWins}</span>
           </div>
           <div className="min-w-0 flex-1">
             <div
               className={`truncate text-sm font-semibold ${
                 detail.winnerTeamId === detail.teamB?.id
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : ''
+                  ? 'text-emerald-300'
+                  : 'text-slate-200'
               }`}
             >
               {teamBName}
@@ -182,23 +179,23 @@ function MatchHeader({ detail }: { detail: MatchDetail }) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center lg:max-w-xs">
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">局数</div>
-            <div className="mt-1 text-lg font-bold">{detail.games.length}</div>
+          <div className="rounded border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div className="text-xs text-slate-400">局数</div>
+            <div className="mt-1 text-lg font-bold text-white">{detail.games.length}</div>
           </div>
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">赛制</div>
-            <div className="mt-1 text-lg font-bold">BO{detail.bestOf}</div>
+          <div className="rounded border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div className="text-xs text-slate-400">赛制</div>
+            <div className="mt-1 text-lg font-bold text-white">BO{detail.bestOf}</div>
           </div>
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">状态</div>
-            <div className="mt-1 text-lg font-bold">
+          <div className="rounded border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div className="text-xs text-slate-400">状态</div>
+            <div className="mt-1 text-lg font-bold text-white">
               {detail.status === 'FINISHED' ? '已结束' : detail.status}
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </ArenaPanel>
   );
 }
 
@@ -219,7 +216,7 @@ function BpTimeline({
 
   return (
     <div className="mb-4">
-      <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+      <h4 className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wide">
         BP 时间线
       </h4>
       <div className="flex flex-wrap gap-2">
@@ -251,7 +248,7 @@ function BpTimeline({
                 championName={ban.championName}
                 size={28}
               />
-              <span className="text-[10px] text-muted-foreground">#{ban.order}</span>
+              <span className="text-[10px] text-slate-400">#{ban.order}</span>
             </div>
           );
         })}
@@ -279,7 +276,7 @@ function PlayersTable({
 }) {
   if (game.players.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">仅记录胜负</p>
+      <p className="text-sm text-slate-400 text-center py-4">仅记录胜负</p>
     );
   }
 
@@ -441,23 +438,27 @@ function GamePanel({
 
       {/* Duration */}
       {game.durationSeconds != null && (
-        <p className="text-xs font-medium text-muted-foreground">
+      <p className="text-xs font-medium text-slate-400">
           时长：{formatDuration(game.durationSeconds)}
         </p>
       )}
 
       {!hasDetail ? (
-        <p className="text-sm text-muted-foreground text-center py-4">仅记录胜负</p>
+        <p className="text-sm text-slate-400 text-center py-4">仅记录胜负</p>
       ) : (
         <>
           <BpTimeline game={game} teamAId={teamAId} teamBId={teamBId} />
-          <PlayersTable
-            game={game}
-            teamAId={teamAId}
-            teamBId={teamBId}
-            teamAName={teamAName}
-            teamBName={teamBName}
-          />
+          <div className="overflow-x-auto">
+            <div className="min-w-[760px]">
+              <PlayersTable
+                game={game}
+                teamAId={teamAId}
+                teamBId={teamBId}
+                teamAName={teamAName}
+                teamBName={teamBName}
+              />
+            </div>
+          </div>
         </>
       )}
     </div>
@@ -475,35 +476,57 @@ export function MatchDetailView({ detail }: { detail: MatchDetail }) {
   const teamBName = detail.teamB?.name ?? '待定';
 
   return (
-    <div className="space-y-6">
+    <PublicArenaShell
+      bleed
+      hud={
+        <PublicArenaHud
+          eyebrow="LOL-SYSTEM / MATCH REPORT"
+          title={detail.label ?? detail.roundKey ?? '比赛详情'}
+          signals={[
+            { label: 'STATUS', detail: detail.status },
+            { label: 'FORMAT', detail: `BO${detail.bestOf}` },
+            { label: 'GAMES', detail: String(detail.games.length) },
+          ]}
+          actions={
+            <ArenaCta href="/tournament" variant="ghost">
+              返回赛事页
+            </ArenaCta>
+          }
+        />
+      }
+    >
       <MatchHeader detail={detail} />
 
       {detail.games.length === 0 ? (
-        <section className="rounded-lg border bg-card py-10 text-center">
-          <p className="text-sm text-muted-foreground">暂无对局明细</p>
-        </section>
+        <ArenaEmptyState
+          eyebrow="MATCH DETAIL"
+          title="暂无对局明细"
+          description="比分公开后，这里会展示每局 BP、阵容和数据。"
+        />
       ) : (
         <Tabs defaultValue={`game-${detail.games[0].index}`} className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 border border-cyan-200/15 bg-slate-950/50">
             {detail.games.map((g) => (
               <TabsTrigger key={g.id} value={`game-${g.index}`}>
                 第 {g.index + 1} 局
               </TabsTrigger>
             ))}
           </TabsList>
-          {detail.games.map((g) => (
-            <TabsContent key={g.id} value={`game-${g.index}`}>
-              <GamePanel
-                game={g}
-                teamAId={teamAId}
-                teamBId={teamBId}
-                teamAName={teamAName}
-                teamBName={teamBName}
-              />
-            </TabsContent>
-          ))}
+          <ArenaTabsFrame>
+            {detail.games.map((g) => (
+              <TabsContent key={g.id} value={`game-${g.index}`}>
+                <GamePanel
+                  game={g}
+                  teamAId={teamAId}
+                  teamBId={teamBId}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                />
+              </TabsContent>
+            ))}
+          </ArenaTabsFrame>
         </Tabs>
       )}
-    </div>
+    </PublicArenaShell>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { ArenaCta, PublicArenaHud, PublicArenaShell } from '@/components/public-arena';
 import type {
   PlayerGameRow,
   PlayerTournamentStats as ServicePlayerTournamentStats,
@@ -33,7 +34,25 @@ const FormTrend = dynamic(() => import('./player-stats/PlayerCharts').then((m) =
 
 export function PlayerStatsView({ stats }: { stats: PlayerTournamentStats }) {
   return (
-    <div className="space-y-4">
+    <PublicArenaShell
+      bleed
+      hud={
+        <PublicArenaHud
+          eyebrow="LOL-SYSTEM / PLAYER DOSSIER"
+          title={stats.nickname}
+          signals={[
+            { label: 'TEAM', detail: stats.teamName ?? 'UNASSIGNED' },
+            { label: 'ROLE', detail: stats.primaryPosition ?? 'UNKNOWN' },
+            { label: 'GAMES', detail: String(stats.summary.games) },
+          ]}
+          actions={
+            <ArenaCta href="/tournament" variant="ghost">
+              返回赛事页
+            </ArenaCta>
+          }
+        />
+      }
+    >
       <PlayerHero stats={stats} />
       <PlayerChampionPool stats={stats} />
       <PlayerCareerHighs stats={stats} />
@@ -43,6 +62,6 @@ export function PlayerStatsView({ stats }: { stats: PlayerTournamentStats }) {
       </div>
       <PlayerHighlights stats={stats} />
       <PlayerMatchLog games={stats.games} />
-    </div>
+    </PublicArenaShell>
   );
 }

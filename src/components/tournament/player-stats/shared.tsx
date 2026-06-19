@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { championIconUrl } from '@/lib/tournament/champions';
+import { cn } from '@/lib/utils';
 
 export function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—';
@@ -72,10 +73,12 @@ export function ChampionIcon({
 
 export function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-lg border bg-card px-4 py-3">
-      <span className="block text-xs text-muted-foreground">{label}</span>
-      <span className="mt-2 block text-xl font-semibold leading-none tabular-nums">{value}</span>
-      {hint ? <span className="mt-2 block text-xs text-muted-foreground">{hint}</span> : null}
+    <div className="rounded border border-white/10 bg-slate-950/30 px-4 py-3">
+      <span className="block text-xs text-slate-400">{label}</span>
+      <span className="mt-2 block text-xl font-semibold leading-none text-white tabular-nums">
+        {value}
+      </span>
+      {hint ? <span className="mt-2 block text-xs text-slate-400">{hint}</span> : null}
     </div>
   );
 }
@@ -93,10 +96,10 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={`rounded-lg border bg-card p-4 ${className ?? ''}`}>
+    <section className={cn('arena-panel arena-corner p-4 text-slate-100', className)}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">{title}</h2>
-        {subtitle ? <span className="text-xs text-muted-foreground">{subtitle}</span> : null}
+        <h2 className="text-base font-semibold text-white">{title}</h2>
+        {subtitle ? <span className="text-xs text-slate-400">{subtitle}</span> : null}
       </div>
       {children}
     </section>

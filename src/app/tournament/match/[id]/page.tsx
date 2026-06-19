@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { ArenaCta, ArenaEmptyState, PublicArenaShell } from '@/components/public-arena';
 import { MatchDetailView, type MatchDetail } from '@/components/tournament/MatchDetailView';
 
 export default function MatchDetailPage() {
@@ -24,17 +25,26 @@ export default function MatchDetailPage() {
 
   if (detail === undefined) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">加载中…</p>
-      </div>
+      <PublicArenaShell bleed>
+        <ArenaEmptyState
+          eyebrow="MATCH REPORT"
+          title="比赛数据加载中"
+          description="正在同步公开比赛数据。"
+        />
+      </PublicArenaShell>
     );
   }
 
   if (detail === null) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">比赛不存在或暂未公开</p>
-      </div>
+      <PublicArenaShell bleed>
+        <ArenaEmptyState
+          eyebrow="MATCH REPORT"
+          title="比赛不存在或暂未公开"
+          description="该比赛还没有可公开的详情。"
+          action={<ArenaCta href="/tournament">返回赛事页</ArenaCta>}
+        />
+      </PublicArenaShell>
     );
   }
 

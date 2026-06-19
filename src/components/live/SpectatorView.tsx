@@ -7,6 +7,12 @@ import type { RegistrationForPool } from '@/lib/filters';
 import { useDraftStream } from '@/hooks/useDraftStream';
 import { BroadcastLayout } from '@/components/draft/BroadcastLayout';
 import { OnTheClockHero, type HeroStatus } from '@/components/draft/OnTheClockHero';
+import {
+  ArenaPanel,
+  ArenaStatCard,
+  PublicArenaHud,
+  PublicArenaShell,
+} from '@/components/public-arena';
 
 // Mirrors engine.ts TOTAL_ROUNDS — kept inline so this client component
 // doesn't transitively pull the Prisma-laden engine module into the bundle.
@@ -17,6 +23,8 @@ import { PlayerPool } from '@/components/draft/PlayerPool';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { SeasonSelector } from './SeasonSelector';
 import { formatCost } from '@/lib/costs';
+import { getLiveSignals, getLiveStats } from '@/lib/live/live-arena';
+import { RadioTower, ShieldCheck, Swords } from 'lucide-react';
 
 type PoolEntry = Omit<RegistrationForPool, 'isPicked'>;
 
@@ -74,14 +82,14 @@ export function SpectatorView({ tournaments, selectedTournament, initialSnapshot
       };
     }
     return { status: 'waiting', round: currentRound, totalRounds: TOTAL_ROUNDS };
-  }, [session, onTheClockTeam, currentRound, live.teams.length, live.picks.length]);
+  }, [session, onTheClockTeam, currentRound, live]);
 
   // Build lookup maps for EventStream
   const teamById = useMemo(() => {
     const m = new Map<string, (typeof live.teams)[number]>();
     for (const t of live.teams) m.set(t.id, t);
     return m;
-  }, [live.teams]);
+  }, [live]);
 
   const registrationNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -91,7 +99,7 @@ export function SpectatorView({ tournaments, selectedTournament, initialSnapshot
       }
     }
     return m;
-  }, [live.teams]);
+  }, [live]);
 
   // Build EventStream events from picks (most recent first)
   const streamEvents = useMemo(() => {
@@ -113,28 +121,65 @@ export function SpectatorView({ tournaments, selectedTournament, initialSnapshot
     () => poolRegistrations.map((p) => ({ ...p, isPicked: pickedSet.has(p.id) })),
     [poolRegistrations, pickedSet],
   );
+  const stats = getLiveStats(live);
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      {/* Season selector header row */}
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-lg font-semibold text-foreground">Live Draft</span>
-        <SeasonSelector tournaments={tournaments} selectedId={selectedTournament.id} />
+    <PublicArenaShell
+      hud={
+        <PublicArenaHud
+          eyebrow="LOL-SYSTEM / LIVE DRAFT"
+          title="Live Draft Console"
+          signals={getLiveSignals(selectedTournament, live)}
+          actions={<SeasonSelector tournaments={tournaments} selectedId={selectedTournament.id} />}
+        />
+      }
+      className="min-h-screen"
+      contentClassName="max-w-none lg:h-[calc(100vh-8.5rem)]"
+    >
+      <div className="grid gap-3 md:grid-cols-3">
+        <ArenaStatCard icon={Swords} label="队伍" value={String(stats.teams)} detail="参选队伍" />
+        <ArenaStatCard
+          icon={RadioTower}
+          label="出手"
+          value={String(stats.picks)}
+          detail={`${stats.pool} 名已锁定`}
+          tone="amber"
+        />
+        <ArenaStatCard
+          icon={ShieldCheck}
+          label="状态"
+          value={stats.status}
+          detail="观众只读模式"
+          tone="emerald"
+        />
       </div>
-
       <BroadcastLayout
         defaultMobileTab="grid"
-        hero={<OnTheClockHero {...heroProps} />}
-        grid={
-          <TeamGrid
-            teams={live.teams}
-            onTheClockId={onTheClockId}
-            maxBudget={selectedTournament.teamBudget}
-          />
+        hero={
+          <ArenaPanel eyebrow="ON THE CLOCK" title="实时选秀舞台">
+            <OnTheClockHero {...heroProps} />
+          </ArenaPanel>
         }
-        pool={<PlayerPool players={decoratedPool} />}
-        events={<EventStream events={streamEvents} />}
+        grid={
+          <ArenaPanel eyebrow="TEAM GRID" title="队伍席位">
+            <TeamGrid
+              teams={live.teams}
+              onTheClockId={onTheClockId}
+              maxBudget={selectedTournament.teamBudget}
+            />
+          </ArenaPanel>
+        }
+        pool={
+          <ArenaPanel eyebrow="PLAYER POOL" title="选手池">
+            <PlayerPool players={decoratedPool} />
+          </ArenaPanel>
+        }
+        events={
+          <ArenaPanel eyebrow="EVENT STREAM" title="事件流">
+            <EventStream events={streamEvents} />
+          </ArenaPanel>
+        }
       />
-    </div>
+    </PublicArenaShell>
   );
 }

@@ -12,6 +12,9 @@ describe('PublicHomePage', () => {
   it('renders public entry links instead of a login-only page', () => {
     render(<PublicHomePage context={registrationContext} />);
 
+    expect(screen.getByText('LOL-SYSTEM / PUBLIC GATEWAY')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '报名入口' })).toHaveAttribute('href', '/register');
+    expect(screen.getByRole('link', { name: '赛事中心' })).toHaveAttribute('href', '/tournament');
     expect(screen.getByRole('link', { name: /赛事报名/ })).toHaveAttribute('href', '/register');
     expect(screen.getByRole('link', { name: /赛事赛程/ })).toHaveAttribute('href', '/tournament');
     expect(screen.getByRole('link', { name: /选秀直播/ })).toHaveAttribute('href', '/live');
@@ -26,6 +29,7 @@ describe('PublicHomePage', () => {
   it('keeps only login as the action when no active season exists', () => {
     render(<PublicHomePage context={{ tournament: null, bracket: null }} />);
     expect(screen.getByRole('heading', { name: '暂无开放赛事' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '登录系统' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('link', { name: /登录后台/ })).toHaveAttribute('href', '/login');
     expect(screen.queryByRole('link', { name: /赛事报名/ })).not.toBeInTheDocument();
   });

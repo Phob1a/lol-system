@@ -6,6 +6,7 @@ import {
   PlayerStatsView,
   type PlayerTournamentStats,
 } from '@/components/tournament/PlayerStatsView';
+import { ArenaCta, ArenaEmptyState, PublicArenaShell } from '@/components/public-arena';
 
 export default function PlayerStatsPage() {
   const params = useParams<{ playerId: string }>();
@@ -30,17 +31,26 @@ export default function PlayerStatsPage() {
 
   if (stats === undefined) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">加载中…</p>
-      </div>
+      <PublicArenaShell bleed>
+        <ArenaEmptyState
+          eyebrow="PLAYER DOSSIER"
+          title="选手档案加载中"
+          description="正在同步公开数据。"
+        />
+      </PublicArenaShell>
     );
   }
 
   if (stats === null) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">选手不存在或暂无数据</p>
-      </div>
+      <PublicArenaShell bleed>
+        <ArenaEmptyState
+          eyebrow="PLAYER DOSSIER"
+          title="选手不存在或暂无数据"
+          description="该选手还没有可公开的赛事数据。"
+          action={<ArenaCta href="/tournament">返回赛事页</ArenaCta>}
+        />
+      </PublicArenaShell>
     );
   }
 
