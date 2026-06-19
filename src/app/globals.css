@@ -58,3 +58,77 @@
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 }
+
+@layer components {
+  .arena-console {
+    --arena-bg: #07111f;
+    --arena-panel: rgba(9, 23, 43, 0.78);
+    --arena-panel-strong: rgba(12, 32, 58, 0.92);
+    --arena-line: rgba(96, 211, 255, 0.3);
+    --arena-cyan: #5ee7ff;
+    --arena-amber: #f6c35f;
+    --arena-text: #e6f6ff;
+    background:
+      radial-gradient(circle at 16% 0%, rgba(94, 231, 255, 0.22), transparent 30rem),
+      radial-gradient(circle at 88% 12%, rgba(246, 195, 95, 0.12), transparent 26rem),
+      linear-gradient(180deg, #06101d 0%, var(--arena-bg) 58%, #050b13 100%);
+    color: var(--arena-text);
+    min-height: calc(100vh - 4rem);
+    overflow-x: clip;
+  }
+
+  .arena-console::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(94, 231, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(94, 231, 255, 0.06) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+  }
+
+  .arena-panel {
+    border: 1px solid var(--arena-line);
+    background:
+      linear-gradient(135deg, rgba(94, 231, 255, 0.08), transparent 34%),
+      var(--arena-panel);
+    box-shadow: 0 0 0 1px rgba(94, 231, 255, 0.05), 0 24px 80px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(18px);
+  }
+
+  .arena-corner {
+    clip-path: polygon(0 14px, 14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+  }
+
+  .arena-scanline {
+    position: relative;
+  }
+
+  .arena-scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 7px
+    );
+    opacity: 0.26;
+  }
+}
+
+@media (max-width: 767px) {
+  .arena-console {
+    min-height: calc(100vh - 3.5rem);
+  }
+
+  .arena-console::before,
+  .arena-scanline::after {
+    opacity: 0.4;
+  }
+}
