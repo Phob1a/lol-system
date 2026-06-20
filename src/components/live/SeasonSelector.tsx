@@ -2,13 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import type { Tournament } from '@prisma/client';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 type Props = {
   tournaments: Tournament[];
@@ -19,20 +12,27 @@ export function SeasonSelector({ tournaments, selectedId }: Props) {
   const router = useRouter();
 
   return (
-    <Select
+    <select
       value={selectedId}
-      onValueChange={(id) => router.push(`/live?season=${id}`)}
+      onChange={(e) => router.push(`/live?season=${e.target.value}`)}
+      className="h-8 px-2 pr-6 font-mono text-[11px] uppercase tracking-[0.1em] border border-nexus-line rounded-[var(--radius-nexus)] cursor-pointer appearance-none transition-colors focus:outline-none focus:border-nexus-accent"
+      style={{
+        background: 'rgb(var(--panel-2))',
+        color: 'rgb(var(--ink))',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A7080'/%3E%3C/svg%3E")`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'right 8px center',
+      }}
     >
-      <SelectTrigger className="w-48">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {tournaments.map((t) => (
-          <SelectItem key={t.id} value={t.id}>
-            {t.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      {tournaments.map((t) => (
+        <option
+          key={t.id}
+          value={t.id}
+          style={{ background: 'rgb(var(--panel-2))', color: 'rgb(var(--ink))' }}
+        >
+          {t.name}
+        </option>
+      ))}
+    </select>
   );
 }

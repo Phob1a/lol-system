@@ -4,46 +4,15 @@ import type { TeamPreview } from '@/lib/teams/preview';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
-import { Badge } from '@/components/ui/badge';
+import Panel from '@/components/nexus/Panel';
+import Kicker from '@/components/nexus/Kicker';
+import Chip from '@/components/nexus/Chip';
+import { PosPip } from '@/components/nexus/PosPip';
+import { SegBudget } from '@/components/nexus/charts/SegBudget';
 import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
-/** Abbreviation letter for a position value */
-const POS_LETTER: Record<string, string> = {
-  TOP: 'T',
-  JG: 'J',
-  JUNGLE: 'J',
-  MID: 'M',
-  ADC: 'A',
-  SUP: 'S',
-  SUPPORT: 'S',
-};
-
-function PosChip({
-  pos,
-  filled,
-  dim,
-}: {
-  pos: string;
-  filled?: boolean;
-  dim?: boolean;
-}) {
-  const letter = POS_LETTER[pos] ?? pos[0];
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center justify-center w-5 h-5 shrink-0 rounded-sm border text-[10px] font-bold',
-        filled
-          ? 'bg-primary border-primary text-primary-foreground'
-          : dim
-            ? 'bg-transparent border-muted-foreground/40 text-muted-foreground/40'
-            : 'bg-transparent border-border text-muted-foreground',
-      )}
-    >
-      {letter}
-    </span>
-  );
-}
+const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const;
 
 type Props = {
   team: TeamPreview;
@@ -59,80 +28,98 @@ export function TeamPanel({ team, isOwn }: Props) {
     slots: team.slots,
   };
 
+  // Estimate maxBudget as sum of all slot costs + remaining budget
+  const maxBudget = team.slots.reduce(
+    (acc, s) => acc + (s.player?.cost ?? 0),
+    team.budgetLeft,
+  );
+
   return (
-    <div
-      className={cn(
-        'rounded-lg border bg-card p-3 space-y-2',
-        isOwn ? 'border-primary/60 bg-primary/5' : '',
-      )}
+    <Panel
+      className="p-[14px]"
+      style={isOwn ? { borderColor: 'rgb(var(--accent-n) / 0.5)' } : undefined}
     >
       <TeamHoverCard team={hoverTeam}>
-        <div className="space-y-2">
+        <div>
           {/* Header: captain name + budget */}
-          <div className="flex justify-between items-baseline gap-2">
+          <div className="flex items-start justify-between gap-2 mb-2.5">
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 mb-0.5">
                 <span
                   className={cn(
-                    'text-sm font-semibold truncate',
-                    isOwn ? 'text-primary' : 'text-foreground',
+                    'font-display font-semibold text-[14.5px] leading-tight truncate',
+                    isOwn ? 'text-nexus-accent' : 'text-nexus-ink',
                   )}
                 >
                   {team.captainNickname}
                 </span>
-                {isOwn && (
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-auto">
-                    MINE
-                  </Badge>
-                )}
+                {isOwn && <Chip variant="ac">MINE</Chip>}
               </div>
-              <p className="text-[10px] text-muted-foreground">@{team.captainGameId}</p>
+              <Kicker>@{team.captainGameId}</Kicker>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">BUDGET</p>
-              <p className="text-sm font-semibold text-foreground leading-tight">
+              <Kicker className="mb-0.5">预算余</Kicker>
+              <div
+                className="font-mono tabular-nums text-[13px] font-semibold"
+                style={{ color: 'rgb(var(--accent-n))' }}
+              >
                 {formatCost(team.budgetLeft)}
-                <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
-              </p>
+                <span className="font-mono text-[9px] text-nexus-faint ml-0.5">CR</span>
+              </div>
             </div>
           </div>
 
-          {/* Position summary row */}
-          <div className="flex gap-1">
-            {(['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const).map((p) => (
-              <PosChip
+          {/* Position pip summary row */}
+          <div className="flex gap-[6px] mb-2.5">
+            {POSITIONS.map((p) => (
+              <PosPip
                 key={p}
                 pos={p}
-                filled={filledPositions.includes(p)}
-                dim={!filledPositions.includes(p)}
+                on={filledPositions.includes(p)}
+                size={24}
               />
             ))}
           </div>
+
+          {/* Budget bar */}
+          <SegBudget
+            used={team.budgetLeft}
+            total={maxBudget > 0 ? maxBudget : 1}
+            segs={16}
+          />
         </div>
       </TeamHoverCard>
 
       {/* Roster slots */}
-      <div className="flex flex-col gap-0.5">
+      <div className="mt-2.5 flex flex-col gap-[3px]">
         {team.slots.map((slot) => {
           const row = (
             <div
-              className="grid items-center gap-2 px-1.5 py-1 rounded border border-border text-xs"
-              style={{ gridTemplateColumns: '46px 1fr auto' }}
+              className="grid items-center gap-2 px-2 py-1.5 border border-nexus-line rounded-[var(--radius-nexus)]"
+              style={{
+                gridTemplateColumns: '48px 1fr auto',
+                background: 'rgb(var(--panel-2))',
+              }}
             >
-              <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-nexus-faint">
                 {POSITION_LABEL[slot.position]}
               </span>
               {slot.player ? (
-                <span className="min-w-0 text-foreground truncate">
+                <span className="min-w-0 font-display text-[12.5px] text-nexus-ink truncate">
                   {slot.player.nickname}
-                  <span className="ml-1.5 text-[9px] text-muted-foreground">
+                  <span className="ml-1.5 font-mono text-[9px] text-nexus-faint">
                     @{slot.player.gameId}
                   </span>
                 </span>
               ) : (
-                <span className="text-[10px] text-muted-foreground/50">— empty —</span>
+                <span className="font-mono text-[10px] text-nexus-faint/50">— 空缺 —</span>
               )}
-              <span className={cn('text-xs font-medium', slot.player ? 'text-foreground' : 'text-muted-foreground/50')}>
+              <span
+                className={cn(
+                  'font-mono tabular-nums text-[11px]',
+                  slot.player ? 'text-nexus-accent' : 'text-nexus-faint/50',
+                )}
+              >
                 {slot.player ? formatCost(slot.player.cost) : '—'}
               </span>
             </div>
@@ -146,6 +133,6 @@ export function TeamPanel({ team, isOwn }: Props) {
           );
         })}
       </div>
-    </div>
+    </Panel>
   );
 }

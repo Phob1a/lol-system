@@ -17,6 +17,9 @@ import { PlayerPool } from '@/components/draft/PlayerPool';
 import { POSITION_LABEL } from '@/components/players/positions';
 import { SeasonSelector } from './SeasonSelector';
 import { formatCost } from '@/lib/costs';
+import Kicker from '@/components/nexus/Kicker';
+import LiveDot from '@/components/nexus/LiveDot';
+import Chip from '@/components/nexus/Chip';
 
 type PoolEntry = Omit<RegistrationForPool, 'isPicked'>;
 
@@ -33,7 +36,7 @@ export function SpectatorView({ tournaments, selectedTournament, initialSnapshot
 
   // Always call useDraftStream unconditionally (Rules of Hooks).
   // For COMPLETED/ARCHIVED seasons the SSE yields nothing new — that is fine.
-  const { snapshot } = useDraftStream(initialSnapshot, { stateUrl, streamUrl });
+  const { snapshot, connected } = useDraftStream(initialSnapshot, { stateUrl, streamUrl });
 
   const live = snapshot ?? initialSnapshot;
 
@@ -114,27 +117,80 @@ export function SpectatorView({ tournaments, selectedTournament, initialSnapshot
     [poolRegistrations, pickedSet],
   );
 
+  const isDrafting = session?.status === 'IN_PROGRESS';
+
   return (
-    <div className="min-h-screen bg-background p-4">
-      {/* Season selector header row */}
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-lg font-semibold text-foreground">Live Draft</span>
-        <SeasonSelector tournaments={tournaments} selectedId={selectedTournament.id} />
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: 'rgb(var(--bg))' }}
+    >
+      {/* ── Top status bar: tournament name + season selector + live indicator ── */}
+      <div
+        className="flex items-center justify-between gap-4 px-4 py-3 border-b border-nexus-line shrink-0"
+        style={{ background: 'rgb(var(--surface))' }}
+      >
+        {/* Left: live dot + title + round chip */}
+        <div className="flex items-center gap-3 min-w-0">
+          {isDrafting && <LiveDot />}
+          <div className="min-w-0">
+            <Kicker className="mb-0.5">选秀直播</Kicker>
+            <div className="font-display font-bold text-[15px] text-nexus-ink truncate">
+              {selectedTournament.name}
+            </div>
+          </div>
+          {session && session.status !== 'NOT_STARTED' && (
+            <div className="flex items-center gap-2">
+              <Chip
+                variant={
+                  isDrafting ? 'hot' : session.status === 'FINISHED' ? 'ac' : 'default'
+                }
+              >
+                {session.status === 'FINISHED'
+                  ? '已完成'
+                  : isDrafting
+                  ? `第 ${currentRound} / ${TOTAL_ROUNDS} 轮`
+                  : '等待中'}
+              </Chip>
+              {isDrafting && onTheClockTeam && (
+                <span
+                  className="hidden sm:block font-display font-semibold text-[13px]"
+                  style={{ color: 'rgb(var(--hot))' }}
+                >
+                  ON CLOCK · {onTheClockTeam.captainNickname}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right: connection status + season selector */}
+        <div className="flex items-center gap-3 shrink-0">
+          <span
+            className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.16em]"
+            style={{ color: connected ? 'rgb(var(--good))' : 'rgb(var(--faint))' }}
+          >
+            {connected ? '● 已连接' : '○ 断线'}
+          </span>
+          <SeasonSelector tournaments={tournaments} selectedId={selectedTournament.id} />
+        </div>
       </div>
 
-      <BroadcastLayout
-        defaultMobileTab="grid"
-        hero={<OnTheClockHero {...heroProps} />}
-        grid={
-          <TeamGrid
-            teams={live.teams}
-            onTheClockId={onTheClockId}
-            maxBudget={selectedTournament.teamBudget}
-          />
-        }
-        pool={<PlayerPool players={decoratedPool} />}
-        events={<EventStream events={streamEvents} />}
-      />
+      {/* ── Main broadcast layout ── */}
+      <div className="flex-1 min-h-0">
+        <BroadcastLayout
+          defaultMobileTab="grid"
+          hero={<OnTheClockHero {...heroProps} />}
+          grid={
+            <TeamGrid
+              teams={live.teams}
+              onTheClockId={onTheClockId}
+              maxBudget={selectedTournament.teamBudget}
+            />
+          }
+          pool={<PlayerPool players={decoratedPool} />}
+          events={<EventStream events={streamEvents} />}
+        />
+      </div>
     </div>
   );
 }

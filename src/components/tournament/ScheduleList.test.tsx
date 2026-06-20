@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { PublicState } from '@/hooks/useTournamentState';
+import { MatchDetailProvider } from './MatchDetailProvider';
 import { ScheduleList } from './ScheduleList';
 
 type Match = NonNullable<PublicState>['matches'][number];
@@ -22,9 +23,13 @@ function match(overrides: Partial<Match> = {}): Match {
   };
 }
 
+function renderWithProvider(ui: React.ReactElement) {
+  return render(<MatchDetailProvider>{ui}</MatchDetailProvider>);
+}
+
 describe('ScheduleList', () => {
   it('hides unscheduled matches on the public schedule', () => {
-    render(
+    renderWithProvider(
       <ScheduleList
         matches={[
           match({ id: 'scheduled', teamA: { id: 'ta', name: '已排期队伍' } }),
@@ -45,7 +50,7 @@ describe('ScheduleList', () => {
   });
 
   it('shows a specific empty state when generated matches have not been scheduled', () => {
-    render(
+    renderWithProvider(
       <ScheduleList
         matches={[
           match({

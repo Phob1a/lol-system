@@ -14,8 +14,9 @@ import {
 import type { PositionLiteral } from '@/lib/players/schema';
 import { POSITION_OPTIONS } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import PanelHead from '@/components/nexus/PanelHead';
+import Chip from '@/components/nexus/Chip';
+import { PosPip } from '@/components/nexus/PosPip';
 import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 
@@ -31,9 +32,9 @@ type Props = {
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'gameId-asc', label: '默认' },
-  { value: 'primary-asc', label: '按位置' },
-  { value: 'cost-asc', label: '费用 ↑' },
-  { value: 'cost-desc', label: '费用 ↓' },
+  { value: 'primary-asc', label: '位置' },
+  { value: 'cost-asc', label: '费用↑' },
+  { value: 'cost-desc', label: '费用↓' },
 ];
 
 const PICKED_OPTIONS: { value: NonNullable<PlayerFilter['pickedStatus']>; label: string }[] = [
@@ -42,32 +43,7 @@ const PICKED_OPTIONS: { value: NonNullable<PlayerFilter['pickedStatus']>; label:
   { value: 'picked', label: '已选' },
 ];
 
-/** Chinese single-character marker for a position value. */
-const POS_CHAR: Record<string, string> = {
-  TOP: '上',
-  JUNGLE: '野',
-  MID: '中',
-  ADC: '射',
-  SUPPORT: '辅',
-};
-
-function PosChip({ pos, filled }: { pos: string; filled?: boolean }) {
-  const char = POS_CHAR[pos] ?? pos[0];
-  return (
-    <span
-      className={cn(
-        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-xs font-medium',
-        filled
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-transparent text-muted-foreground',
-      )}
-    >
-      {char}
-    </span>
-  );
-}
-
-/** Segmented toggle button used across the filter panel. */
+/** Nexus-styled toggle chip button */
 function FilterChip({
   active,
   onClick,
@@ -82,10 +58,10 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded border px-2.5 py-1 text-xs transition-colors',
+        'h-6 px-3 font-mono text-[10px] uppercase tracking-[0.1em] border rounded-[var(--radius-nexus)] transition-colors cursor-pointer',
         active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-transparent text-muted-foreground hover:border-foreground hover:text-foreground',
+          ? 'border-nexus-accent/60 text-nexus-accent'
+          : 'border-nexus-line text-nexus-dim hover:border-nexus-ink hover:text-nexus-ink',
       )}
     >
       {children}
@@ -97,8 +73,6 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
   const [filter, setFilter] = useState<PlayerFilter>(DEFAULT_FILTER);
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  // Raw strings for the cost-range inputs, kept separate from the parsed
-  // numbers in `filter` so a partially-typed decimal (e.g. "12.") survives.
   const [costMinInput, setCostMinInput] = useState('');
   const [costMaxInput, setCostMaxInput] = useState('');
 
@@ -107,8 +81,6 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
     [players, filter, sort],
   );
 
-  // Count of active conditions inside the collapsible panel. Search is excluded
-  // (it stays visible above); sort is not a "filter" and is not counted.
   const activeFilterCount = useMemo(() => {
     let n = 0;
     if ((filter.primaryPositions?.length ?? 0) > 0) n++;
@@ -136,41 +108,49 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
   }
 
   return (
-    <div className="flex flex-col gap-2.5 p-2.5">
+    <div className="flex flex-col">
+      <PanelHead
+        title={`选手池 · ${visible.length}/${players.length}`}
+        actions={
+          <span className="font-mono text-[10px] text-nexus-faint">点选预览</span>
+        }
+      />
+
       {/* ── Filter region ── */}
-      <div className="space-y-3 rounded-lg border bg-card p-3">
-        {/* Search — always visible */}
-        <Input
+      <div className="p-3 border-b border-nexus-line space-y-2.5">
+        {/* Search */}
+        <input
+          className={cn(
+            'w-full h-9 px-3 text-[13px]',
+            'bg-transparent border border-nexus-line rounded-[var(--radius-nexus)]',
+            'text-nexus-ink placeholder:text-nexus-faint font-display',
+            'focus:outline-none focus:border-nexus-accent transition-colors',
+          )}
           placeholder="搜索昵称 / 游戏 ID"
           value={filter.search ?? ''}
           onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
-          className="h-9 text-sm"
         />
 
-        {/* Status bar: count · 筛选 toggle · 重置 */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">
-            <span className="font-semibold text-foreground">显示 {visible.length}</span> / {players.length} 人
-          </span>
+        {/* Status bar: filter toggle + reset */}
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setFiltersOpen((o) => !o)}
             className={cn(
-              'ml-auto inline-flex items-center gap-1 rounded border px-2.5 py-1 transition-colors',
+              'ml-auto h-6 px-3 font-mono text-[10px] uppercase tracking-[0.12em] border rounded-[var(--radius-nexus)] transition-colors cursor-pointer flex items-center gap-1',
               filtersOpen
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
+                ? 'border-nexus-accent/60 text-nexus-accent'
+                : 'border-nexus-line text-nexus-dim hover:border-nexus-ink hover:text-nexus-ink',
             )}
           >
             筛选 {filtersOpen ? '▴' : '▾'}
             {activeFilterCount > 0 && (
               <span
-                className={cn(
-                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium',
-                  filtersOpen
-                    ? 'bg-primary-foreground text-primary'
-                    : 'bg-primary text-primary-foreground',
-                )}
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px]"
+                style={{
+                  background: 'rgb(var(--accent-n))',
+                  color: 'rgb(var(--bg))',
+                }}
               >
                 {activeFilterCount}
               </span>
@@ -179,7 +159,7 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
           <button
             type="button"
             onClick={reset}
-            className="rounded border border-border px-2.5 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            className="h-6 px-3 font-mono text-[10px] uppercase tracking-[0.12em] border border-nexus-line rounded-[var(--radius-nexus)] text-nexus-dim hover:border-nexus-ink hover:text-nexus-ink transition-colors cursor-pointer"
           >
             重置
           </button>
@@ -187,10 +167,10 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
 
         {/* Collapsible filter panel */}
         {filtersOpen && (
-          <div className="space-y-3 border-t pt-3">
+          <div className="space-y-3 pt-2 border-t border-nexus-line">
             {/* Sort */}
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">排序</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-nexus-faint mb-1.5">排序</p>
               <div className="flex flex-wrap gap-1.5">
                 {SORT_OPTIONS.map((opt) => (
                   <FilterChip
@@ -206,7 +186,7 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
 
             {/* Primary positions */}
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">主位置</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-nexus-faint mb-1.5">主位置</p>
               <div className="flex flex-wrap gap-1.5">
                 {POSITION_OPTIONS.map((p) => (
                   <FilterChip
@@ -222,7 +202,7 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
 
             {/* Secondary positions */}
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">副位置</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-nexus-faint mb-1.5">副位置</p>
               <div className="flex flex-wrap gap-1.5">
                 {POSITION_OPTIONS.map((p) => (
                   <FilterChip
@@ -238,9 +218,9 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
 
             {/* Cost range */}
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">费用区间</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-nexus-faint mb-1.5">费用区间</p>
               <div className="flex items-center gap-2">
-                <Input
+                <input
                   type="text"
                   inputMode="decimal"
                   placeholder="最低"
@@ -254,10 +234,15 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
                       costMin: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
                     }));
                   }}
-                  className="h-8 text-xs"
+                  className={cn(
+                    'h-8 flex-1 px-2 text-xs font-mono',
+                    'bg-transparent border border-nexus-line rounded-[var(--radius-nexus)]',
+                    'text-nexus-ink placeholder:text-nexus-faint',
+                    'focus:outline-none focus:border-nexus-accent transition-colors',
+                  )}
                 />
-                <span className="text-muted-foreground">–</span>
-                <Input
+                <span className="text-nexus-faint font-mono text-xs">–</span>
+                <input
                   type="text"
                   inputMode="decimal"
                   placeholder="最高"
@@ -271,14 +256,19 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
                       costMax: raw.trim() === '' || Number.isNaN(n) ? undefined : n,
                     }));
                   }}
-                  className="h-8 text-xs"
+                  className={cn(
+                    'h-8 flex-1 px-2 text-xs font-mono',
+                    'bg-transparent border border-nexus-line rounded-[var(--radius-nexus)]',
+                    'text-nexus-ink placeholder:text-nexus-faint',
+                    'focus:outline-none focus:border-nexus-accent transition-colors',
+                  )}
                 />
               </div>
             </div>
 
             {/* Picked status */}
             <div>
-              <p className="mb-1.5 text-xs text-muted-foreground">选取状态</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-nexus-faint mb-1.5">选取状态</p>
               <div className="flex flex-wrap gap-1.5">
                 {PICKED_OPTIONS.map((opt) => (
                   <FilterChip
@@ -298,7 +288,7 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
       {/* ── Player card grid ── */}
       <div
         data-testid="player-pool-grid"
-        className="grid gap-2"
+        className="grid gap-2 p-2"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}
       >
         {visible.map((p) => (
@@ -311,14 +301,26 @@ export function PlayerPool({ players, renderActions, getDragData, onPickRequest 
           />
         ))}
         {visible.length === 0 && (
-          <div className="rounded-lg border border-dashed py-8 text-center text-xs text-muted-foreground">
-            没有匹配的选手
+          <div
+            className="flex items-center justify-center py-8 border border-dashed border-nexus-line rounded-[var(--radius-nexus)]"
+          >
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-nexus-faint">
+              没有匹配的选手
+            </span>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const POS_CHAR: Record<string, string> = {
+  TOP: '上',
+  JUNGLE: '野',
+  MID: '中',
+  ADC: '射',
+  SUPPORT: '辅',
+};
 
 function PlayerPoolCard({
   player,
@@ -345,14 +347,13 @@ function PlayerPoolCard({
       suppressClickRef.current = true;
       return;
     }
-    // Drag ended: clear suppression after the trailing click from this pointer
-    // sequence has fired, so the next genuine double-click is not swallowed —
-    // including after a drag that dropped on an invalid target (failed pick).
     const timer = setTimeout(() => {
       suppressClickRef.current = false;
     }, 0);
     return () => clearTimeout(timer);
   }, [isDragging]);
+
+  const primaryPos = player.primaryPositions[0] as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT' | undefined;
 
   return (
     <PlayerHoverCard player={player}>
@@ -366,42 +367,73 @@ function PlayerPoolCard({
           if (actionable) onPickRequest(player);
         }}
         className={cn(
-          'flex h-full min-h-[116px] flex-col justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/40',
-          player.isPicked && 'opacity-50',
+          'flex h-full min-h-[116px] flex-col justify-between',
+          'px-3 py-2.5 border border-nexus-line rounded-[var(--radius-nexus)] transition-colors',
+          player.isPicked
+            ? 'opacity-40'
+            : 'hover:border-nexus-accent/40',
           draggable && 'cursor-grab active:cursor-grabbing',
           isDragging && 'opacity-40',
         )}
+        style={{ background: 'rgb(var(--panel-2))' }}
       >
+        {/* Top: name + picked badge + cost */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="truncate text-sm font-medium text-foreground">{player.nickname}</span>
+              <span className="font-display text-[13.5px] text-nexus-ink truncate">
+                {player.nickname}
+              </span>
               {player.isPicked && (
-                <Badge variant="outline" className="h-auto shrink-0 px-1.5 py-0 text-[10px]">
-                  已选
-                </Badge>
+                <Chip variant="default">已选</Chip>
               )}
             </div>
-            <span className="block truncate text-xs text-muted-foreground">@{player.gameId}</span>
+            <span className="block font-mono text-[10px] text-nexus-faint truncate">
+              @{player.gameId}
+            </span>
           </div>
 
-          <div className="shrink-0 rounded-md border bg-muted/30 px-2 py-1 text-right leading-tight">
-            <div className="text-sm font-semibold text-foreground">{formatCost(player.cost)}</div>
-            <div className="text-[10px] text-muted-foreground">费用</div>
+          {/* Cost badge */}
+          <div
+            className="shrink-0 border border-nexus-line rounded-[var(--radius-nexus)] px-2 py-1 text-right leading-tight"
+            style={{ background: 'rgb(var(--panel))' }}
+          >
+            <div
+              className="font-mono tabular-nums text-[13px] font-semibold"
+              style={{ color: 'rgb(var(--accent-n))' }}
+            >
+              {formatCost(player.cost)}
+            </div>
+            <div className="font-mono text-[9px] text-nexus-faint">CR</div>
           </div>
         </div>
 
+        {/* Bottom: position pips + drag hint / action */}
         <div className="mt-2 flex items-end justify-between gap-2">
           <div className="flex min-w-0 flex-wrap gap-1">
+            {/* Primary position pips */}
             {player.primaryPositions.map((pos) => (
-              <PosChip key={`p-${pos}`} pos={pos} filled />
+              <PosPip
+                key={`p-${pos}`}
+                pos={pos as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT'}
+                on
+                size={24}
+              />
             ))}
+            {/* Secondary position inline tags */}
             {player.secondaryPositions.map((pos) => (
-              <PosChip key={`s-${pos}`} pos={pos} />
+              <span
+                key={`s-${pos}`}
+                className="inline-flex h-6 w-6 items-center justify-center font-mono text-[9px] text-nexus-faint border border-nexus-line rounded-[var(--radius-nexus)]"
+              >
+                {POS_CHAR[pos] ?? pos[0]}
+              </span>
             ))}
           </div>
           {actionable && (
-            <span className="shrink-0 rounded border border-primary/50 px-2 py-1 text-[10px] font-medium text-primary">
+            <span
+              className="shrink-0 h-6 px-2 font-mono text-[10px] uppercase tracking-[0.1em] border border-nexus-accent/50 text-nexus-accent rounded-[var(--radius-nexus)]"
+            >
               拖到空位
             </span>
           )}

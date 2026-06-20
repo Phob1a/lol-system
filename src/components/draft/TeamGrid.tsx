@@ -8,8 +8,21 @@ type Props = {
 };
 
 export function TeamGrid({ teams, onTheClockId, maxBudget }: Props) {
+  if (teams.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center py-12 border border-nexus-line rounded-[var(--radius-nexus)]"
+        style={{ background: 'rgb(var(--panel))' }}
+      >
+        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-nexus-faint">
+          暂无战队
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-3">
       {teams.map((team) => (
         <TeamCard
           key={team.id}

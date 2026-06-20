@@ -1,15 +1,13 @@
 import type { DraftTeamSnapshot } from '@/lib/draft/types';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
+import Panel from '@/components/nexus/Panel';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import { PosPip } from '@/components/nexus/PosPip';
+import { SegBudget } from '@/components/nexus/charts/SegBudget';
 import { formatCost } from '@/lib/costs';
 
 const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'] as const;
-const POSITION_LABEL: Record<string, string> = {
-  TOP: '上',
-  JUNGLE: '野',
-  MID: '中',
-  ADC: '射',
-  SUPPORT: '辅',
-};
 
 type Props = {
   team: DraftTeamSnapshot;
@@ -18,11 +16,8 @@ type Props = {
 };
 
 export function TeamCard({ team, live, maxBudget }: Props) {
-  const filledSlots = new Set(
-    team.slots.filter((s) => s.registration !== null).map((s) => s.position),
-  );
+  const filledCount = team.slots.filter((s) => s.registration !== null).length;
 
-  const budgetPct = Math.min(100, Math.max(0, (team.budgetLeft / (maxBudget > 0 ? maxBudget : 1)) * 100));
   const hoverTeam: TeamHoverSummary = {
     captainNickname: team.captainNickname,
     captainGameId: team.captainGameId,
@@ -35,58 +30,66 @@ export function TeamCard({ team, live, maxBudget }: Props) {
 
   return (
     <TeamHoverCard team={hoverTeam}>
-      <div
-        className={[
-          'rounded-lg border bg-card p-3 transition-all',
-          live ? 'ring-2 ring-primary' : '',
-        ].join(' ')}
+      <Panel
+        glow={live}
+        className="p-[14px]"
+        style={
+          live
+            ? { borderColor: 'rgb(var(--hot) / 0.6)' }
+            : undefined
+        }
       >
-        {/* Team name */}
-        <div className="flex items-baseline justify-between gap-1 mb-2">
-          <span className="text-sm font-semibold truncate">
-            {team.captainNickname}
-          </span>
-          {live && (
-            <span className="shrink-0 text-[9px] font-mono tracking-widest uppercase text-primary">
-              ON CLOCK
-            </span>
-          )}
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <div className="min-w-0">
+            <div
+              className="font-display font-semibold text-[14.5px] leading-tight truncate"
+              style={{ color: live ? 'rgb(var(--hot))' : 'rgb(var(--ink))' }}
+            >
+              {team.captainNickname}
+            </div>
+            <Kicker className="mt-0.5">
+              队长 · {filledCount}/5
+            </Kicker>
+          </div>
+          {live && <Chip variant="hot">选择中</Chip>}
         </div>
 
-        {/* Position dots */}
-        <div className="flex gap-1 mb-2">
+        {/* Position pips + player nicknames */}
+        <div className="flex gap-[6px] mb-2.5">
           {POSITIONS.map((pos) => {
-            const filled = filledSlots.has(pos);
+            const slot = team.slots.find((s) => s.position === pos);
+            const filled = !!slot?.registration;
             return (
-              <span
-                key={pos}
-                title={pos}
-                className={[
-                  'flex items-center justify-center w-6 h-6 rounded text-[9px] font-bold border',
-                  filled
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-muted text-muted-foreground border-muted',
-                ].join(' ')}
-              >
-                {POSITION_LABEL[pos]}
-              </span>
+              <div key={pos} className="flex-1 text-center">
+                <PosPip pos={pos} on={filled} size={28} />
+                <div
+                  className="font-mono text-[8.5px] mt-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                  style={{
+                    color: filled ? 'rgb(var(--dim))' : 'rgb(var(--faint))',
+                  }}
+                >
+                  {slot?.registration
+                    ? slot.registration.nickname.slice(0, 4)
+                    : '空'}
+                </div>
+              </div>
             );
           })}
         </div>
 
         {/* Budget bar */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${budgetPct}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+        <div className="flex items-center justify-between mb-1.5">
+          <Kicker>预算余额</Kicker>
+          <span
+            className="font-mono tabular-nums text-[11px]"
+            style={{ color: 'rgb(var(--accent-n))' }}
+          >
             {formatCost(team.budgetLeft)}
           </span>
         </div>
-      </div>
+        <SegBudget used={team.budgetLeft} total={maxBudget > 0 ? maxBudget : 1} segs={20} />
+      </Panel>
     </TeamHoverCard>
   );
 }

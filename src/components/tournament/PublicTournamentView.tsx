@@ -1,59 +1,137 @@
 'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
 import { useTournamentState } from '@/hooks/useTournamentState';
 import { ScheduleList } from '@/components/tournament/ScheduleList';
 import { GroupStandings } from '@/components/tournament/GroupStandings';
 import { BracketView } from '@/components/tournament/BracketView';
 import { LeaderboardView } from '@/components/tournament/LeaderboardView';
+import Readout from '@/components/nexus/Readout';
+import Kicker from '@/components/nexus/Kicker';
 
+// ---------------------------------------------------------------------------
+// Tab definitions
+// ---------------------------------------------------------------------------
+type TabKey = 'schedule' | 'standings' | 'bracket' | 'leaderboard';
+
+const TABS: Array<{ key: TabKey; label: string; idx: string }> = [
+  { key: 'schedule',    label: '赛程',  idx: 'i.'   },
+  { key: 'standings',   label: '积分榜', idx: 'ii.'  },
+  { key: 'bracket',    label: '对阵图', idx: 'iii.' },
+  { key: 'leaderboard', label: '数据榜', idx: 'iv.'  },
+];
+
+// ---------------------------------------------------------------------------
+// Nexus tab bar
+// ---------------------------------------------------------------------------
+function NexusTabBar({
+  active,
+  onChange,
+}: {
+  active: TabKey;
+  onChange: (k: TabKey) => void;
+}) {
+  return (
+    <div
+      className="flex border-b border-nexus-line px-1"
+      role="tablist"
+      aria-label="赛事中心标签"
+    >
+      {TABS.map(({ key, label, idx }) => {
+        const isActive = active === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(key)}
+            className={[
+              // layout
+              'flex items-center gap-[7px] px-4 py-3',
+              // bottom border as active indicator
+              'border-b-2 -mb-px',
+              'transition-colors duration-100',
+              // active vs idle
+              isActive
+                ? 'border-nexus-accent text-nexus-accent'
+                : [
+                    'border-transparent',
+                    'text-nexus-dim hover:text-nexus-ink hover:border-nexus-line/60',
+                  ].join(' '),
+            ].join(' ')}
+          >
+            <Readout
+              className={[
+                'text-[11px]',
+                isActive ? 'text-nexus-accent' : 'text-nexus-faint',
+              ].join(' ')}
+            >
+              {idx}
+            </Readout>
+            <span className="font-mono text-[12px] font-semibold uppercase tracking-[0.08em]">
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main view
+// ---------------------------------------------------------------------------
 export function PublicTournamentView() {
   const { state, loaded } = useTournamentState();
+  const [tab, setTab] = useState<TabKey>('schedule');
 
-  if (loaded && !state) {
+  // Loading skeleton
+  if (!loaded) {
     return (
       <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">暂未创建赛事</p>
+        <Kicker className="animate-pulse">加载中…</Kicker>
       </div>
     );
   }
 
-  if (!loaded) {
+  // No tournament yet (SETUP / REGISTRATION phase)
+  if (!state) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <p className="text-muted-foreground text-sm">加载中…</p>
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <Kicker>赛事中心</Kicker>
+        <p className="text-nexus-faint text-sm font-mono">暂未创建赛事</p>
       </div>
     );
   }
 
   return (
-    <Tabs defaultValue="schedule" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="schedule">赛程</TabsTrigger>
-        <TabsTrigger value="standings">小组赛</TabsTrigger>
-        <TabsTrigger value="bracket">对阵图</TabsTrigger>
-        <TabsTrigger value="leaderboard">数据榜</TabsTrigger>
-      </TabsList>
+    <div className="flex flex-col gap-0">
+      {/* Nexus tab bar */}
+      <NexusTabBar active={tab} onChange={setTab} />
 
-      <TabsContent value="schedule">
-        <ScheduleList matches={state!.matches} />
-      </TabsContent>
+      {/* Tab content */}
+      <div className="pt-5">
+        {tab === 'schedule' && (
+          <ScheduleList matches={state.matches} />
+        )}
 
-      <TabsContent value="standings">
-        <GroupStandings standings={state!.standings} />
-      </TabsContent>
+        {tab === 'standings' && (
+          <GroupStandings standings={state.standings} />
+        )}
 
-      <TabsContent value="bracket">
-        <BracketView
-          bracket={state!.bracket}
-          standings={state!.standings}
-          matches={state!.matches}
-        />
-      </TabsContent>
+        {tab === 'bracket' && (
+          <BracketView
+            bracket={state.bracket}
+            standings={state.standings}
+            matches={state.matches}
+          />
+        )}
 
-      <TabsContent value="leaderboard">
-        <LeaderboardView />
-      </TabsContent>
-    </Tabs>
+        {tab === 'leaderboard' && (
+          <LeaderboardView />
+        )}
+      </div>
+    </div>
   );
 }
