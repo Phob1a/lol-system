@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { PublicState } from '@/hooks/useTournamentState';
 import { groupMatchesByDay } from '@/lib/tournament/schedule-grouping';
 import { useMatchDrawer } from '@/components/tournament/MatchDetailProvider';
@@ -12,10 +13,135 @@ import LiveDot from '@/components/nexus/LiveDot';
 import Kicker from '@/components/nexus/Kicker';
 
 type Match = NonNullable<PublicState>['matches'][number];
+type Standing = NonNullable<PublicState>['standings'][number];
 
 type Props = {
   matches: Match[];
+  /** Optional standings used to build group filter pills. */
+  standings?: Standing[];
 };
+
+// ---------------------------------------------------------------------------
+// Filter bar
+// ---------------------------------------------------------------------------
+
+type StageFilter = 'ALL' | 'GROUP' | 'KO';
+type StatusFilter = 'ALL' | 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED';
+
+function FilterBar({
+  standings,
+  stage,
+  setStage,
+  groupId,
+  setGroupId,
+  status,
+  setStatus,
+}: {
+  standings: Standing[];
+  stage: StageFilter;
+  setStage: (v: StageFilter) => void;
+  groupId: string | 'ALL';
+  setGroupId: (v: string | 'ALL') => void;
+  status: StatusFilter;
+  setStatus: (v: StatusFilter) => void;
+}) {
+  const stageOptions: Array<[StageFilter, string]> = [
+    ['ALL', '全部'],
+    ['GROUP', '小组赛'],
+    ['KO', '淘汰赛'],
+  ];
+
+  const statusOptions: Array<[StatusFilter, string]> = [
+    ['ALL', '全部'],
+    ['SCHEDULED', '未开始'],
+    ['IN_PROGRESS', 'LIVE'],
+    ['FINISHED', '已结束'],
+  ];
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      {/* Stage filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {stageOptions.map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => {
+              setStage(k);
+              if (k !== 'GROUP') setGroupId('ALL');
+            }}
+            className={[
+              'font-mono text-[11px] px-2.5 py-0.5 rounded-[3px] border transition-colors duration-100',
+              stage === k
+                ? 'border-nexus-accent text-nexus-accent bg-nexus-accent/10'
+                : 'border-nexus-line text-nexus-dim hover:border-nexus-accent/50 hover:text-nexus-ink',
+            ].join(' ')}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Group sub-filter — only when GROUP stage is active and there are groups */}
+      {stage === 'GROUP' && standings.length > 0 && (
+        <>
+          <div className="w-px h-4 bg-nexus-line" aria-hidden="true" />
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setGroupId('ALL')}
+              className={[
+                'font-mono text-[11px] px-2.5 py-0.5 rounded-[3px] border transition-colors duration-100',
+                groupId === 'ALL'
+                  ? 'border-nexus-accent text-nexus-accent bg-nexus-accent/10'
+                  : 'border-nexus-line text-nexus-dim hover:border-nexus-accent/50 hover:text-nexus-ink',
+              ].join(' ')}
+            >
+              全组
+            </button>
+            {standings.map((s) => (
+              <button
+                key={s.groupId}
+                type="button"
+                onClick={() => setGroupId(s.groupId)}
+                className={[
+                  'font-mono text-[11px] px-2.5 py-0.5 rounded-[3px] border transition-colors duration-100',
+                  groupId === s.groupId
+                    ? 'border-nexus-accent text-nexus-accent bg-nexus-accent/10'
+                    : 'border-nexus-line text-nexus-dim hover:border-nexus-accent/50 hover:text-nexus-ink',
+                ].join(' ')}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Divider */}
+      <div className="w-px h-4 bg-nexus-line" aria-hidden="true" />
+
+      {/* Status filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {statusOptions.map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setStatus(k)}
+            className={[
+              'font-mono text-[11px] px-2.5 py-0.5 rounded-[3px] border transition-colors duration-100',
+              status === k
+                ? 'border-nexus-accent text-nexus-accent bg-nexus-accent/10'
+                : 'border-nexus-line text-nexus-dim hover:border-nexus-accent/50 hover:text-nexus-ink',
+            ].join(' ')}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleString('zh-CN', {
@@ -179,8 +305,13 @@ function MatchRow({
   );
 }
 
-export function ScheduleList({ matches }: Props) {
+export function ScheduleList({ matches, standings = [] }: Props) {
   const { openMatch } = useMatchDrawer();
+
+  // ---- filter state ----
+  const [stage, setStage] = useState<StageFilter>('ALL');
+  const [groupId, setGroupId] = useState<string | 'ALL'>('ALL');
+  const [status, setStatus] = useState<StatusFilter>('ALL');
 
   if (matches.length === 0) {
     return (
@@ -190,9 +321,18 @@ export function ScheduleList({ matches }: Props) {
     );
   }
 
+  // Next upcoming scheduled match for the countdown banner (always from full list)
+  const nextMatch = matches
+    .filter((m) => m.status === 'SCHEDULED' && m.scheduledAt !== null)
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime(),
+    )[0];
+
   // Only show scheduled matches (hide unscheduled null-scheduledAt ones from public view)
   const scheduledMatches = matches.filter((m) => m.scheduledAt !== null);
 
+  // Early return: no scheduled matches at all (before any filter)
   if (scheduledMatches.length === 0) {
     return (
       <p className="text-nexus-faint text-sm text-center py-8 font-mono">
@@ -201,15 +341,22 @@ export function ScheduleList({ matches }: Props) {
     );
   }
 
-  const allGroups = groupMatchesByDay<Match>(scheduledMatches);
+  // Apply filters
+  const filteredMatches = scheduledMatches.filter((m) => {
+    // Stage filter
+    if (stage === 'GROUP' && m.groupId === null) return false;
+    if (stage === 'KO' && m.groupId !== null) return false;
+    // Group sub-filter (only meaningful when GROUP stage is active)
+    if (stage === 'GROUP' && groupId !== 'ALL' && m.groupId !== groupId)
+      return false;
+    // Status filter
+    if (status !== 'ALL' && m.status !== status) return false;
+    return true;
+  });
 
-  // Next upcoming scheduled match for the countdown banner
-  const nextMatch = matches
-    .filter((m) => m.status === 'SCHEDULED' && m.scheduledAt !== null)
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime(),
-    )[0];
+  const allGroups = groupMatchesByDay<Match>(filteredMatches);
+
+  const hasAnyFiltered = filteredMatches.length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -233,6 +380,24 @@ export function ScheduleList({ matches }: Props) {
           </div>
           <Countdown to={nextMatch.scheduledAt!} label="距开赛" />
         </Panel>
+      )}
+
+      {/* Filter bar */}
+      <FilterBar
+        standings={standings}
+        stage={stage}
+        setStage={setStage}
+        groupId={groupId}
+        setGroupId={setGroupId}
+        status={status}
+        setStatus={setStatus}
+      />
+
+      {/* Empty state after filtering */}
+      {!hasAnyFiltered && (
+        <p className="text-nexus-faint text-sm text-center py-8 font-mono">
+          暂无符合条件的比赛
+        </p>
       )}
 
       {/* Day groups */}

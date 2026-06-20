@@ -18,6 +18,9 @@ import { TrajectoryLine } from '@/components/nexus/charts/TrajectoryLine';
 import { GroupBars } from '@/components/nexus/charts/GroupBars';
 import { Orrery, type OrreryBody } from '@/components/nexus/charts/Orrery';
 import { Sparkline } from '@/components/nexus/charts/Sparkline';
+import { TodayTimeline } from './TodayTimeline';
+import { MvpStrip } from './MvpStrip';
+import { TopTeamsCompare } from './TopTeamsCompare';
 import type { OverviewProps } from './overview-data';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -61,7 +64,20 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
     leaderboard,
     trajectoryPoints,
     trajectoryCurrentIndex,
+    todayTimeline,
+    mvpStrip,
+    topTeamsCompare,
   } = props;
+
+  // Date label for the today timeline header: derive from first entry's time or use today.
+  const timelineDateLabel = (() => {
+    if (todayTimeline.length === 0) return undefined;
+    // We stored UTC HH:MM in each entry; we can show a static label.
+    const now = new Date();
+    const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(now.getUTCDate()).padStart(2, '0');
+    return `${mm}/${dd}`;
+  })();
 
   const finishedFrac = matchCount > 0 ? finishedCount / matchCount : 0;
   const finishedPct = Math.round(finishedFrac * 100);
@@ -257,6 +273,12 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
             </div>
           </Panel>
         )}
+
+        {/* TODAY'S SCHEDULE — timeline of today's matches */}
+        <TodayTimeline
+          entries={todayTimeline}
+          dateLabel={timelineDateLabel}
+        />
       </div>
 
       {/* ── RIGHT COLUMN ─────────────────────────────────────────── */}
@@ -364,6 +386,12 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
             )}
           </div>
         </Panel>
+
+        {/* MVP STRIP — top 3 MVP earners */}
+        <MvpStrip entries={mvpStrip} />
+
+        {/* TOP TEAMS COMPARE — radar: #1 vs #2 */}
+        <TopTeamsCompare data={topTeamsCompare} />
       </div>
     </div>
   );

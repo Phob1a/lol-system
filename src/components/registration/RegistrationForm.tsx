@@ -4,15 +4,27 @@
  * RegistrationForm — NEXUS-restyled public registration screen.
  *
  * Layout (prototype screen 5 — SignupScreen):
- *   left  : form Panel  (game ID · nickname · positions · ranks · statement · captain toggle · submit)
+ *   left  : form Panel  (avatar slot · game ID · nickname · positions ·
+ *                         ranks · statement · captain toggle · submit)
  *   right : sticky PlayerCard preview Panel (live update as user types)
  *           + 报名概况 Panel (registration count / captain count)
  *
+ * Phase 6.3 additions:
+ *   (1) Live per-field validation — react-hook-form mode:"onChange" triggers
+ *       Zod errors as the user types; each field shows inline valid (green
+ *       border) / invalid (red border + message) state.
+ *   (2) AvatarSlot — client-side image picker (FileReader → data URL).
+ *       Preview appears in the live PlayerCard. The Registration Prisma model
+ *       has no avatar column so the image is NOT sent to the server.
+ *   (3) Post-submit SUCCESS SHARE CARD — a nexus PlayerCard summarising the
+ *       registration (summoner · rank · positions · captain flag · avatar)
+ *       shown after a successful POST /api/register, with a "分享选手卡"
+ *       copy-link action.
+ *
  * Submit logic is PRESERVED verbatim: Zod + react-hook-form → POST /api/register.
- * Only presentation is changed (nexus primitives, tokens, no hardcoded hex).
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -39,6 +51,7 @@ import NexusButton from '@/components/nexus/NexusButton';
 import PosPip, { type Position } from '@/components/nexus/PosPip';
 import Readout from '@/components/nexus/Readout';
 import Field from '@/components/nexus/Field';
+import { AvatarSlot } from './AvatarSlot';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,15 +94,32 @@ function FieldErr({ msg }: { msg?: string }) {
   );
 }
 
+// ── Helper: derive border class from field state ──────────────────────────────
+// Shows green border when filled+valid, red when touched+invalid, neutral otherwise.
+
+function fieldBorderClass(
+  value: string | undefined,
+  error: { message?: string } | undefined,
+  isDirty: boolean,
+): string {
+  if (error && isDirty) return 'border-nexus-bad';
+  if (!error && isDirty && value) return 'border-nexus-good/60';
+  return '';
+}
+
 // ── Player card preview ───────────────────────────────────────────────────────
 
 interface PlayerCardProps {
   nickname: string;
   gameId: string;
   currentRank: string;
+  peakRank: string;
   primaryPositions: Position[];
   secondaryPositions: Position[];
   captain: boolean;
+  statement: string;
+  avatarUrl: string | null;
+  /** When true renders the "success / share" variant (big, glow, hot-edge). */
   success?: boolean;
 }
 
@@ -97,9 +127,12 @@ function PlayerCard({
   nickname,
   gameId,
   currentRank,
+  peakRank,
   primaryPositions,
   secondaryPositions,
   captain,
+  statement,
+  avatarUrl,
   success = false,
 }: PlayerCardProps) {
   const displayName = nickname.trim() || gameId.trim() || '召唤师';
@@ -108,20 +141,44 @@ function PlayerCard({
 
   return (
     <Panel glow={success}>
-      <div className="p-5">
+      <div className={success ? 'p-7' : 'p-5'}>
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <Kicker>{success ? '选手卡 · 已生成' : '选手卡 · 预览'}</Kicker>
           {success && <Chip variant="good">报名成功</Chip>}
         </div>
 
-        {/* Avatar row */}
+        {/* Avatar + name row */}
         <div className="flex items-center gap-3 mb-4">
-          <PosPip pos={primaryPos} on size={48} />
+          {avatarUrl ? (
+            <span
+              style={{
+                width: success ? 64 : 52,
+                height: success ? 64 : 52,
+                overflow: 'hidden',
+                border: '1px solid rgb(var(--accent-n) / 0.5)',
+                display: 'inline-block',
+                flexShrink: 0,
+                borderRadius: 'var(--radius-nexus)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- src is a data URL; next/image does not support data URLs */}
+              <img
+                src={avatarUrl}
+                alt="头像"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </span>
+          ) : (
+            <PosPip pos={primaryPos} on size={success ? 56 : 48} />
+          )}
           <div className="min-w-0">
             <div
-              className="font-display text-[26px] leading-none overflow-hidden text-ellipsis whitespace-nowrap"
-              style={{ color: 'rgb(var(--ink))' }}
+              className="font-display leading-none overflow-hidden text-ellipsis whitespace-nowrap"
+              style={{
+                fontSize: success ? 32 : 26,
+                color: 'rgb(var(--ink))',
+              }}
             >
               {displayName}
             </div>
@@ -170,14 +227,22 @@ function PlayerCard({
               )}
             </div>
           </div>
-          <div className="flex justify-between items-center">
-            <FieldLabel>副位置</FieldLabel>
-            <Readout className="text-[12px]" style={{ color: 'rgb(var(--ink))' }}>
-              {secondaryPositions.length
-                ? secondaryPositions.map((p) => POS_LABEL[p]).join(' / ')
-                : '—'}
-            </Readout>
-          </div>
+          {secondaryPositions.length > 0 && (
+            <div className="flex justify-between items-center">
+              <FieldLabel>副位置</FieldLabel>
+              <Readout className="text-[12px]" style={{ color: 'rgb(var(--ink))' }}>
+                {secondaryPositions.map((p) => POS_LABEL[p]).join(' / ')}
+              </Readout>
+            </div>
+          )}
+          {success && peakRank.trim() && (
+            <div className="flex justify-between items-center">
+              <FieldLabel>历史最高</FieldLabel>
+              <Readout className="text-[12px]" style={{ color: 'rgb(var(--ink))' }}>
+                {peakRank.trim()}
+              </Readout>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <FieldLabel>队长意向</FieldLabel>
             <Readout
@@ -189,6 +254,17 @@ function PlayerCard({
               {captain ? '是' : '否'}
             </Readout>
           </div>
+          {success && statement.trim() && (
+            <div className="pt-1">
+              <FieldLabel>参赛宣言</FieldLabel>
+              <p
+                className="font-body text-[12px] mt-1 leading-relaxed"
+                style={{ color: 'rgb(var(--dim))' }}
+              >
+                {statement.trim()}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </Panel>
@@ -210,9 +286,14 @@ export function RegistrationForm({
 }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Avatar data URL — stored in local state (not sent to backend; no upload field on Registration model yet)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(PublicRegistrationInput),
+    // onChange mode ensures Zod runs on every keystroke for live validation feedback
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       gameId: '',
       nickname: '',
@@ -246,22 +327,32 @@ export function RegistrationForm({
     }
   }
 
-  // ── Live preview values ────────────────────────────────────────────────────
-  const watchedNickname  = form.watch('nickname') ?? '';
-  const watchedGameId    = form.watch('gameId') ?? '';
-  const watchedRank      = form.watch('currentRank') ?? '';
-  const watchedPrimary   = (form.watch('primaryPositions') ?? []) as Position[];
-  const watchedSecondary = (form.watch('secondaryPositions') ?? []) as Position[];
-  const watchedCaptain   = form.watch('willingToCaptain') ?? false;
-  // statement is watched to ensure re-render on change (preview shows position/rank primarily)
-  form.watch('statement');
+  // ── Share card copy action ─────────────────────────────────────────────────
+  const handleShare = useCallback(() => {
+    try {
+      navigator.clipboard.writeText(window.location.origin + '/register');
+      toast.success('报名链接已复制');
+    } catch {
+      toast.info('请手动复制链接：' + window.location.origin + '/register');
+    }
+  }, []);
 
-  // ── Success state ──────────────────────────────────────────────────────────
+  // ── Live preview values ────────────────────────────────────────────────────
+  const watchedNickname   = form.watch('nickname') ?? '';
+  const watchedGameId     = form.watch('gameId') ?? '';
+  const watchedRank       = form.watch('currentRank') ?? '';
+  const watchedPeakRank   = form.watch('peakRank') ?? '';
+  const watchedPrimary    = (form.watch('primaryPositions') ?? []) as Position[];
+  const watchedSecondary  = (form.watch('secondaryPositions') ?? []) as Position[];
+  const watchedCaptain    = form.watch('willingToCaptain') ?? false;
+  const watchedStatement  = form.watch('statement') ?? '';
+
+  // ── Success state — post-submit share card ─────────────────────────────────
   if (submitted) {
     return (
       <div className="flex items-center justify-center min-h-[70vh] p-6">
-        <div className="w-full max-w-[440px] grid gap-5 text-center">
-          {/* Success heading */}
+        <div className="w-full max-w-[460px] grid gap-5 text-center">
+          {/* Heading */}
           <div>
             <div
               className="text-[40px] leading-none mb-3"
@@ -283,23 +374,32 @@ export function RegistrationForm({
             </Readout>
           </div>
 
-          {/* Player card */}
+          {/* Success share card */}
           <PlayerCard
             nickname={watchedNickname}
             gameId={watchedGameId}
             currentRank={watchedRank}
+            peakRank={watchedPeakRank}
             primaryPositions={watchedPrimary}
             secondaryPositions={watchedSecondary}
             captain={watchedCaptain}
+            statement={watchedStatement}
+            avatarUrl={avatarUrl}
             success
           />
 
           {/* Actions */}
           <div className="flex gap-3">
-            <NexusButton variant="primary" className="flex-1 h-11" type="button">
-              <Link href="/" className="flex items-center gap-1.5">
-                返回首页
-              </Link>
+            <NexusButton
+              variant="primary"
+              className="flex-1 h-11"
+              type="button"
+              onClick={handleShare}
+            >
+              分享选手卡
+            </NexusButton>
+            <NexusButton className="flex-1 h-11" type="button">
+              <Link href="/">返回首页</Link>
             </NexusButton>
           </div>
         </div>
@@ -308,7 +408,8 @@ export function RegistrationForm({
   }
 
   // ── Form ───────────────────────────────────────────────────────────────────
-  const errors = form.formState.errors;
+  const errors       = form.formState.errors;
+  const dirtyFields  = form.formState.dirtyFields;
 
   return (
     <Form {...form}>
@@ -345,6 +446,20 @@ export function RegistrationForm({
             </div>
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              {/* ── Avatar slot ──────────────────────────────────────────── */}
+              <div className="flex items-center gap-4">
+                <AvatarSlot url={avatarUrl} onPick={setAvatarUrl} size={56} />
+                <div>
+                  <FieldLabel>头像 / 战队 Logo</FieldLabel>
+                  <Readout
+                    className="text-[10.5px]"
+                    style={{ color: 'rgb(var(--faint))' }}
+                  >
+                    点击上传 · PNG / JPG · 仅本地预览
+                  </Readout>
+                </div>
+              </div>
+
               {/* ── Row: Game ID + Nickname ───────────────────────────── */}
               <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 {/* Game ID */}
@@ -353,21 +468,32 @@ export function RegistrationForm({
                   name="gameId"
                   render={({ field }) => (
                     <FormItem className="space-y-0">
-                      <FieldLabel>召唤师 ID</FieldLabel>
+                      <div className="flex justify-between items-baseline mb-1.5">
+                        <FieldLabel>召唤师 ID</FieldLabel>
+                        {errors.gameId && dirtyFields.gameId && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--bad))' }}
+                          >
+                            {errors.gameId.message}
+                          </span>
+                        )}
+                        {!errors.gameId && dirtyFields.gameId && field.value && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--good))' }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
                       <FormControl>
                         <Field
                           placeholder="Player#888"
                           {...field}
-                          className={
-                            errors.gameId
-                              ? 'border-nexus-bad'
-                              : field.value && !errors.gameId
-                              ? 'border-nexus-good/60'
-                              : ''
-                          }
+                          className={fieldBorderClass(field.value, errors.gameId, !!dirtyFields.gameId)}
                         />
                       </FormControl>
-                      <FieldErr msg={errors.gameId?.message} />
                     </FormItem>
                   )}
                 />
@@ -378,21 +504,32 @@ export function RegistrationForm({
                   name="nickname"
                   render={({ field }) => (
                     <FormItem className="space-y-0">
-                      <FieldLabel>游戏昵称</FieldLabel>
+                      <div className="flex justify-between items-baseline mb-1.5">
+                        <FieldLabel>游戏昵称</FieldLabel>
+                        {errors.nickname && dirtyFields.nickname && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--bad))' }}
+                          >
+                            {errors.nickname.message}
+                          </span>
+                        )}
+                        {!errors.nickname && dirtyFields.nickname && field.value && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--good))' }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
                       <FormControl>
                         <Field
                           placeholder="显示用昵称（可留空）"
                           {...field}
-                          className={
-                            errors.nickname
-                              ? 'border-nexus-bad'
-                              : field.value && !errors.nickname
-                              ? 'border-nexus-good/60'
-                              : ''
-                          }
+                          className={fieldBorderClass(field.value, errors.nickname, !!dirtyFields.nickname)}
                         />
                       </FormControl>
-                      <FieldErr msg={errors.nickname?.message} />
                     </FormItem>
                   )}
                 />
@@ -406,21 +543,32 @@ export function RegistrationForm({
                   name="currentRank"
                   render={({ field }) => (
                     <FormItem className="space-y-0">
-                      <FieldLabel>当前段位</FieldLabel>
+                      <div className="flex justify-between items-baseline mb-1.5">
+                        <FieldLabel>当前段位</FieldLabel>
+                        {errors.currentRank && dirtyFields.currentRank && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--bad))' }}
+                          >
+                            {errors.currentRank.message}
+                          </span>
+                        )}
+                        {!errors.currentRank && dirtyFields.currentRank && field.value && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--good))' }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
                       <FormControl>
                         <Field
                           placeholder="钻石 IV"
                           {...field}
-                          className={
-                            errors.currentRank
-                              ? 'border-nexus-bad'
-                              : field.value && !errors.currentRank
-                              ? 'border-nexus-good/60'
-                              : ''
-                          }
+                          className={fieldBorderClass(field.value, errors.currentRank, !!dirtyFields.currentRank)}
                         />
                       </FormControl>
-                      <FieldErr msg={errors.currentRank?.message} />
                     </FormItem>
                   )}
                 />
@@ -431,18 +579,30 @@ export function RegistrationForm({
                   name="peakRank"
                   render={({ field }) => (
                     <FormItem className="space-y-0">
-                      <FieldLabel>历史最高段位</FieldLabel>
+                      <div className="flex justify-between items-baseline mb-1.5">
+                        <FieldLabel>历史最高段位</FieldLabel>
+                        {errors.peakRank && dirtyFields.peakRank && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--bad))' }}
+                          >
+                            {errors.peakRank.message}
+                          </span>
+                        )}
+                        {!errors.peakRank && dirtyFields.peakRank && field.value && (
+                          <span
+                            className="font-mono text-[10px]"
+                            style={{ color: 'rgb(var(--good))' }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
                       <FormControl>
                         <Field
                           placeholder="大师（可选）"
                           {...field}
-                          className={
-                            errors.peakRank
-                              ? 'border-nexus-bad'
-                              : field.value && !errors.peakRank
-                              ? 'border-nexus-good/60'
-                              : ''
-                          }
+                          className={fieldBorderClass(field.value, errors.peakRank, !!dirtyFields.peakRank)}
                         />
                       </FormControl>
                       <FieldErr msg={errors.peakRank?.message} />
@@ -457,7 +617,17 @@ export function RegistrationForm({
                 name="primaryPositions"
                 render={() => (
                   <FormItem className="space-y-0">
-                    <FieldLabel>主位置 · 至少选一个</FieldLabel>
+                    <div className="flex justify-between items-baseline mb-1.5">
+                      <FieldLabel>主位置 · 至少选一个</FieldLabel>
+                      {errors.primaryPositions && (
+                        <span
+                          className="font-mono text-[10px]"
+                          style={{ color: 'rgb(var(--bad))' }}
+                        >
+                          {errors.primaryPositions.message}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       {(POSITIONS as readonly string[]).map((pos) => {
                         const p = pos as Position;
@@ -512,7 +682,6 @@ export function RegistrationForm({
                         );
                       })}
                     </div>
-                    <FieldErr msg={errors.primaryPositions?.message} />
                   </FormItem>
                 )}
               />
@@ -644,7 +813,10 @@ export function RegistrationForm({
                 <NexusButton
                   type="reset"
                   className="w-[100px] h-11"
-                  onClick={() => form.reset()}
+                  onClick={() => {
+                    form.reset();
+                    setAvatarUrl(null);
+                  }}
                 >
                   重置
                 </NexusButton>
@@ -670,9 +842,12 @@ export function RegistrationForm({
             nickname={watchedNickname}
             gameId={watchedGameId}
             currentRank={watchedRank}
+            peakRank={watchedPeakRank}
             primaryPositions={watchedPrimary}
             secondaryPositions={watchedSecondary}
             captain={watchedCaptain}
+            statement={watchedStatement}
+            avatarUrl={avatarUrl}
           />
 
           {/* 报名概况 — only shown when server passed counts */}

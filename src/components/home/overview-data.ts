@@ -30,6 +30,35 @@ export type OverviewTeamNode = {
   label: string;
 };
 
+/** One entry in the today's-timeline strip. */
+export type TodayTimelineEntry = {
+  matchId: string;
+  /** HH:MM local string */
+  time: string;
+  teamAName: string | null;
+  teamBName: string | null;
+  finished: boolean;
+};
+
+/** One entry in the MVP strip. */
+export type MvpStripEntry = {
+  registrationId: string;
+  nickname: string;
+  teamName: string | null;
+  mvpCount: number;
+};
+
+/** Data for the TopTeamsCompare radar. null when not enough teams/stats exist. */
+export type TopTeamsCompareData = {
+  teamAId: string;
+  teamAName: string;
+  teamBId: string;
+  teamBName: string;
+  /** 5-value array [kda,winRate,kills,gold,cs] each normalised 0-1 */
+  teamAValues: [number, number, number, number, number];
+  teamBValues: [number, number, number, number, number];
+} | null;
+
 export type OverviewProps = {
   tournamentName: string;
   tournamentStatus: string;
@@ -56,6 +85,12 @@ export type OverviewProps = {
   trajectoryPoints: number[];
   /** Current trajectory index (index of last finished match) */
   trajectoryCurrentIndex: number;
+  /** Today's matches (or busiest day's if no matches today) for the timeline strip */
+  todayTimeline: TodayTimelineEntry[];
+  /** Top 3 MVP earners */
+  mvpStrip: MvpStripEntry[];
+  /** Top-two-teams radar comparison; null when < 2 teams with stats */
+  topTeamsCompare: TopTeamsCompareData;
 };
 
 export type OverviewPageData =
@@ -176,6 +211,126 @@ export async function fetchOverviewData(
   });
   const draftStatus = draftSession?.status ?? 'NOT_STARTED';
 
+  // ── TodayTimeline ──────────────────────────────────────────────────────────
+  // Find today's matches (UTC date). If none exist today, fall back to the
+  // day with the most matches (as the prototype does).
+  const todayUtc = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const scheduledMatches = allMatches.filter((m) => m.scheduledAt != null);
+
+  const matchesByDay = new Map<string, typeof scheduledMatches>();
+  for (const m of scheduledMatches) {
+    const day = m.scheduledAt!.slice(0, 10);
+    if (!matchesByDay.has(day)) matchesByDay.set(day, []);
+    matchesByDay.get(day)!.push(m);
+  }
+
+  let timelineMatches: typeof scheduledMatches = [];
+  if (matchesByDay.has(todayUtc)) {
+    timelineMatches = matchesByDay.get(todayUtc)!;
+  } else if (matchesByDay.size > 0) {
+    // Fall back to busiest day
+    let best: typeof scheduledMatches = [];
+    for (const arr of matchesByDay.values()) {
+      if (arr.length > best.length) best = arr;
+    }
+    timelineMatches = best;
+  }
+
+  const todayTimeline: TodayTimelineEntry[] = timelineMatches
+    .slice()
+    .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))
+    .slice(0, 6)
+    .map((m) => {
+      const d = new Date(m.scheduledAt!);
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      return {
+        matchId: m.id,
+        time: `${hh}:${mm}`,
+        teamAName: m.teamA?.name ?? null,
+        teamBName: m.teamB?.name ?? null,
+        finished: m.status === 'FINISHED' || m.status === 'WALKOVER',
+      };
+    });
+
+  // ── MvpStrip ───────────────────────────────────────────────────────────────
+  // Use the player profiles (already computed above) to derive MVP counts.
+  // Sort by mvpCount desc and take top 3.
+  const mvpStrip: MvpStripEntry[] = profiles
+    .filter((p) => p.summary.mvpCount > 0)
+    .sort((a, b) => b.summary.mvpCount - a.summary.mvpCount)
+    .slice(0, 3)
+    .map((p) => ({
+      registrationId: p.registrationId ?? p.playerId,
+      nickname: p.nickname,
+      teamName: p.teamName,
+      mvpCount: p.summary.mvpCount,
+    }));
+
+  // ── TopTeamsCompare ────────────────────────────────────────────────────────
+  // Compare the top two teams from the overall power ranking (by points then KDA).
+  // Normalise 5 dimensions: KDA /6, winRate /100, avgKills /8, avgGold /16000, avgCs /300.
+  let topTeamsCompare: TopTeamsCompareData = null;
+
+  // Gather per-team player-stat averages from the profiles list.
+  // Match player → team by name via the teamsForOrrery list (which already
+  // has the canonical id→name mapping from standings).
+  type TeamAgg = { kdaSum: number; killsSum: number; goldSum: number; csSum: number; players: number; wins: number; games: number };
+  const teamAggMap = new Map<string, TeamAgg>();
+  // Build a fast name→id lookup from teamsForOrrery.
+  const teamNameToId = new Map(teamsForOrrery.map((t) => [t.name, t.id]));
+  for (const p of profiles) {
+    const teamId = p.teamName ? (teamNameToId.get(p.teamName) ?? null) : null;
+    if (!teamId) continue;
+    const cur = teamAggMap.get(teamId) ?? { kdaSum: 0, killsSum: 0, goldSum: 0, csSum: 0, players: 0, wins: 0, games: 0 };
+    cur.kdaSum += p.summary.kda;
+    cur.killsSum += p.summary.avgKills;
+    cur.goldSum += p.summary.avgGold;
+    cur.csSum += p.summary.avgCs;
+    cur.wins += p.summary.wins;
+    cur.games += p.summary.games;
+    cur.players++;
+    teamAggMap.set(teamId, cur);
+  }
+
+  // Power rank: sort by points from standings, then by avg KDA.
+  const powerRankedTeams = [...allTeamIds]
+    .map((id) => {
+      const name = (() => {
+        for (const g of state.standings) { if (g.teams[id]) return g.teams[id]; }
+        return id;
+      })();
+      const standingRow = state.standings.flatMap((g) => g.rows).find((r) => r.teamId === id);
+      const agg = teamAggMap.get(id);
+      return { id, name, points: standingRow?.points ?? 0, agg };
+    })
+    .sort((a, b) => b.points - a.points || ((b.agg?.kdaSum ?? 0) / Math.max(1, b.agg?.players ?? 1)) - ((a.agg?.kdaSum ?? 0) / Math.max(1, a.agg?.players ?? 1)));
+
+  if (powerRankedTeams.length >= 2) {
+    const t1 = powerRankedTeams[0];
+    const t2 = powerRankedTeams[1];
+    const norm = (agg: TeamAgg | undefined): [number, number, number, number, number] => {
+      if (!agg || agg.players === 0) return [0.5, 0.5, 0.5, 0.5, 0.5];
+      const n = agg.players;
+      const winRate = agg.games > 0 ? agg.wins / agg.games : 0.5;
+      return [
+        Math.min(1, (agg.kdaSum / n) / 6),
+        winRate,
+        Math.min(1, (agg.killsSum / n) / 8),
+        Math.min(1, (agg.goldSum / n) / 16000),
+        Math.min(1, (agg.csSum / n) / 300),
+      ];
+    };
+    topTeamsCompare = {
+      teamAId: t1.id,
+      teamAName: t1.name,
+      teamBId: t2.id,
+      teamBName: t2.name,
+      teamAValues: norm(t1.agg),
+      teamBValues: norm(t2.agg),
+    };
+  }
+
   return {
     kind: 'overview',
     props: {
@@ -193,6 +348,9 @@ export async function fetchOverviewData(
       leaderboard,
       trajectoryPoints: trajectoryPoints.length >= 2 ? trajectoryPoints : [],
       trajectoryCurrentIndex,
+      todayTimeline,
+      mvpStrip,
+      topTeamsCompare,
     },
   };
 }

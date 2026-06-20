@@ -113,7 +113,7 @@ export function PublicTournamentView() {
       {/* Tab content */}
       <div className="pt-5">
         {tab === 'schedule' && (
-          <ScheduleList matches={state.matches} />
+          <ScheduleList matches={state.matches} standings={state.standings} />
         )}
 
         {tab === 'standings' && (
