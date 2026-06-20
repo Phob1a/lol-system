@@ -13,10 +13,14 @@ import { OnTheClockHero, type HeroStatus } from '@/components/draft/OnTheClockHe
 import { TeamGrid } from '@/components/draft/TeamGrid';
 import { EventStream } from '@/components/draft/EventStream';
 import { RoundConfigDialog } from './RoundConfigDialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import Panel from '@/components/nexus/Panel';
+import Chip from '@/components/nexus/Chip';
+import Readout from '@/components/nexus/Readout';
+import LiveDot from '@/components/nexus/LiveDot';
+import NexusButton from '@/components/nexus/NexusButton';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { formatCost } from '@/lib/costs';
+import { cn } from '@/lib/utils';
 
 type PoolPlayer = {
   id: string;
@@ -189,68 +193,87 @@ export function DraftControl({ tournament, initialSnapshot, activeCaptainCount, 
   }, [snapshot?.picks, teamById, registrationNameById]);
 
   // Controls slot — all existing draft operation controls
+  const exportLinkClass =
+    'inline-flex h-9 items-center justify-center gap-[7px] rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 px-[15px] font-mono text-[12px] font-semibold uppercase tracking-[0.06em] text-nexus-ink transition-colors hover:border-nexus-accent/65 hover:text-nexus-accent';
   const controlsNode = (
-    <div className="rounded-lg border bg-card p-4 flex flex-wrap gap-2 items-center">
-      <div className="flex items-center gap-2 mr-1">
-        <span className={`h-2 w-2 rounded-full ${connected ? 'bg-primary' : 'bg-muted'}`} />
-        <span className="text-xs font-mono text-muted-foreground">
-          {connected ? 'LIVE' : 'RECONNECTING'}
-        </span>
-        <Badge variant="outline" className="text-xs font-mono">
+    <Panel className="flex flex-wrap items-center gap-2 p-4">
+      <div className="mr-1 flex items-center gap-2">
+        <Chip variant={connected ? 'good' : 'default'}>
+          {connected ? (
+            <>
+              <LiveDot />
+              LIVE
+            </>
+          ) : (
+            'RECONNECTING'
+          )}
+        </Chip>
+        <Chip variant="ac">
           R{currentRound}/{TOTAL_ROUNDS}
-        </Badge>
+        </Chip>
       </div>
 
       {!running && !finished && (
-        <Button
+        <NexusButton
+          variant="primary"
           onClick={startDraftAction}
           disabled={acting !== null || activeCaptainCount === 0}
         >
           <LoadingButtonContent loading={acting === 'start'} loadingText="开始中…">
             开始选秀
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       )}
       {canStartNextRound && (
-        <Button onClick={() => setRoundDialogOpen(true)}>
+        <NexusButton variant="primary" onClick={() => setRoundDialogOpen(true)}>
           ▸ 开始第 {nextRoundNo} 轮
-        </Button>
+        </NexusButton>
       )}
       {canRewind && (
-        <Button variant="outline" onClick={() => setRewindConfirm(true)} disabled={acting !== null}>
+        <NexusButton onClick={() => setRewindConfirm(true)} disabled={acting !== null}>
           <LoadingButtonContent loading={acting === 'rewind'} loadingText="回退中…">
             回退轮次
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       )}
       {(running || finished) && (
         <>
-          <Button variant="secondary" asChild>
-            <a href="/api/draft/export?format=csv" download>↓ CSV</a>
-          </Button>
-          <Button variant="secondary" asChild>
-            <a href="/api/draft/export?format=json" download>↓ JSON</a>
-          </Button>
-          <Button variant="destructive" onClick={() => setResetConfirm(true)} disabled={acting !== null}>
+          <a href="/api/draft/export?format=csv" download className={exportLinkClass}>
+            ↓ CSV
+          </a>
+          <a href="/api/draft/export?format=json" download className={exportLinkClass}>
+            ↓ JSON
+          </a>
+          <NexusButton
+            onClick={() => setResetConfirm(true)}
+            disabled={acting !== null}
+            className="border-nexus-bad/50 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad"
+          >
             <LoadingButtonContent loading={acting === 'reset'} loadingText="重置中…">
               重置
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         </>
       )}
 
-      <span className="ml-auto text-xs font-mono text-muted-foreground">
+      <Readout className="ml-auto text-[11px] text-nexus-faint">
         {!running && !finished && (
-          <span>{activeCaptainCount} captains · {formatCost(teamBudget)} CR</span>
+          <span>
+            {activeCaptainCount} captains · {formatCost(teamBudget)} CR
+          </span>
         )}
         {running && (
-          <span>{snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams</span>
+          <span>
+            {snapshot?.pickedRegistrationIds.length ?? 0} picks · {snapshot?.teams.length ?? 0} teams
+          </span>
         )}
         {finished && (
-          <span className="text-primary">✓ COMPLETE · {snapshot?.pickedRegistrationIds.length ?? 0} picks</span>
+          <span className="text-nexus-accent">
+            ✓ COMPLETE · {snapshot?.pickedRegistrationIds.length ?? 0} picks
+          </span>
         )}
-      </span>
-    </div>
+      </Readout>
+    </Panel>
   );
 
   return (
@@ -323,21 +346,30 @@ function ConfirmModal({
   return (
     <div
       onClick={onCancel}
-      className="fixed inset-0 z-[100] backdrop-blur-md flex items-center justify-center bg-background/80"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-nexus-bg/80 backdrop-blur-md"
     >
-      <div
+      <Panel
         onClick={(e) => e.stopPropagation()}
-        className="w-[calc(100vw_-_2rem)] max-w-[440px] rounded-lg border bg-card p-4 shadow-lg sm:p-6"
+        className={cn(
+          'w-[calc(100vw_-_2rem)] max-w-[440px] p-4 shadow-lg sm:p-6',
+          danger && 'border-nexus-bad/40',
+        )}
       >
-        <div className="text-lg font-semibold mb-2">{title}</div>
-        <div className="text-sm text-muted-foreground mb-4">{message}</div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>取消</Button>
-          <Button variant={danger ? 'destructive' : 'default'} onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
+        <div className={cn('mb-2 font-display text-lg', danger ? 'text-nexus-bad' : 'text-nexus-ink')}>
+          {title}
         </div>
-      </div>
+        <div className="mb-4 text-sm text-nexus-dim">{message}</div>
+        <div className="flex justify-end gap-2">
+          <NexusButton onClick={onCancel}>取消</NexusButton>
+          <NexusButton
+            variant={danger ? 'default' : 'primary'}
+            onClick={onConfirm}
+            className={danger ? 'border-nexus-bad/50 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad' : undefined}
+          >
+            {confirmLabel}
+          </NexusButton>
+        </div>
+      </Panel>
     </div>
   );
 }

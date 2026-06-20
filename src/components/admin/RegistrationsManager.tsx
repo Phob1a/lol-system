@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Tournament, TournamentStatus } from '@prisma/client';
@@ -37,6 +37,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Eye, EyeOff } from 'lucide-react';
+import Panel from '@/components/nexus/Panel';
+import PanelHead from '@/components/nexus/PanelHead';
+import Chip, { type ChipVariant } from '@/components/nexus/Chip';
+import Readout from '@/components/nexus/Readout';
+import Kicker from '@/components/nexus/Kicker';
+import Field from '@/components/nexus/Field';
+import NexusButton from '@/components/nexus/NexusButton';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -248,14 +255,10 @@ const EMPTY_ADD_FORM: AddForm = {
 // ─── status badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const variant =
-    status === 'EXCLUDED'
-      ? 'destructive'
-      : status === 'ACTIVE'
-      ? 'default'
-      : 'secondary';
+  const variant: ChipVariant =
+    status === 'EXCLUDED' ? 'hot' : status === 'ACTIVE' ? 'good' : 'default';
   const label = status === 'EXCLUDED' ? '已排除' : status === 'ACTIVE' ? '有效' : status;
-  return <Badge variant={variant}>{label}</Badge>;
+  return <Chip variant={variant}>{label}</Chip>;
 }
 
 // ─── main component ───────────────────────────────────────────────────────────
@@ -295,6 +298,42 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
       return next;
     });
   }
+
+  // ── presentation-only tab + search (no effect on data flow / mutations) ─────
+  const [tab, setTab] = useState<'ALL' | 'ACTIVE' | 'EXCLUDED' | 'CAPTAIN'>('ALL');
+  const [query, setQuery] = useState('');
+
+  const counts = useMemo(() => {
+    const c = { ALL: 0, ACTIVE: 0, EXCLUDED: 0, CAPTAIN: 0 };
+    for (const reg of initialRegistrations) {
+      c.ALL += 1;
+      if (reg.status === 'ACTIVE') c.ACTIVE += 1;
+      if (reg.status === 'EXCLUDED') c.EXCLUDED += 1;
+      if (reg.willingToCaptain) c.CAPTAIN += 1;
+    }
+    return c;
+  }, [initialRegistrations]);
+
+  const visibleRegistrations = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return initialRegistrations.filter((reg) => {
+      if (tab === 'ACTIVE' && reg.status !== 'ACTIVE') return false;
+      if (tab === 'EXCLUDED' && reg.status !== 'EXCLUDED') return false;
+      if (tab === 'CAPTAIN' && !reg.willingToCaptain) return false;
+      if (q) {
+        const hay = `${reg.nickname}${reg.player.gameId}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [initialRegistrations, tab, query]);
+
+  const TABS: Array<[typeof tab, string, number]> = [
+    ['ALL', '全部', counts.ALL],
+    ['ACTIVE', '有效', counts.ACTIVE],
+    ['EXCLUDED', '已排除', counts.EXCLUDED],
+    ['CAPTAIN', '队长意向', counts.CAPTAIN],
+  ];
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -490,70 +529,120 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <Panel glow className="flex flex-wrap items-center justify-between gap-4 px-5 py-[18px]">
         <div>
-          <h1 className="text-xl font-semibold">报名管理</h1>
-          <p className="text-sm text-muted-foreground">
-            {season.name} · <Badge variant="outline">{season.status}</Badge>
-          </p>
+          <Kicker className="mb-1.5">REVIEW · 报名审核</Kicker>
+          <h1 className="font-display text-[22px] leading-tight text-nexus-ink">报名管理</h1>
+          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-nexus-faint">
+            {season.name}
+            <Chip>{season.status}</Chip>
+          </div>
         </div>
-        <Button
-          onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddOpen(true); }}
+        <NexusButton
+          variant="primary"
+          onClick={() => {
+            setAddForm(EMPTY_ADD_FORM);
+            setAddOpen(true);
+          }}
           disabled={!rosterEditable}
           title={rosterEditable ? undefined : '选秀启动后名册已锁定'}
         >
           手动新增报名
-        </Button>
-      </div>
+        </NexusButton>
+      </Panel>
 
       {!rosterEditable && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="rounded-[var(--radius-nexus)] border border-nexus-hot/40 bg-nexus-hot/5 px-3 py-2 text-sm text-nexus-hot">
           当前赛事状态为 <span className="font-mono">{season.status}</span>，名册已锁定；如需调整请先回退赛事阶段。
         </div>
       )}
 
+      {/* Tabs + search */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map(([k, label, count]) => {
+            const active = tab === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setTab(k)}
+                aria-pressed={active}
+                className={
+                  'inline-flex h-7 items-center gap-[7px] rounded-[var(--radius-nexus)] border px-[10px] font-mono text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors ' +
+                  (active
+                    ? 'border-nexus-accent bg-nexus-accent text-nexus-bg'
+                    : 'border-nexus-line bg-nexus-panel-2 text-nexus-dim hover:border-nexus-accent/65 hover:text-nexus-accent')
+                }
+              >
+                {label}
+                <Readout className="text-[10px] opacity-80">{count}</Readout>
+              </button>
+            );
+          })}
+        </div>
+        <Field
+          className="h-9 w-[220px]"
+          placeholder="搜索昵称 / ID…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
       {/* Registrations table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>游戏ID</TableHead>
-            <TableHead>昵称</TableHead>
-            <TableHead>主位置</TableHead>
-            <TableHead>副位置</TableHead>
-            <TableHead>当前段位</TableHead>
-            <TableHead>最高段位</TableHead>
-            <TableHead>意愿队长</TableHead>
-            <TableHead>费用</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {initialRegistrations.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                暂无报名记录
-              </TableCell>
-            </TableRow>
-          )}
-          {initialRegistrations.map((reg) => (
-            <RegRow
-              key={reg.id}
-              reg={reg}
-              busy={busyIds.has(reg.id)}
-              rosterEditable={rosterEditable}
-              onEdit={() => openEdit(reg)}
-              onToggleStatus={() => handleToggleStatus(reg)}
-              onDelete={() => setDeleteTarget(reg)}
-              onAppointCaptain={() => handleAppointCaptain(reg)}
-              onRevokeCaptain={() => handleRevokeCaptain(reg)}
-              onCostSave={(v) => handleCostSave(reg, v)}
-            />
-          ))}
-        </TableBody>
-      </Table>
+      <Panel>
+        <PanelHead
+          title={`报名审核队列 · ${visibleRegistrations.length}`}
+          actions={
+            <Readout className="text-[10px] text-nexus-faint">
+              {counts.ACTIVE} 有效 · {counts.EXCLUDED} 已排除
+            </Readout>
+          }
+        />
+        <div className="overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>游戏ID</TableHead>
+                <TableHead>昵称</TableHead>
+                <TableHead>主位置</TableHead>
+                <TableHead>副位置</TableHead>
+                <TableHead>当前段位</TableHead>
+                <TableHead>最高段位</TableHead>
+                <TableHead>意愿队长</TableHead>
+                <TableHead>费用</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleRegistrations.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={10} className="py-8 text-center text-nexus-faint">
+                    {initialRegistrations.length === 0 ? '暂无报名记录' : '无匹配记录'}
+                  </TableCell>
+                </TableRow>
+              )}
+              {visibleRegistrations.map((reg) => (
+                <RegRow
+                  key={reg.id}
+                  reg={reg}
+                  busy={busyIds.has(reg.id)}
+                  rosterEditable={rosterEditable}
+                  onEdit={() => openEdit(reg)}
+                  onToggleStatus={() => handleToggleStatus(reg)}
+                  onDelete={() => setDeleteTarget(reg)}
+                  onAppointCaptain={() => handleAppointCaptain(reg)}
+                  onRevokeCaptain={() => handleRevokeCaptain(reg)}
+                  onCostSave={(v) => handleCostSave(reg, v)}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Panel>
 
       {/* Edit dialog */}
       <Dialog
@@ -812,7 +901,13 @@ function RegRow({
       <TableCell>{posLabels(reg.secondaryPositions) || '—'}</TableCell>
       <TableCell>{reg.currentRank}</TableCell>
       <TableCell>{reg.peakRank}</TableCell>
-      <TableCell>{reg.willingToCaptain ? '✓' : '—'}</TableCell>
+      <TableCell>
+        {reg.willingToCaptain ? (
+          <Chip variant="ac">意向</Chip>
+        ) : (
+          <span className="text-nexus-faint">—</span>
+        )}
+      </TableCell>
       <TableCell>
         <Input
           type="text"
@@ -829,54 +924,40 @@ function RegRow({
         <StatusBadge status={reg.status} />
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            title={lockedTitle}
-            onClick={onEdit}
-          >
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <NexusButton size="sm" disabled={disabled} title={lockedTitle} onClick={onEdit}>
             编辑
-          </Button>
-          <Button
+          </NexusButton>
+          <NexusButton
             size="sm"
-            variant={reg.status === 'EXCLUDED' ? 'default' : 'secondary'}
             disabled={disabled}
             title={lockedTitle}
             onClick={onToggleStatus}
+            className={
+              reg.status === 'EXCLUDED'
+                ? 'border-nexus-good/50 text-nexus-good hover:border-nexus-good hover:text-nexus-good'
+                : 'border-nexus-bad/45 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad'
+            }
           >
             {reg.status === 'EXCLUDED' ? '恢复' : '排除'}
-          </Button>
-          <Button
+          </NexusButton>
+          <NexusButton
             size="sm"
-            variant="destructive"
             disabled={disabled}
             title={lockedTitle}
             onClick={onDelete}
+            className="border-nexus-bad/45 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad"
           >
             删除
-          </Button>
+          </NexusButton>
           {reg.isCaptain ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled}
-              title={lockedTitle}
-              onClick={onRevokeCaptain}
-            >
+            <NexusButton size="sm" disabled={disabled} title={lockedTitle} onClick={onRevokeCaptain}>
               撤销队长
-            </Button>
+            </NexusButton>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={disabled}
-              title={lockedTitle}
-              onClick={onAppointCaptain}
-            >
+            <NexusButton size="sm" disabled={disabled} title={lockedTitle} onClick={onAppointCaptain}>
               任命队长
-            </Button>
+            </NexusButton>
           )}
         </div>
       </TableCell>
