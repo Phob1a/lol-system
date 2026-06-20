@@ -1,8 +1,26 @@
-export default function RegisterLayout({ children }: { children: React.ReactNode }) {
+import type { ReactNode } from 'react';
+import { prisma } from '@/lib/db';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
+import PublicShell from '@/components/layout/PublicShell';
+
+export const dynamic = 'force-dynamic';
+
+export default async function RegisterLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const tournament = await getActiveTournament(prisma);
+
   return (
-    <main className="mx-auto max-w-xl p-6">
-      <h1 className="mb-6 text-2xl font-bold">赛事报名</h1>
+    <PublicShell
+      tournament={
+        tournament
+          ? { name: tournament.name, status: tournament.status }
+          : null
+      }
+    >
       {children}
-    </main>
+    </PublicShell>
   );
 }

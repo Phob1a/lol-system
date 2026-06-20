@@ -1,8 +1,26 @@
-export default function LiveLayout({ children }: { children: React.ReactNode }) {
+import type { ReactNode } from 'react';
+import { prisma } from '@/lib/db';
+import { getActiveTournament } from '@/lib/tournament/tournament-service';
+import PublicShell from '@/components/layout/PublicShell';
+
+export const dynamic = 'force-dynamic';
+
+export default async function LiveLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const tournament = await getActiveTournament(prisma);
+
   return (
-    <main className="mx-auto max-w-7xl p-4">
-      <h1 className="mb-4 text-xl font-bold">选秀直播</h1>
+    <PublicShell
+      tournament={
+        tournament
+          ? { name: tournament.name, status: tournament.status }
+          : null
+      }
+    >
       {children}
-    </main>
+    </PublicShell>
   );
 }

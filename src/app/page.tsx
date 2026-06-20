@@ -2,6 +2,7 @@ import { PublicHomePage } from '@/components/home/PublicHomePage';
 import { prisma } from '@/lib/db';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import type { HomeBracketStatus, HomeTournamentStatus } from '@/lib/home/public-home';
+import PublicShell from '@/components/layout/PublicShell';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +17,19 @@ export default async function HomePage() {
       : null;
 
   return (
-    <PublicHomePage
-      context={{
-        tournament: tournament ? { name: tournament.name, status: tournament.status as HomeTournamentStatus } : null,
-        bracket: homeBracketStatus ? { status: homeBracketStatus } : null,
-      }}
-    />
+    <PublicShell
+      tournament={
+        tournament
+          ? { name: tournament.name, status: tournament.status }
+          : null
+      }
+    >
+      <PublicHomePage
+        context={{
+          tournament: tournament ? { name: tournament.name, status: tournament.status as HomeTournamentStatus } : null,
+          bracket: homeBracketStatus ? { status: homeBracketStatus } : null,
+        }}
+      />
+    </PublicShell>
   );
 }
