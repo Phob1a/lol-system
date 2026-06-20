@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { ArenaPanel } from '@/components/public-arena';
 import {
   Table,
   TableBody,
@@ -492,68 +493,76 @@ export function RegistrationsManager({ season, initialRegistrations }: Props) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">报名管理</h1>
-          <p className="text-sm text-muted-foreground">
-            {season.name} · <Badge variant="outline">{season.status}</Badge>
-          </p>
+      <ArenaPanel className="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/70">
+              PLAYER REGISTRY
+            </p>
+            <h1 className="mt-2 text-xl font-black text-white">报名管理</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <span>{season.name}</span>
+              <Badge variant="outline">{season.status}</Badge>
+            </div>
+          </div>
+          <Button
+            onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddOpen(true); }}
+            disabled={!rosterEditable}
+            title={rosterEditable ? undefined : '选秀启动后名册已锁定'}
+          >
+            手动新增报名
+          </Button>
         </div>
-        <Button
-          onClick={() => { setAddForm(EMPTY_ADD_FORM); setAddOpen(true); }}
-          disabled={!rosterEditable}
-          title={rosterEditable ? undefined : '选秀启动后名册已锁定'}
-        >
-          手动新增报名
-        </Button>
-      </div>
+      </ArenaPanel>
 
       {!rosterEditable && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="rounded border border-amber-200/35 bg-amber-200/10 px-3 py-2 text-sm text-amber-100">
           当前赛事状态为 <span className="font-mono">{season.status}</span>，名册已锁定；如需调整请先回退赛事阶段。
         </div>
       )}
 
       {/* Registrations table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>游戏ID</TableHead>
-            <TableHead>昵称</TableHead>
-            <TableHead>主位置</TableHead>
-            <TableHead>副位置</TableHead>
-            <TableHead>当前段位</TableHead>
-            <TableHead>最高段位</TableHead>
-            <TableHead>意愿队长</TableHead>
-            <TableHead>费用</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {initialRegistrations.length === 0 && (
+      <ArenaPanel className="overflow-x-auto p-3">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                暂无报名记录
-              </TableCell>
+              <TableHead>游戏ID</TableHead>
+              <TableHead>昵称</TableHead>
+              <TableHead>主位置</TableHead>
+              <TableHead>副位置</TableHead>
+              <TableHead>当前段位</TableHead>
+              <TableHead>最高段位</TableHead>
+              <TableHead>意愿队长</TableHead>
+              <TableHead>费用</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>操作</TableHead>
             </TableRow>
-          )}
-          {initialRegistrations.map((reg) => (
-            <RegRow
-              key={reg.id}
-              reg={reg}
-              busy={busyIds.has(reg.id)}
-              rosterEditable={rosterEditable}
-              onEdit={() => openEdit(reg)}
-              onToggleStatus={() => handleToggleStatus(reg)}
-              onDelete={() => setDeleteTarget(reg)}
-              onAppointCaptain={() => handleAppointCaptain(reg)}
-              onRevokeCaptain={() => handleRevokeCaptain(reg)}
-              onCostSave={(v) => handleCostSave(reg, v)}
-            />
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {initialRegistrations.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  暂无报名记录
+                </TableCell>
+              </TableRow>
+            )}
+            {initialRegistrations.map((reg) => (
+              <RegRow
+                key={reg.id}
+                reg={reg}
+                busy={busyIds.has(reg.id)}
+                rosterEditable={rosterEditable}
+                onEdit={() => openEdit(reg)}
+                onToggleStatus={() => handleToggleStatus(reg)}
+                onDelete={() => setDeleteTarget(reg)}
+                onAppointCaptain={() => handleAppointCaptain(reg)}
+                onRevokeCaptain={() => handleRevokeCaptain(reg)}
+                onCostSave={(v) => handleCostSave(reg, v)}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </ArenaPanel>
 
       {/* Edit dialog */}
       <Dialog

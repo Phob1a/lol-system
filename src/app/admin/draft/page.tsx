@@ -2,12 +2,22 @@ import { prisma } from '@/lib/db';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { DraftControl } from '@/components/admin/DraftControl';
+import { ArenaCta, ArenaEmptyState } from '@/components/public-arena';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DraftConsolePage() {
   const tournament = await getActiveTournament(prisma);
-  if (!tournament) return <div className="text-muted-foreground">请先创建赛事</div>;
+  if (!tournament) {
+    return (
+      <ArenaEmptyState
+        eyebrow="DRAFT OFFLINE"
+        title="请先创建赛事"
+        description="创建赛事并开放报名后，选秀控制台会同步队长、选手池和实时 BP 状态。"
+        action={<ArenaCta href="/admin/tournament">前往赛事管理</ArenaCta>}
+      />
+    );
+  }
 
   const [snapshot, captainCount, pool] = await Promise.all([
     getDraftSnapshot(tournament.id),

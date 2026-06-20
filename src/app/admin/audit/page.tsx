@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/db';
 import { getActiveTournament } from '@/lib/tournament/tournament-service';
-import { PageHeader } from '@/components/layout/PageHeader';
 import {
   Table,
   TableBody,
@@ -10,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArenaPanel } from '@/components/public-arena';
+import { ArenaCta, ArenaEmptyState, ArenaPanel } from '@/components/public-arena';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +29,12 @@ export default async function AuditPage() {
 
   if (!tournament) {
     return (
-      <div>
-        <p className="text-muted-foreground">暂无赛事</p>
-      </div>
+      <ArenaEmptyState
+        eyebrow="AUDIT OFFLINE"
+        title="暂无赛事"
+        description="创建赛事后，选秀事件会在这里形成审计时间线。"
+        action={<ArenaCta href="/admin/tournament">前往赛事管理</ArenaCta>}
+      />
     );
   }
 
@@ -51,10 +53,18 @@ export default async function AuditPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="审计日志" description="当前赛事选秀事件流" />
+      <ArenaPanel eyebrow="EVENT TRACE" title="审计日志" className="p-5">
+        <p className="text-sm leading-6 text-slate-300">
+          当前赛事选秀事件流。系统按 seq 倒序展示关键操作、操作者和 payload。
+        </p>
+      </ArenaPanel>
 
       {events.length === 0 ? (
-        <p className="text-muted-foreground">暂无事件 · 启动选秀后将在此记录</p>
+        <ArenaEmptyState
+          eyebrow="NO EVENTS"
+          title="暂无事件"
+          description="启动选秀后，这里会记录轮次启动、出手、撤销和顺序调整。"
+        />
       ) : (
         <ArenaPanel className="p-3">
           <Table>
