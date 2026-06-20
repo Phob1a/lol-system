@@ -61,13 +61,7 @@ export function DataCenter({
   return (
     <div style={{ padding: 22, display: 'grid', gap: 18 }}>
       {/* ── 1. KPI tiles ─────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 12,
-        }}
-      >
+      <div className="grid gap-[12px] grid-cols-2 min-[560px]:grid-cols-4">
         <DTile
           label="对局总数"
           value={kpi.totalGames}
@@ -91,14 +85,7 @@ export function DataCenter({
       </div>
 
       {/* ── 2+3+4 — two-column row: LEFT champ heat · RIGHT donut+mvp ──────── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1.3fr 1fr',
-          gap: 18,
-          alignItems: 'start',
-        }}
-      >
+      <div className="grid items-start gap-[18px] grid-cols-1 min-[1180px]:grid-cols-[1.3fr_1fr]">
         {/* ── 2. Champion heat ──────────────────────────────────────────────── */}
         <Panel>
           <PanelHead

@@ -429,13 +429,7 @@ function ObservationFile({ profile: p }: ObservationFileProps) {
       </Panel>
 
       {/* 4 stat tiles */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 10,
-        }}
-      >
+      <div className="grid gap-[10px] grid-cols-2 min-[560px]:grid-cols-4">
         <DTile
           label="场次"
           value={s.games}
@@ -459,7 +453,7 @@ function ObservationFile({ profile: p }: ObservationFileProps) {
       </div>
 
       {/* Radar + ChampBars */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="grid gap-[14px] grid-cols-1 min-[560px]:grid-cols-2">
         <Panel>
           <PanelHead title="RADAR · 能力雷达" />
           <div style={{ padding: 18, display: 'grid', placeItems: 'center' }}>
@@ -780,16 +774,10 @@ export function PlayersPage() {
     );
   }
 
-  // Main two-column layout
+  // Main two-column layout — collapses to a single stacked column < ~1180px.
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '380px 1fr',
-        gap: 18,
-        padding: 22,
-        alignItems: 'start',
-      }}
+      className="grid items-start gap-[18px] p-[22px] grid-cols-1 min-[1180px]:grid-cols-[380px_1fr]"
     >
       {/* LEFT — catalogue */}
       <Catalogue

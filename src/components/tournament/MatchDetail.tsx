@@ -11,7 +11,7 @@
  * Data source: /api/tournament/public/match/[id]
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Panel from '@/components/nexus/Panel';
 import PanelHead from '@/components/nexus/PanelHead';
@@ -362,11 +362,31 @@ export function MatchDrawer({ matchId, onClose }: MatchDrawerProps) {
   const [activeGame, setActiveGame] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Portal requires DOM to be ready
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Honor prefers-reduced-motion: skip slide/fade transitions when reduced.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Move focus into the drawer (close button) when it opens so keyboard
+  // users land inside the dialog; restore is handled by the trigger.
+  useEffect(() => {
+    if (!matchId) return;
+    const t = requestAnimationFrame(() => closeBtnRef.current?.focus());
+    return () => cancelAnimationFrame(t);
+  }, [matchId]);
 
   // Fetch + animate in when matchId changes
   useEffect(() => {
@@ -455,7 +475,7 @@ export function MatchDrawer({ matchId, onClose }: MatchDrawerProps) {
           background: 'rgb(0 0 0 / 0.55)',
           backdropFilter: 'blur(2px)',
           opacity: open ? 1 : 0,
-          transition: 'opacity 0.26s cubic-bezier(.22,.61,.36,1)',
+          transition: reduceMotion ? undefined : 'opacity 0.26s cubic-bezier(.22,.61,.36,1)',
         }}
       />
 
@@ -473,7 +493,7 @@ export function MatchDrawer({ matchId, onClose }: MatchDrawerProps) {
           overflowY: 'auto',
           overflowX: 'hidden',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.26s cubic-bezier(.22,.61,.36,1)',
+          transition: reduceMotion ? undefined : 'transform 0.26s cubic-bezier(.22,.61,.36,1)',
         }}
       >
         {/* ── Sticky header ─────────────────────────────────────── */}
@@ -508,6 +528,7 @@ export function MatchDrawer({ matchId, onClose }: MatchDrawerProps) {
             ) : null}
           </div>
           <NexusButton
+            ref={closeBtnRef}
             size="sm"
             onClick={onClose}
             aria-label="关闭比赛详情"
