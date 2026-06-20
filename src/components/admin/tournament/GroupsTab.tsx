@@ -13,7 +13,6 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import type { AdminState } from '@/hooks/useTournamentState';
 import type { GroupKnockoutConfig } from '@/lib/tournament/types';
@@ -24,6 +23,8 @@ import {
   type GroupDropTarget,
 } from '@/lib/tournament/group-assignment-drag';
 import { cn } from '@/lib/utils';
+import Kicker from '@/components/nexus/Kicker';
+import NexusButton from '@/components/nexus/NexusButton';
 
 type Team = { id: string; name: string };
 
@@ -74,22 +75,25 @@ export function GroupsTab({ teams, state, refetch }: Props) {
 
   if (!tournament) {
     return (
-      <div className="pt-4 text-muted-foreground text-sm">请先在「设置」tab 创建赛事。</div>
+      <div className="font-mono text-[11px] text-nexus-faint py-4">请先在「设置」tab 创建赛事。</div>
     );
   }
 
   if (!isGrouping) {
     return (
-      <div className="space-y-4 pt-4">
-        <p className="text-sm text-muted-foreground">分组已锁定（状态：{tournament.status}）。</p>
+      <div className="space-y-4">
+        <p className="font-mono text-[11px] text-nexus-dim">分组已锁定（状态：{tournament.status}）。</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {standings.map((g) => (
-            <div key={g.groupId} className="rounded-md border p-4 space-y-2">
-              <h3 className="text-sm font-semibold">{g.name}</h3>
-              <ul className="space-y-1">
+            <div
+              key={g.groupId}
+              className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-4 space-y-2"
+            >
+              <Kicker>{g.name} 组</Kicker>
+              <ul className="space-y-1 mt-2">
                 {Object.entries(g.teams).map(([id, name]) => (
-                  <li key={id} className="text-sm text-muted-foreground">
-                    {name}
+                  <li key={id} className="font-body text-[13px] text-nexus-ink">
+                    {name as string}
                   </li>
                 ))}
               </ul>
@@ -199,13 +203,12 @@ export function GroupsTab({ teams, state, refetch }: Props) {
   const unassignedIds = getUnassignedTeamIds(teams.map((t) => t.id), assignments);
 
   return (
-    <div className="space-y-6 pt-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={handleRandomize}>
+        <NexusButton size="sm" onClick={handleRandomize}>
           随机分组
-        </Button>
-        <Button
-          variant="outline"
+        </NexusButton>
+        <NexusButton
           size="sm"
           disabled={saving}
           onClick={() => void handleSave()}
@@ -213,16 +216,17 @@ export function GroupsTab({ teams, state, refetch }: Props) {
           <LoadingButtonContent loading={saving} loadingText="保存中…">
             保存分组
           </LoadingButtonContent>
-        </Button>
-        <Button
+        </NexusButton>
+        <NexusButton
           size="sm"
+          variant="primary"
           disabled={confirming}
           onClick={() => void handleConfirm()}
         >
           <LoadingButtonContent loading={confirming} loadingText="确认中…">
             确认分组并生成对阵
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       </div>
 
       <DndContext
@@ -285,13 +289,15 @@ function GroupColumn({
       ref={setNodeRef}
       data-testid={`group-column-${groupIdx}`}
       className={cn(
-        'space-y-3 rounded-md border p-4 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'space-y-3 rounded-[var(--radius-nexus)] border p-4 transition-colors',
+        isOver
+          ? 'border-nexus-accent/60 bg-nexus-accent/5'
+          : 'border-nexus-line bg-nexus-panel-2',
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{name}</h3>
-        <span className="text-xs text-muted-foreground">
+        <Kicker>{name}</Kicker>
+        <span className="font-mono text-[10px] tabular-nums text-nexus-faint">
           {assignedCount}/{teamsPerGroup}
         </span>
       </div>
@@ -311,20 +317,22 @@ function TeamPool({ teams }: { teams: Team[] }) {
       ref={setNodeRef}
       data-testid="group-team-pool"
       className={cn(
-        'space-y-2 rounded-md border border-dashed p-3 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'space-y-2 rounded-[var(--radius-nexus)] border border-dashed p-3 transition-colors',
+        isOver
+          ? 'border-nexus-accent/60 bg-nexus-accent/5'
+          : 'border-nexus-line/60 bg-nexus-panel-2',
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">未分配队伍</h3>
-        <span className="text-xs text-muted-foreground">{teams.length}</span>
+        <Kicker>未分配队伍</Kicker>
+        <span className="font-mono text-[10px] tabular-nums text-nexus-faint">{teams.length}</span>
       </div>
       <div className="space-y-2">
         {teams.map((team) => (
           <DraggableTeamCard key={team.id} team={team} source={{ teamId: team.id, from: 'pool' }} />
         ))}
         {teams.length === 0 && (
-          <div className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
+          <div className="rounded-[var(--radius-nexus)] border border-dashed border-nexus-line/50 py-6 text-center font-mono text-[11px] text-nexus-faint">
             已全部分配
           </div>
         )}
@@ -352,8 +360,10 @@ function GroupSlot({
       ref={setNodeRef}
       data-testid={`group-slot-${groupIdx}-${slotIdx}`}
       className={cn(
-        'min-h-12 rounded-md border border-dashed p-2 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'min-h-12 rounded-[var(--radius-nexus)] border border-dashed p-2 transition-colors',
+        isOver
+          ? 'border-nexus-accent/60 bg-nexus-accent/5'
+          : 'border-nexus-line/50',
       )}
     >
       {team ? (
@@ -362,7 +372,7 @@ function GroupSlot({
           source={{ teamId: team.id, from: 'slot', groupIdx, slotIdx }}
         />
       ) : (
-        <div className="flex h-8 items-center justify-center text-xs text-muted-foreground">
+        <div className="flex h-8 items-center justify-center font-mono text-[11px] text-nexus-faint">
           拖入队伍
         </div>
       )}
@@ -383,7 +393,9 @@ function DraggableTeamCard({ team, source }: { team: Team; source: GroupDragSour
       {...attributes}
       {...listeners}
       className={cn(
-        'rounded-md border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50',
+        'rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-bg px-3 py-2',
+        'font-body text-[13px] text-nexus-ink',
+        'transition-colors hover:border-nexus-accent/50 hover:bg-nexus-panel',
         'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40',
       )}

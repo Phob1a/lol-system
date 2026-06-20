@@ -9,10 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -34,6 +32,11 @@ import {
   championKeyByNumericId,
   championName as dataDragonChampionName,
 } from '@/lib/tournament/champions';
+import Panel from '@/components/nexus/Panel';
+import PanelHead from '@/components/nexus/PanelHead';
+import NexusButton from '@/components/nexus/NexusButton';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -205,16 +208,20 @@ function DetailDialog({
   const entries = Object.entries(detail.data);
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[86vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[86vh] overflow-y-auto bg-nexus-panel border-nexus-line">
         <DialogHeader>
-          <DialogTitle>{detail.title}</DialogTitle>
-          {detail.subtitle ? <DialogDescription>{detail.subtitle}</DialogDescription> : null}
+          <DialogTitle className="font-display text-nexus-ink">{detail.title}</DialogTitle>
+          {detail.subtitle ? (
+            <DialogDescription className="font-mono text-[10px] uppercase tracking-[0.12em] text-nexus-faint">
+              {detail.subtitle}
+            </DialogDescription>
+          ) : null}
         </DialogHeader>
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.map(([key, value]) => (
-            <div key={key} className="rounded-md border p-2">
-              <div className="text-xs text-muted-foreground">{key}</div>
-              <div className="mt-1 break-words text-sm font-medium">{valueText(value)}</div>
+            <div key={key} className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-2">
+              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">{key}</div>
+              <div className="mt-1 break-words text-[12px] font-medium text-nexus-ink">{valueText(value)}</div>
             </div>
           ))}
         </div>
@@ -224,7 +231,7 @@ function DetailDialog({
 }
 
 function ChampionCell({ player }: { player: RawPlayer | null }) {
-  if (!player) return <span className="text-xs text-muted-foreground">-</span>;
+  if (!player) return <span className="font-mono text-[10px] text-nexus-faint">-</span>;
   const key = championKeyByNumericId(player.championId);
   const displayName = key
     ? (dataDragonChampionName(key) ?? player.championName ?? key)
@@ -238,16 +245,16 @@ function ChampionCell({ player }: { player: RawPlayer | null }) {
           alt={displayName}
           width={28}
           height={28}
-          className="h-7 w-7 rounded-sm object-cover"
+          className="h-7 w-7 rounded-[var(--radius-nexus)] object-cover"
         />
       ) : (
-        <div className="flex h-7 w-7 items-center justify-center rounded-sm border text-xs text-muted-foreground">
+        <div className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-nexus)] border border-nexus-line font-mono text-[10px] text-nexus-faint">
           ?
         </div>
       )}
       <div className="min-w-0">
-        <div className="truncate text-sm">{displayName}</div>
-        <div className="text-xs text-muted-foreground">#{player.championId}</div>
+        <div className="truncate text-[12px] text-nexus-ink">{displayName}</div>
+        <div className="font-mono text-[10px] text-nexus-faint">#{player.championId}</div>
       </div>
     </div>
   );
@@ -577,30 +584,30 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-nexus-panel border-nexus-line">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="font-display text-nexus-ink">
             审核导入 — {importDetail?.externalGameId ?? importId}
           </DialogTitle>
           <DialogDescription className="sr-only">对局导入映射审核</DialogDescription>
         </DialogHeader>
 
         {loading && (
-          <p className="text-sm text-muted-foreground">加载中…</p>
+          <p className="font-mono text-[11px] text-nexus-faint">加载中…</p>
         )}
 
         {!loading && (
           <div className="space-y-5">
             {/* ── 基本信息 ── */}
-            <div className="flex flex-wrap gap-3 text-sm">
-              <span>
-                来源：<Badge variant="outline">{importDetail?.source}</Badge>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-mono text-[11px] text-nexus-dim">
+                来源：<Chip>{importDetail?.source}</Chip>
               </span>
-              <span>
-                状态：<Badge variant="secondary">{importDetail?.status}</Badge>
+              <span className="font-mono text-[11px] text-nexus-dim">
+                状态：<Chip variant="ac">{importDetail?.status}</Chip>
               </span>
               {importDetail?.externalGameId && (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-[10px] text-nexus-faint">
                   gameId: {importDetail.externalGameId}
                 </span>
               )}
@@ -608,121 +615,123 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
 
             {/* ── LCU 数据预览 ── */}
             {importDetail && (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label className="text-sm font-semibold">LCU 数据预览</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => showRawTeamDetail(100)}
-                    >
-                      蓝方详情
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => showRawTeamDetail(200)}
-                    >
-                      红方详情
-                    </Button>
+              <Panel>
+                <PanelHead
+                  title="LCU 数据预览"
+                  actions={
+                    <div className="flex gap-2">
+                      <NexusButton
+                        size="sm"
+                        onClick={() => showRawTeamDetail(100)}
+                      >
+                        蓝方详情
+                      </NexusButton>
+                      <NexusButton
+                        size="sm"
+                        onClick={() => showRawTeamDetail(200)}
+                      >
+                        红方详情
+                      </NexusButton>
+                    </div>
+                  }
+                />
+                <div className="p-3 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <Kicker className="mb-1">模式</Kicker>
+                      <div className="text-[12px] text-nexus-ink">
+                        {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <Kicker className="mb-1">时长</Kicker>
+                      <div className="font-mono text-[12px] tabular-nums text-nexus-ink">
+                        {formatDuration(importMeta?.durationSeconds)}
+                      </div>
+                    </div>
+                    <div>
+                      <Kicker className="mb-1">胜者</Kicker>
+                      <div className="text-[12px] text-nexus-ink">{rawWinnerSide}</div>
+                    </div>
+                    <div>
+                      <Kicker className="mb-1">玩家</Kicker>
+                      <div className="font-mono text-[12px] tabular-nums text-nexus-ink">
+                        {rawPreviewRows.length || '-'}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <span className="text-muted-foreground">模式：</span>
-                    {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">时长：</span>
-                    {formatDuration(importMeta?.durationSeconds)}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">胜者：</span>
-                    {rawWinnerSide}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">玩家：</span>
-                    {rawPreviewRows.length || '-'}
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>LCU 名称</TableHead>
-                        <TableHead>英雄</TableHead>
-                        <TableHead>阵营</TableHead>
-                        <TableHead className="text-center">KDA</TableHead>
-                        <TableHead className="text-center">CS</TableHead>
-                        <TableHead className="text-center">伤害</TableHead>
-                        <TableHead className="text-center">金币</TableHead>
-                        <TableHead className="text-center">详情</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rawPreviewRows.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
-                            暂无 LCU 玩家数据
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-nexus-line hover:bg-transparent">
+                          <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">LCU 名称</TableHead>
+                          <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">英雄</TableHead>
+                          <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">阵营</TableHead>
+                          <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">KDA</TableHead>
+                          <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">CS</TableHead>
+                          <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">伤害</TableHead>
+                          <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">金币</TableHead>
+                          <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">详情</TableHead>
                         </TableRow>
-                      )}
-                      {rawPreviewRows.map(({ pid, player, stats }) => {
-                        const isBlue = player.teamId === 100;
-                        return (
-                          <TableRow key={pid}>
-                            <TableCell className="font-mono text-xs">
-                              {player.name}
-                            </TableCell>
-                            <TableCell>
-                              <ChampionCell player={player} />
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={isBlue ? 'default' : 'secondary'}>
-                                {lcuSideName(player.teamId)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center tabular-nums">
-                              {stats ? `${stats.kills}/${stats.deaths}/${stats.assists}` : '-'}
-                            </TableCell>
-                            <TableCell className="text-center tabular-nums">
-                              {stats?.cs ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-center tabular-nums">
-                              {stats?.damage ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-center tabular-nums">
-                              {stats?.gold ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => showRawPlayerDetail(player, pid)}
-                              >
-                                详情
-                              </Button>
+                      </TableHeader>
+                      <TableBody>
+                        {rawPreviewRows.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="py-6 text-center font-mono text-[11px] text-nexus-faint">
+                              暂无 LCU 玩家数据
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                        )}
+                        {rawPreviewRows.map(({ pid, player, stats }) => {
+                          const isBlue = player.teamId === 100;
+                          return (
+                            <TableRow key={pid} className="border-nexus-line/40">
+                              <TableCell className="font-mono text-[11px]">
+                                {player.name}
+                              </TableCell>
+                              <TableCell>
+                                <ChampionCell player={player} />
+                              </TableCell>
+                              <TableCell>
+                                <Chip variant={isBlue ? 'ac' : 'default'}>
+                                  {lcuSideName(player.teamId)}
+                                </Chip>
+                              </TableCell>
+                              <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
+                                {stats ? `${stats.kills}/${stats.deaths}/${stats.assists}` : '-'}
+                              </TableCell>
+                              <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
+                                {stats?.cs ?? '-'}
+                              </TableCell>
+                              <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
+                                {stats?.damage ?? '-'}
+                              </TableCell>
+                              <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
+                                {stats?.gold ?? '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <NexusButton
+                                  size="sm"
+                                  onClick={() => showRawPlayerDetail(player, pid)}
+                                >
+                                  详情
+                                </NexusButton>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
+              </Panel>
             )}
 
             {/* ── 选择比赛 ── */}
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">选择比赛</Label>
+              <Label className="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-faint">选择比赛</Label>
               <Select value={selectedMatchId} onValueChange={handleMatchChange}>
-                <SelectTrigger className="max-w-sm">
+                <SelectTrigger className="max-w-sm border-nexus-line bg-nexus-panel-2 text-nexus-ink">
                   <SelectValue placeholder="选择比赛…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -744,89 +753,97 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
             {/* ── 局序号 ── */}
             {selectedMatch && (
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">局序号（gameIndex）</Label>
+                <Label className="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-faint">
+                  局序号（gameIndex）
+                </Label>
                 <Input
                   type="number"
                   min={1}
                   value={gameIndex}
                   onChange={(e) => setGameIndex(e.target.value)}
-                  className="w-24"
+                  className="w-24 border-nexus-line bg-nexus-panel-2 text-nexus-ink"
                 />
               </div>
             )}
 
             {/* ── 映射加载 ── */}
             {mappingLoading && (
-              <p className="text-sm text-muted-foreground">加载映射中…</p>
+              <p className="font-mono text-[11px] text-nexus-faint">加载映射中…</p>
             )}
 
             {mapping && !mappingLoading && (
-              <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <span className="text-muted-foreground">模式：</span>
-                  {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
+              <Panel>
+                <PanelHead
+                  title="映射信息"
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <NexusButton
+                        size="sm"
+                        disabled={mappingLoading}
+                        onClick={handleSwapSides}
+                      >
+                        交换红蓝方
+                      </NexusButton>
+                      <NexusButton
+                        size="sm"
+                        onClick={() => showTeamDetail(100)}
+                      >
+                        蓝方详情
+                      </NexusButton>
+                      <NexusButton
+                        size="sm"
+                        onClick={() => showTeamDetail(200)}
+                      >
+                        红方详情
+                      </NexusButton>
+                    </div>
+                  }
+                />
+                <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <Kicker className="mb-1">模式</Kicker>
+                    <div className="text-[12px] text-nexus-ink">
+                      {importMeta?.gameMode ?? '-'} / {importMeta?.gameType ?? '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <Kicker className="mb-1">时长</Kicker>
+                    <div className="font-mono text-[12px] tabular-nums text-nexus-ink">
+                      {formatDuration(importMeta?.durationSeconds)}
+                    </div>
+                  </div>
+                  <div>
+                    <Kicker className="mb-1">胜者</Kicker>
+                    <div className="text-[12px] text-nexus-ink">{winnerTeamName ?? '-'}</div>
+                  </div>
+                  <div>
+                    <Kicker className="mb-1">红蓝方</Kicker>
+                    <div className="text-[12px] text-nexus-ink">
+                      蓝 {teamNameById(mapping.blueTeamId)} / 红 {teamNameById(mapping.redTeamId)}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">时长：</span>
-                  {formatDuration(importMeta?.durationSeconds)}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">胜者：</span>
-                  {winnerTeamName ?? '-'}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">红蓝方：</span>
-                  蓝 {teamNameById(mapping.blueTeamId)} / 红 {teamNameById(mapping.redTeamId)}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="ml-2 h-7 px-2"
-                    disabled={mappingLoading}
-                    onClick={handleSwapSides}
-                  >
-                    交换
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="ml-2 h-7 px-2"
-                    onClick={() => showTeamDetail(100)}
-                  >
-                    蓝方详情
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="ml-2 h-7 px-2"
-                    onClick={() => showTeamDetail(200)}
-                  >
-                    红方详情
-                  </Button>
-                </div>
-              </div>
+              </Panel>
             )}
 
             {/* ── 映射表格 ── */}
             {mapping && !mappingLoading && (
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">玩家映射</Label>
+              <Panel>
+                <PanelHead title="玩家映射" />
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>LCU 名称</TableHead>
-                        <TableHead>英雄</TableHead>
-                        <TableHead>阵营</TableHead>
-                        <TableHead>站内队伍</TableHead>
-                        <TableHead>映射选手</TableHead>
-                        <TableHead className="text-center">KDA</TableHead>
-                        <TableHead className="text-center">CS</TableHead>
-                        <TableHead className="text-center">伤害</TableHead>
-                        <TableHead className="text-center">金币</TableHead>
-                        <TableHead className="text-center">详情</TableHead>
+                      <TableRow className="border-nexus-line hover:bg-transparent">
+                        <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">LCU 名称</TableHead>
+                        <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">英雄</TableHead>
+                        <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">阵营</TableHead>
+                        <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">站内队伍</TableHead>
+                        <TableHead className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">映射选手</TableHead>
+                        <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">KDA</TableHead>
+                        <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">CS</TableHead>
+                        <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">伤害</TableHead>
+                        <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">金币</TableHead>
+                        <TableHead className="text-center font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">详情</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -840,20 +857,20 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                         return (
                           <TableRow
                             key={pid}
-                            className={isMissing ? 'bg-destructive/5' : undefined}
+                            className={isMissing ? 'bg-nexus-bad/5 border-nexus-line/40' : 'border-nexus-line/40'}
                           >
-                            <TableCell className="font-mono text-xs">
+                            <TableCell className="font-mono text-[11px]">
                               {row.capturedName}
                             </TableCell>
                             <TableCell>
                               <ChampionCell player={rawPlayer} />
                             </TableCell>
                             <TableCell>
-                              <Badge variant={isBlue ? 'default' : 'secondary'}>
+                              <Chip variant={isBlue ? 'ac' : 'default'}>
                                 {isBlue ? '蓝' : '红'}
-                              </Badge>
+                              </Chip>
                             </TableCell>
-                            <TableCell className="text-sm">
+                            <TableCell className="text-[12px] text-nexus-ink">
                               {teamNameById(row.siteTeamId)}
                             </TableCell>
                             <TableCell>
@@ -866,7 +883,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                                   }));
                                 }}
                               >
-                                <SelectTrigger className="w-44 h-8 text-sm">
+                                <SelectTrigger className="w-44 h-8 border-nexus-line bg-nexus-panel-2 text-[12px] text-nexus-ink">
                                   <SelectValue placeholder="未映射" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -884,27 +901,25 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell className="text-center tabular-nums">
+                            <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
                               {stats ? `${stats.kills}/${stats.deaths}/${stats.assists}` : '-'}
                             </TableCell>
-                            <TableCell className="text-center tabular-nums">
+                            <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
                               {stats?.cs ?? '-'}
                             </TableCell>
-                            <TableCell className="text-center tabular-nums">
+                            <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
                               {stats?.damage ?? '-'}
                             </TableCell>
-                            <TableCell className="text-center tabular-nums">
+                            <TableCell className="text-center tabular-nums text-[12px] text-nexus-ink">
                               {stats?.gold ?? '-'}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Button
-                                type="button"
-                                variant="outline"
+                              <NexusButton
                                 size="sm"
                                 onClick={() => showPlayerDetail(row)}
                               >
                                 详情
-                              </Button>
+                              </NexusButton>
                             </TableCell>
                           </TableRow>
                         );
@@ -912,22 +927,23 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                     </TableBody>
                   </Table>
                 </div>
-              </div>
+              </Panel>
             )}
 
             {/* ── 提交 ── */}
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={onClose} disabled={saving}>
+              <NexusButton onClick={onClose} disabled={saving}>
                 取消
-              </Button>
-              <Button
+              </NexusButton>
+              <NexusButton
+                variant="primary"
                 onClick={() => void handleCommit()}
                 disabled={saving || !mapping}
               >
                 <LoadingButtonContent loading={saving} loadingText="提交中…">
                   提交导入
                 </LoadingButtonContent>
-              </Button>
+              </NexusButton>
             </div>
           </div>
         )}

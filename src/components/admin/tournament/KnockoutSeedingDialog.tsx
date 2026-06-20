@@ -8,7 +8,6 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +24,8 @@ import {
   type KnockoutSeedDropTarget,
   type KnockoutSeedSlotState,
 } from './knockout-seeding-drag';
+import NexusButton from '@/components/nexus/NexusButton';
+import Kicker from '@/components/nexus/Kicker';
 
 export type KnockoutSeedingDraft = {
   tournamentId: string;
@@ -156,14 +157,16 @@ export function KnockoutSeedingDialog({ open, draft, onClose, refetch }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) closeDialog(); }}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl bg-nexus-panel border-nexus-line">
         <DialogHeader>
-          <DialogTitle>淘汰赛排位</DialogTitle>
+          <DialogTitle className="font-display text-nexus-ink">淘汰赛排位</DialogTitle>
           <DialogDescription className="sr-only">为淘汰赛首轮手动安排出线队伍</DialogDescription>
         </DialogHeader>
 
         {!draft ? (
-          <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">暂无排位草稿</div>
+          <div className="rounded-[var(--radius-nexus)] border border-nexus-line/60 py-8 text-center font-mono text-[11px] text-nexus-faint">
+            暂无排位草稿
+          </div>
         ) : (
           <DndContext onDragEnd={handleDragEnd}>
             <div className="grid gap-4 md:grid-cols-[minmax(0,280px)_1fr]">
@@ -175,8 +178,11 @@ export function KnockoutSeedingDialog({ open, draft, onClose, refetch }: Props) 
 
               <div className="space-y-3">
                 {matches.map((match) => (
-                  <div key={match.matchId} className="rounded-md border p-3">
-                    <div className="mb-3 text-sm font-medium">{match.label}</div>
+                  <div
+                    key={match.matchId}
+                    className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-3"
+                  >
+                    <Kicker className="mb-3">{match.label}</Kicker>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {match.slots.map((slot) => (
                         <SeedSlot
@@ -195,22 +201,26 @@ export function KnockoutSeedingDialog({ open, draft, onClose, refetch }: Props) 
 
         <DialogFooter className="gap-2 sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" disabled={!draft || saving} onClick={autoFill}>
+            <NexusButton disabled={!draft || saving} onClick={autoFill}>
               按排名自动填充
-            </Button>
-            <Button variant="outline" disabled={!draft || saving} onClick={clearSlots}>
+            </NexusButton>
+            <NexusButton disabled={!draft || saving} onClick={clearSlots}>
               清空槽位
-            </Button>
+            </NexusButton>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" disabled={saving} onClick={closeDialog}>
+            <NexusButton disabled={saving} onClick={closeDialog}>
               取消
-            </Button>
-            <Button disabled={!draft || !allFilled || saving} onClick={() => void submit()}>
+            </NexusButton>
+            <NexusButton
+              variant="primary"
+              disabled={!draft || !allFilled || saving}
+              onClick={() => void submit()}
+            >
               <LoadingButtonContent loading={saving} loadingText="确认中…">
                 确认排位
               </LoadingButtonContent>
-            </Button>
+            </NexusButton>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -227,12 +237,17 @@ function SeedPool({ candidates }: { candidates: Candidate[] }) {
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-md border p-3 ${isOver ? 'bg-muted' : ''}`}
+      className={[
+        'rounded-[var(--radius-nexus)] border p-3 transition-colors',
+        isOver ? 'border-nexus-accent/60 bg-nexus-accent/5' : 'border-nexus-line bg-nexus-panel-2',
+      ].join(' ')}
       aria-label="候选队伍池"
     >
-      <div className="mb-3 text-sm font-medium">候选队伍</div>
+      <Kicker className="mb-3">候选队伍</Kicker>
       {candidates.length === 0 ? (
-        <div className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">暂无候选队伍</div>
+        <div className="rounded-[var(--radius-nexus)] border border-dashed border-nexus-line/50 py-8 text-center font-mono text-[11px] text-nexus-faint">
+          暂无候选队伍
+        </div>
       ) : (
         <div className="space-y-2">
           {candidates.map((candidate) => (
@@ -255,12 +270,16 @@ function SeedCandidate({ candidate }: { candidate: Candidate }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-md border bg-background px-3 py-2 text-sm ${isDragging ? 'opacity-60' : ''}`}
+      className={[
+        'rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-bg px-3 py-2',
+        'transition-colors hover:border-nexus-accent/40 cursor-grab active:cursor-grabbing',
+        isDragging ? 'opacity-60' : '',
+      ].join(' ')}
       {...listeners}
       {...attributes}
     >
-      <div className="font-medium">{candidate.teamName}</div>
-      <div className="text-xs text-muted-foreground">
+      <div className="font-body text-[13px] text-nexus-ink">{candidate.teamName}</div>
+      <div className="font-mono text-[10px] text-nexus-faint mt-0.5">
         {candidate.seedLabel} · {candidate.groupName}组第 {candidate.rank}
       </div>
     </div>
@@ -293,23 +312,34 @@ function SeedSlot({ slot, candidate }: { slot: KnockoutSeedSlotState; candidate:
   return (
     <div
       ref={setDroppableRef}
-      className={`min-h-20 rounded-md border p-3 ${isOver ? 'bg-muted' : ''}`}
+      className={[
+        'min-h-20 rounded-[var(--radius-nexus)] border p-3 transition-colors',
+        isOver ? 'border-nexus-accent/60 bg-nexus-accent/5' : 'border-nexus-line',
+      ].join(' ')}
       aria-label={`${slot.matchId} ${slot.slot} 槽位`}
     >
-      <div className="mb-2 text-xs font-medium text-muted-foreground">{slot.slot} 槽位</div>
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.1em] text-nexus-faint">
+        {slot.slot} 槽位
+      </div>
       {candidate ? (
         <div
           ref={setDraggableRef}
           style={style}
-          className={`rounded-md bg-muted px-3 py-2 text-sm ${isDragging ? 'opacity-60' : ''}`}
+          className={[
+            'rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 px-3 py-2',
+            'cursor-grab active:cursor-grabbing transition-colors hover:border-nexus-accent/40',
+            isDragging ? 'opacity-60' : '',
+          ].join(' ')}
           {...listeners}
           {...attributes}
         >
-          <div className="font-medium">{candidate.teamName}</div>
-          <div className="text-xs text-muted-foreground">{candidate.seedLabel}</div>
+          <div className="font-body text-[13px] text-nexus-ink">{candidate.teamName}</div>
+          <div className="font-mono text-[10px] text-nexus-faint mt-0.5">{candidate.seedLabel}</div>
         </div>
       ) : (
-        <div className="rounded-md border border-dashed py-3 text-center text-sm text-muted-foreground">未安排</div>
+        <div className="rounded-[var(--radius-nexus)] border border-dashed border-nexus-line/50 py-3 text-center font-mono text-[11px] text-nexus-faint">
+          未安排
+        </div>
       )}
     </div>
   );

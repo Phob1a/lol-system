@@ -3,10 +3,8 @@
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
@@ -24,14 +22,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { ScoreDialog } from './ScoreDialog';
 import { ReservationDialog } from './ReservationDialog';
 import {
@@ -39,6 +29,10 @@ import {
   type KnockoutSeedingDraft,
 } from './KnockoutSeedingDialog';
 import type { AdminState } from '@/hooks/useTournamentState';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import NexusButton from '@/components/nexus/NexusButton';
+import Readout from '@/components/nexus/Readout';
 
 type Team = { id: string; name: string };
 type MatchRow = NonNullable<AdminState>['matches'][number];
@@ -117,17 +111,19 @@ function WalkoverDialog({
         }
       }}
     >
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm bg-nexus-panel border-nexus-line">
         <DialogHeader>
-          <DialogTitle>设置轮空</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-display text-nexus-ink">设置轮空</DialogTitle>
+          <DialogDescription className="font-mono text-[11px] text-nexus-faint">
             {match.teamA?.name ?? '？'} vs {match.teamB?.name ?? '？'} · 选择获得轮空胜利的队伍
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1">
-          <Label>胜方</Label>
+        <div className="space-y-1.5">
+          <Label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+            胜方
+          </Label>
           <Select value={winnerId} onValueChange={setWinnerId}>
-            <SelectTrigger>
+            <SelectTrigger className="bg-nexus-bg border-nexus-line text-nexus-ink">
               <SelectValue placeholder="选择队伍" />
             </SelectTrigger>
             <SelectContent>
@@ -140,14 +136,14 @@ function WalkoverDialog({
           </Select>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
+          <NexusButton onClick={onClose} disabled={busy}>
             取消
-          </Button>
-          <Button disabled={!winnerId || busy} onClick={() => onConfirm(winnerId)}>
+          </NexusButton>
+          <NexusButton variant="primary" disabled={!winnerId || busy} onClick={() => onConfirm(winnerId)}>
             <LoadingButtonContent loading={busy} loadingText="确认中…">
               确认轮空
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -233,17 +229,19 @@ function AddMatchDialog({
         }
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md bg-nexus-panel border-nexus-line">
         <DialogHeader>
-          <DialogTitle>自定义比赛</DialogTitle>
+          <DialogTitle className="font-display text-nexus-ink">自定义比赛</DialogTitle>
           <DialogDescription className="sr-only">添加自定义比赛</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <Label>所属小组（可空）</Label>
+          <div className="space-y-1.5">
+            <Label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+              所属小组（可空）
+            </Label>
             <Select value={groupId} onValueChange={setGroupId}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-nexus-bg border-nexus-line text-nexus-ink">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -258,10 +256,12 @@ function AddMatchDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>队伍 A</Label>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+                队伍 A
+              </Label>
               <Select value={teamAId} onValueChange={setTeamAId}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-nexus-bg border-nexus-line text-nexus-ink">
                   <SelectValue placeholder="选择队伍" />
                 </SelectTrigger>
                 <SelectContent>
@@ -273,10 +273,12 @@ function AddMatchDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label>队伍 B</Label>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+                队伍 B
+              </Label>
               <Select value={teamBId} onValueChange={setTeamBId}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-nexus-bg border-nexus-line text-nexus-ink">
                   <SelectValue placeholder="选择队伍" />
                 </SelectTrigger>
                 <SelectContent>
@@ -291,10 +293,12 @@ function AddMatchDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>BO</Label>
+            <div className="space-y-1.5">
+              <Label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+                BO
+              </Label>
               <Select value={String(bestOf)} onValueChange={(v) => setBestOf(Number(v))}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-nexus-bg border-nexus-line text-nexus-ink">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,18 +308,24 @@ function AddMatchDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="cm-label">名称</Label>
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="cm-label"
+                className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint"
+              >
+                名称
+              </Label>
               <Input
                 id="cm-label"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="可选"
+                className="bg-nexus-bg border-nexus-line text-nexus-ink placeholder:text-nexus-faint focus-visible:ring-nexus-accent"
               />
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <label className="flex items-center gap-2 font-mono text-[12px] text-nexus-dim cursor-pointer">
             <Checkbox
               checked={countsForStandings}
               onCheckedChange={(v) => setCountsForStandings(!!v)}
@@ -325,14 +335,18 @@ function AddMatchDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <NexusButton onClick={onClose} disabled={saving}>
             取消
-          </Button>
-          <Button disabled={!formValid || saving} onClick={() => void handleSubmit()}>
+          </NexusButton>
+          <NexusButton
+            variant="primary"
+            disabled={!formValid || saving}
+            onClick={() => void handleSubmit()}
+          >
             <LoadingButtonContent loading={saving} loadingText="添加中…">
               添加
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -366,7 +380,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
 
   if (!tournament) {
     return (
-      <div className="pt-4 text-muted-foreground text-sm">
+      <div className="font-mono text-[11px] text-nexus-faint py-4">
         请先在「设置」tab 创建赛事并确认分组。
       </div>
     );
@@ -486,101 +500,113 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
   const scheduledMatches = matches.filter((m) => m.scheduledAt !== null);
 
   return (
-    <div className="space-y-4 pt-4">
+    <div className="space-y-4">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center gap-2">
         {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
-          <Button size="sm" onClick={() => setReservationOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
+          <NexusButton size="sm" variant="primary" onClick={() => setReservationOpen(true)}>
+            <Plus className="mr-1 h-3.5 w-3.5" />
             创建预约
-          </Button>
+          </NexusButton>
         )}
 
         {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
-          <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
+          <NexusButton size="sm" onClick={() => setAddMatchOpen(true)}>
+            <Plus className="mr-1 h-3.5 w-3.5" />
             自定义比赛
-          </Button>
+          </NexusButton>
         )}
 
         {showCloseGroups && (
-          <Button
+          <NexusButton
             size="sm"
+            variant="primary"
             disabled={closingGroups}
             onClick={() => void handleOpenKnockoutSeeding()}
           >
             <LoadingButtonContent loading={closingGroups} loadingText="处理中…">
               收小组进淘汰赛
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         )}
       </div>
 
       {/* Matches table */}
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>阶段</TableHead>
-              <TableHead>组别/轮次</TableHead>
-              <TableHead>对阵双方</TableHead>
-              <TableHead>时间</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      <div className="overflow-x-auto rounded-[var(--radius-nexus)] border border-nexus-line">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {['阶段', '组别/轮次', '对阵双方', '时间', '状态', '操作'].map((h) => (
+                <th
+                  key={h}
+                  className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-nexus-faint font-semibold text-left px-4 py-3 border-b border-nexus-line"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
             {scheduledMatches.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+              <tr>
+                <td
+                  colSpan={6}
+                  className="py-10 text-center font-mono text-[11px] text-nexus-faint"
+                >
                   暂无已预约比赛，可点击创建预约
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             )}
             {scheduledMatches.map((m) => {
               const canEditReservation = m.status === 'SCHEDULED';
               return (
-                <TableRow key={m.id}>
-                  <TableCell className="text-sm">{stageLabel(m)}</TableCell>
-                  <TableCell className="text-sm">{roundLabel(m, standings)}</TableCell>
-                  <TableCell className="text-sm">
-                    <span>{m.teamA?.name ?? '？'}</span>
-                    <span className="mx-1 text-muted-foreground">vs</span>
-                    <span>{m.teamB?.name ?? '？'}</span>
+                <tr key={m.id} className="hover:bg-nexus-panel-2/60 transition-colors">
+                  <td className="px-4 py-3 border-b border-nexus-line/40 font-mono text-[11px] text-nexus-dim">
+                    {stageLabel(m)}
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40 font-mono text-[11px] text-nexus-dim">
+                    {roundLabel(m, standings)}
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <span className="font-body text-[13px] text-nexus-ink">{m.teamA?.name ?? '？'}</span>
+                    <span className="mx-1.5 font-mono text-[11px] text-nexus-faint">vs</span>
+                    <span className="font-body text-[13px] text-nexus-ink">{m.teamB?.name ?? '？'}</span>
                     {m.winnerTeamId && (
-                      <span className="ml-1 text-xs text-muted-foreground">
+                      <span className="ml-1.5 font-mono text-[10px] text-nexus-good">
                         (胜:{' '}
                         {m.teamA?.id === m.winnerTeamId ? m.teamA?.name : m.teamB?.name})
                       </span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-sm">{formatScheduledAt(m.scheduledAt)}</TableCell>
-                  <TableCell>
-                    <Badge
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <Readout className="text-[11px] text-nexus-dim">
+                      {formatScheduledAt(m.scheduledAt)}
+                    </Readout>
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <Chip
                       variant={
                         m.status === 'FINISHED'
-                          ? 'default'
+                          ? 'good'
                           : m.status === 'CANCELED'
-                            ? 'destructive'
-                            : 'outline'
+                            ? 'default'
+                            : 'ac'
                       }
                     >
                       {statusLabel(m.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
+                    </Chip>
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
                     <div className="flex flex-wrap gap-1">
-                      <Button
+                      <NexusButton
                         size="sm"
-                        variant="outline"
                         disabled={!canEditReservation}
                         onClick={() => setEditingReservation(m)}
                       >
                         修改时间
-                      </Button>
-                      <Button
+                      </NexusButton>
+                      <NexusButton
                         size="sm"
-                        variant="outline"
                         disabled={!canEditReservation || clearingReservationId === m.id}
                         onClick={() => void handleClearReservation(m)}
                       >
@@ -590,40 +616,38 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
                         >
                           取消预约
                         </LoadingButtonContent>
-                      </Button>
-                      <Button
+                      </NexusButton>
+                      <NexusButton
                         size="sm"
-                        variant="outline"
                         disabled={m.status === 'CANCELED'}
                         onClick={() => setScoreMatchId(m.id)}
                       >
                         录比分
-                      </Button>
-                      <Button
+                      </NexusButton>
+                      <NexusButton
                         size="sm"
-                        variant="outline"
                         disabled={m.status !== 'SCHEDULED'}
                         onClick={() => setWalkoverMatch(m)}
                       >
                         轮空
-                      </Button>
-                      <Button
+                      </NexusButton>
+                      <NexusButton
                         size="sm"
-                        variant="outline"
+                        className="border-nexus-bad/40 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad"
                         disabled={m.status === 'CANCELED' || cancelingId === m.id}
                         onClick={() => void handleCancel(m)}
                       >
                         <LoadingButtonContent loading={cancelingId === m.id} loadingText="…">
                           取消比赛
                         </LoadingButtonContent>
-                      </Button>
+                      </NexusButton>
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {/* Dialogs */}

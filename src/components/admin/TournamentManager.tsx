@@ -4,18 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Tournament } from '@prisma/client';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Panel from '@/components/nexus/Panel';
+import PanelHead from '@/components/nexus/PanelHead';
+import Chip from '@/components/nexus/Chip';
+import NexusButton from '@/components/nexus/NexusButton';
+import Kicker from '@/components/nexus/Kicker';
+import Readout from '@/components/nexus/Readout';
 import {
   TournamentConfigForm,
   type TournamentConfigValue,
@@ -121,104 +117,116 @@ export function TournamentManager({ initialTournaments }: Props) {
     const transitioning = transitioningId === tournament.id;
     if (tournament.status === 'SETUP') {
       return (
-        <Button
+        <NexusButton
           size="sm"
+          variant="primary"
           disabled={transitioning}
           onClick={() => handleTransition(tournament.id, 'REGISTRATION')}
         >
           <LoadingButtonContent loading={transitioning} loadingText="开启中…">
             开启报名
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       );
     }
     if (tournament.status === 'REGISTRATION') {
       return (
-        <Button
+        <NexusButton
           size="sm"
+          variant="primary"
           disabled={transitioning}
           onClick={() => handleTransition(tournament.id, 'ROSTER_LOCKED')}
         >
           <LoadingButtonContent loading={transitioning} loadingText="截止中…">
             截止报名
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       );
     }
     if (tournament.status === 'ROSTER_LOCKED') {
       return (
-        <Button
+        <NexusButton
           size="sm"
-          variant="outline"
           disabled={transitioning}
           onClick={() => handleTransition(tournament.id, 'REGISTRATION')}
         >
           <LoadingButtonContent loading={transitioning} loadingText="重开中…">
             重新开启报名
           </LoadingButtonContent>
-        </Button>
+        </NexusButton>
       );
     }
     return null;
   }
 
-  function statusVariant(status: Tournament['status']): 'default' | 'secondary' | 'outline' {
-    if (status === 'ARCHIVED') return 'secondary';
-    if (status === 'SETUP') return 'outline';
-    return 'default';
+  function statusChipVariant(status: Tournament['status']): 'default' | 'ac' | 'good' {
+    if (status === 'ARCHIVED') return 'default';
+    if (status === 'SETUP') return 'default';
+    return 'ac';
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">赛事管理</h1>
-
       {/* Create form */}
-      <form onSubmit={handleCreate} className="space-y-4 max-w-xl">
-        <div className="flex items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">赛事名</label>
-            <Input
-              value={name}
-              onChange={(e) => {
-                const v = e.target.value;
-                setName(v);
-                if (!tnameEdited) setTcfg((p) => ({ ...p, name: v }));
-              }}
-              placeholder="例：2025 Spring"
-              required
+      <Panel>
+        <PanelHead title="新建赛事 · CREATE" />
+        <form onSubmit={handleCreate} className="p-5 space-y-5 max-w-2xl">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+                赛事名
+              </label>
+              <Input
+                value={name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setName(v);
+                  if (!tnameEdited) setTcfg((p) => ({ ...p, name: v }));
+                }}
+                placeholder="例：2025 Spring"
+                required
+                className="bg-nexus-bg border-nexus-line text-nexus-ink placeholder:text-nexus-faint focus-visible:ring-nexus-accent w-56"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+                队伍预算
+              </label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={teamBudget}
+                onChange={(e) => setTeamBudget(e.target.value)}
+                placeholder="预算"
+                required
+                className="bg-nexus-bg border-nexus-line text-nexus-ink placeholder:text-nexus-faint focus-visible:ring-nexus-accent w-32"
+              />
+            </div>
+          </div>
+
+          {/* 赛事设置 */}
+          <div className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-4 space-y-3">
+            <Kicker>赛事设置 · TOURNAMENT CONFIG</Kicker>
+            <TournamentConfigForm
+              value={tcfg}
+              onChange={setTcfg}
+              onValidityChange={setTcfgValid}
+              showNameField
+              onNameUserEdit={() => setTnameEdited(true)}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">队伍预算</label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={teamBudget}
-              onChange={(e) => setTeamBudget(e.target.value)}
-              placeholder="预算"
-              required
-            />
-          </div>
-        </div>
 
-        {/* 赛事设置 */}
-        <div className="rounded-md border p-4 space-y-3">
-          <p className="text-sm font-medium">赛事设置</p>
-          <TournamentConfigForm
-            value={tcfg}
-            onChange={setTcfg}
-            onValidityChange={setTcfgValid}
-            showNameField
-            onNameUserEdit={() => setTnameEdited(true)}
-          />
-        </div>
-
-        <Button type="submit" disabled={submitting || !tcfgValid || !name.trim() || !teamBudget}>
-          <LoadingButtonContent loading={submitting} loadingText="创建中…">
-            新建赛事
-          </LoadingButtonContent>
-        </Button>
-      </form>
+          <NexusButton
+            variant="primary"
+            type="submit"
+            disabled={submitting || !tcfgValid || !name.trim() || !teamBudget}
+          >
+            <LoadingButtonContent loading={submitting} loadingText="创建中…">
+              新建赛事
+            </LoadingButtonContent>
+          </NexusButton>
+        </form>
+      </Panel>
 
       {/* Confirm dialog */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -239,30 +247,55 @@ export function TournamentManager({ initialTournaments }: Props) {
       </AlertDialog>
 
       {/* Tournaments table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>赛事名</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>预算</TableHead>
-            <TableHead>创建时间</TableHead>
-            <TableHead>操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {initialTournaments.map((t) => (
-            <TableRow key={t.id}>
-              <TableCell>{t.name}</TableCell>
-              <TableCell>
-                <Badge variant={statusVariant(t.status)}>{t.status}</Badge>
-              </TableCell>
-              <TableCell>{t.teamBudget}</TableCell>
-              <TableCell>{t.createdAt.toLocaleString('zh-CN')}</TableCell>
-              <TableCell>{t.status !== 'ARCHIVED' ? transitionButton(t) : null}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <Panel>
+        <PanelHead
+          title="赛事列表 · TOURNAMENTS"
+          actions={
+            <Readout className="text-[10px] text-nexus-faint">
+              {initialTournaments.length} 条记录
+            </Readout>
+          }
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                {['赛事名', '状态', '预算', '创建时间', '操作'].map((h) => (
+                  <th
+                    key={h}
+                    className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-nexus-faint font-semibold text-left px-4 py-3 border-b border-nexus-line"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {initialTournaments.map((t) => (
+                <tr key={t.id} className="hover:bg-nexus-panel-2/60 transition-colors">
+                  <td className="px-4 py-3 border-b border-nexus-line/40 font-body text-[13px] text-nexus-ink">
+                    {t.name}
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <Chip variant={statusChipVariant(t.status)}>{t.status}</Chip>
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <Readout className="text-[12px] text-nexus-accent">{t.teamBudget}</Readout>
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    <Readout className="text-[11px] text-nexus-faint">
+                      {t.createdAt.toLocaleString('zh-CN')}
+                    </Readout>
+                  </td>
+                  <td className="px-4 py-3 border-b border-nexus-line/40">
+                    {t.status !== 'ARCHIVED' ? transitionButton(t) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </div>
   );
 }

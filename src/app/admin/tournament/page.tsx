@@ -16,12 +16,10 @@ export default async function AdminTournamentPage() {
   const teamList = teams.map((t) => ({ id: t.id, name: t.name }));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <TournamentManager initialTournaments={tournaments} />
       {tournament && (
-        <div className="border-t pt-8">
-          <TournamentAdmin tournamentId={tournament.id} teams={teamList} />
-        </div>
+        <TournamentAdmin tournamentId={tournament.id} teams={teamList} />
       )}
     </div>
   );

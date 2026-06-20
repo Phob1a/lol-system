@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   Dialog,
@@ -15,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { GameDetailEditor } from './GameDetailEditor';
 import type { GameDetailInitial } from './GameDetailEditor';
+import Chip from '@/components/nexus/Chip';
+import NexusButton from '@/components/nexus/NexusButton';
 
 type MatchRef = {
   id: string;
@@ -194,50 +195,48 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-nexus-panel border-nexus-line">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="font-display text-nexus-ink">
               {teamA?.name ?? '？'} vs {teamB?.name ?? '？'}
             </DialogTitle>
             <DialogDescription className="sr-only">录入比赛结果</DialogDescription>
           </DialogHeader>
 
           {isFinished && winner && (
-            <Badge variant="secondary" className="w-fit">
+            <Chip variant="good" className="w-fit">
               已结束 · 胜者 {winner}
-            </Badge>
+            </Chip>
           )}
 
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">已录局数</p>
+          <div className="space-y-1.5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
+              已录局数
+            </p>
             {loadingGames ? (
-              <p className="text-sm text-muted-foreground">加载中…</p>
+              <p className="font-mono text-[11px] text-nexus-faint">加载中…</p>
             ) : games.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无录入</p>
+              <p className="font-mono text-[11px] text-nexus-faint">暂无录入</p>
             ) : (
-              <ul className="divide-y rounded-md border">
+              <ul className="divide-y divide-nexus-line/50 rounded-[var(--radius-nexus)] border border-nexus-line">
                 {games.map((g) => (
-                  <li key={g.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                    <span className="shrink-0">第 {g.index} 局</span>
-                    <span className="flex-1 text-muted-foreground">
+                  <li key={g.id} className="flex items-center gap-2 px-3 py-2">
+                    <span className="font-mono text-[12px] text-nexus-ink shrink-0">
+                      第 {g.index} 局
+                    </span>
+                    <span className="flex-1 font-mono text-[11px] text-nexus-dim">
                       {g.winnerTeamId ? `${teamName(g.winnerTeamId)} 胜` : '草稿中'}
                     </span>
-                    {/* Completeness badges */}
+                    {/* Completeness chips */}
                     <span className="flex shrink-0 gap-1">
-                      {g.isDraft && (
-                        <Badge variant="outline" className="text-xs">草稿</Badge>
-                      )}
-                      {g.hasBans && (
-                        <Badge variant="secondary" className="text-xs">BP</Badge>
-                      )}
-                      {g.hasStats && (
-                        <Badge variant="secondary" className="text-xs">数据</Badge>
-                      )}
+                      {g.isDraft && <Chip>草稿</Chip>}
+                      {g.hasBans && <Chip variant="ac">BP</Chip>}
+                      {g.hasStats && <Chip variant="ac">数据</Chip>}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 shrink-0 px-2 text-xs"
+                      className="h-6 shrink-0 px-2 text-xs text-nexus-accent hover:text-nexus-accent hover:bg-nexus-accent/10"
                       disabled={!editorMatch}
                       onClick={() => openDetailForGame(g)}
                     >
@@ -246,7 +245,7 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 shrink-0 text-destructive"
+                      className="h-6 w-6 shrink-0 text-nexus-bad hover:text-nexus-bad hover:bg-nexus-bad/10"
                       disabled={deletingGameId === g.id}
                       onClick={() => void handleDeleteGame(g.id)}
                       aria-label={`删除第 ${g.index} 局`}
@@ -261,41 +260,40 @@ export function ScoreDialog({ match, open, onClose, refetch }: Props) {
 
           <div className="flex flex-wrap gap-2">
             {teamA && (
-              <Button
+              <NexusButton
                 className="flex-1"
-                variant={isFinished ? 'outline' : 'default'}
+                variant={isFinished ? 'default' : 'primary'}
                 disabled={recordingTeamId !== null}
                 onClick={() => void handleRecord(teamA.id)}
               >
                 <LoadingButtonContent loading={recordingTeamId === teamA.id} loadingText="录入中…">
                   {teamA.name} 胜
                 </LoadingButtonContent>
-              </Button>
+              </NexusButton>
             )}
             {teamB && (
-              <Button
+              <NexusButton
                 className="flex-1"
-                variant={isFinished ? 'outline' : 'default'}
+                variant={isFinished ? 'default' : 'primary'}
                 disabled={recordingTeamId !== null}
                 onClick={() => void handleRecord(teamB.id)}
               >
                 <LoadingButtonContent loading={recordingTeamId === teamB.id} loadingText="录入中…">
                   {teamB.name} 胜
                 </LoadingButtonContent>
-              </Button>
+              </NexusButton>
             )}
           </div>
 
-          <div className="border-t pt-2">
-            <Button
-              variant="outline"
+          <div className="border-t border-nexus-line/60 pt-2">
+            <NexusButton
               size="sm"
               className="w-full"
               disabled={!editorMatch}
               onClick={openDetailForNew}
             >
               + 详细录入一局
-            </Button>
+            </NexusButton>
           </div>
         </DialogContent>
       </Dialog>

@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { TournamentConfigForm, type TournamentConfigValue } from './TournamentConfigForm';
 import type { AdminState } from '@/hooks/useTournamentState';
 import { BUDGET_EDITABLE_STATUSES } from '@/lib/tournament/tournament-service';
+import Kicker from '@/components/nexus/Kicker';
+import NexusButton from '@/components/nexus/NexusButton';
 
 type Props = {
   tournamentId: string;
@@ -185,60 +186,62 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
     }
 
     return (
-      <div className="space-y-6 pt-4">
+      <div className="space-y-6">
         {/* 当前赛事摘要 */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold">当前赛事</h2>
-          <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-1">
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">名称</span>
-              <span>{t.name}</span>
+        <div className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-4 space-y-2">
+          <Kicker className="mb-2">当前赛事 · CURRENT</Kicker>
+          {[
+            { k: '名称', v: t.name },
+            { k: '类型', v: t.kind },
+            { k: '状态', v: t.status },
+          ].map(({ k, v }) => (
+            <div key={k} className="flex gap-3 items-baseline">
+              <span className="w-16 shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-nexus-faint">
+                {k}
+              </span>
+              <span className="font-body text-[13px] text-nexus-ink">{v}</span>
             </div>
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">类型</span>
-              <span>{t.kind}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">状态</span>
-              <span>{t.status}</span>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* 队伍总费用 */}
-        <div className="space-y-4 max-w-xl rounded-md border p-4">
+        <div className="space-y-4 max-w-xl rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-4">
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold">队伍总费用</h2>
-            <p className="text-xs text-muted-foreground">
+            <Kicker>队伍总费用 · BUDGET</Kicker>
+            <p className="font-mono text-[11px] text-nexus-dim mt-1">
               每支队伍的初始预算。选秀开始后该值会被锁定，因为各队剩余预算已基于它计算。
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="team-budget" className="text-xs text-muted-foreground">
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="team-budget"
+                className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint"
+              >
                 队伍总费用
               </label>
               <Input
                 id="team-budget"
                 type="text"
                 inputMode="decimal"
-                className="w-48"
+                className="w-48 bg-nexus-bg border-nexus-line text-nexus-ink placeholder:text-nexus-faint focus-visible:ring-nexus-accent"
                 value={currentBudgetValue}
                 onChange={(e) => setBudgetValue(e.target.value)}
                 disabled={!budgetEditable || savingBudget}
               />
             </div>
-            <Button
+            <NexusButton
+              variant={budgetEditable && budgetDirty ? 'primary' : 'default'}
               disabled={!budgetEditable || savingBudget || !budgetDirty}
               onClick={() => void handleSaveBudget()}
             >
               <LoadingButtonContent loading={savingBudget} loadingText="保存中…">
                 保存队伍总费用
               </LoadingButtonContent>
-            </Button>
+            </NexusButton>
           </div>
           {!budgetEditable && (
-            <p className="text-xs text-amber-600">
+            <p className="font-mono text-[11px] text-nexus-hot">
               队伍预算已锁定（{t.status}），无法修改。
             </p>
           )}
@@ -247,7 +250,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
         {/* 修改配置表单（FINISHED 时隐藏） */}
         {!isFinished && (
           <div className="space-y-4 max-w-xl">
-            <h2 className="text-sm font-semibold">修改配置</h2>
+            <Kicker>修改配置 · EDIT CONFIG</Kicker>
             <TournamentConfigForm
               value={currentEditValue}
               onChange={(v) => setEditValue(v)}
@@ -255,33 +258,34 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               showNameField
               showStructure={isConfigEditable}
             />
-            <Button
+            <NexusButton
+              variant={editValid && !saving ? 'primary' : 'default'}
               disabled={!editValid || saving}
               onClick={() => void handleSaveConfig()}
             >
               <LoadingButtonContent loading={saving} loadingText="保存中…">
                 保存配置
               </LoadingButtonContent>
-            </Button>
+            </NexusButton>
           </div>
         )}
 
         {/* 危险区 */}
-        <div className="space-y-2 rounded-md border border-destructive/40 p-4">
-          <p className="text-sm font-semibold text-destructive">危险区</p>
-          <p className="text-xs text-muted-foreground">
+        <div className="space-y-2 rounded-[var(--radius-nexus)] border border-nexus-bad/40 bg-nexus-bad/5 p-4">
+          <Kicker className="text-nexus-bad">危险区 · DANGER ZONE</Kicker>
+          <p className="font-mono text-[11px] text-nexus-dim">
             重置赛事将清空全部比赛、分组及比分数据，回到设置状态，且不可恢复。
           </p>
-          <Button
-            variant="destructive"
+          <NexusButton
             size="sm"
+            className="border-nexus-bad/50 text-nexus-bad hover:border-nexus-bad hover:text-nexus-bad"
             disabled={resetting}
             onClick={() => void handleReset()}
           >
             <LoadingButtonContent loading={resetting} loadingText="重置中…">
               重置赛事
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         </div>
       </div>
     );
@@ -316,7 +320,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
   }
 
   return (
-    <div className="space-y-6 pt-4 max-w-xl">
+    <div className="space-y-6 max-w-xl">
       <TournamentConfigForm
         value={createValue}
         onChange={setCreateValue}
@@ -325,14 +329,15 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
         showStructure
       />
 
-      <Button
+      <NexusButton
+        variant={createValid && !creating ? 'primary' : 'default'}
         disabled={!createValid || creating}
         onClick={() => void handleCreate()}
       >
         <LoadingButtonContent loading={creating} loadingText="创建中…">
           创建赛事
         </LoadingButtonContent>
-      </Button>
+      </NexusButton>
     </div>
   );
 }
