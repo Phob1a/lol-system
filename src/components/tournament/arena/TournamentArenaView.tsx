@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ArenaAtmosphere } from '@/components/public-arena';
 import type { PublicState } from '@/hooks/useTournamentState';
 import {
   getArenaStats,
@@ -26,7 +27,8 @@ export function TournamentArenaView({ state, loaded }: TournamentArenaViewProps)
   if (!loaded) {
     return (
       <div className="arena-console relative -mx-4 -my-6 flex items-center justify-center px-4 py-24 md:-mx-8">
-        <div className="arena-panel arena-corner w-full max-w-md p-6 text-center">
+        <ArenaAtmosphere />
+        <div className="arena-panel arena-corner relative z-10 w-full max-w-md p-6 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
             PUBLIC ARENA
           </p>
@@ -39,7 +41,8 @@ export function TournamentArenaView({ state, loaded }: TournamentArenaViewProps)
   if (!state) {
     return (
       <div className="arena-console relative -mx-4 -my-6 flex items-center justify-center px-4 py-24 md:-mx-8">
-        <div className="arena-panel arena-corner w-full max-w-lg p-6 text-center">
+        <ArenaAtmosphere />
+        <div className="arena-panel arena-corner relative z-10 w-full max-w-lg p-6 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
             SYSTEM STANDBY
           </p>
@@ -65,6 +68,7 @@ export function TournamentArenaView({ state, loaded }: TournamentArenaViewProps)
 
   return (
     <div className="arena-console relative -mx-4 -my-6 md:-mx-8">
+      <ArenaAtmosphere />
       <ArenaHud tournament={state.tournament} stats={stats} nextMatch={nextMatch} />
       <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 md:px-8 md:py-8">
         <ArenaHero headline={headline} stats={stats} />

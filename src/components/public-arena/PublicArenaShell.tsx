@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { ArenaAtmosphere } from './ArenaAtmosphere';
 
 type PublicArenaShellProps = {
   children: ReactNode;
@@ -18,6 +19,7 @@ export function PublicArenaShell({
 }: PublicArenaShellProps) {
   return (
     <div className={cn('arena-console relative', bleed && '-mx-4 -my-6 md:-mx-8', className)}>
+      <ArenaAtmosphere />
       {hud}
       <main
         className={cn(
