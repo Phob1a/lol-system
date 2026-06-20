@@ -2,71 +2,82 @@
 
 import type { RegistrationRef } from '@/lib/teams/preview';
 import { formatCost } from '@/lib/costs';
-import { cn } from '@/lib/utils';
+import { PosPip, type Position } from '@/components/nexus/PosPip';
 
-/** Abbreviation letter for a position value */
-const POS_LETTER: Record<string, string> = {
-  TOP: 'T',
-  JG: 'J',
-  JUNGLE: 'J',
-  MID: 'M',
-  ADC: 'A',
-  SUP: 'S',
-  SUPPORT: 'S',
+/**
+ * Normalize a stored position value to the canonical PosPip code.
+ * Tolerates legacy short codes (JG / SUP) alongside the Prisma enum.
+ */
+const POS_NORMALIZE: Record<string, Position> = {
+  TOP: 'TOP',
+  JG: 'JUNGLE',
+  JUNGLE: 'JUNGLE',
+  MID: 'MID',
+  ADC: 'ADC',
+  SUP: 'SUPPORT',
+  SUPPORT: 'SUPPORT',
 };
 
-function PosChip({ pos, filled }: { pos: string; filled?: boolean }) {
-  const letter = POS_LETTER[pos] ?? pos[0];
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center justify-center w-5 h-5 shrink-0 rounded-sm border text-[10px] font-bold',
-        filled
-          ? 'bg-primary border-primary text-primary-foreground'
-          : 'bg-transparent border-border text-muted-foreground',
-      )}
-    >
-      {letter}
-    </span>
-  );
+function normalizePos(pos: string): Position | null {
+  return POS_NORMALIZE[pos] ?? null;
 }
 
+/** NEXUS player mini-file — dark surface, accent cost, PosPip lane glyphs. */
 export function PlayerInfoCard({ player }: { player: RegistrationRef }) {
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2.5">
+    <div
+      className="w-[260px] space-y-2.5 rounded-[var(--radius-nexus)] border border-nexus-line p-3"
+      style={{
+        background: 'rgb(var(--panel))',
+        boxShadow: '0 8px 28px rgb(0 0 0 / 0.5)',
+      }}
+    >
       {/* Header: name + cost */}
-      <div className="flex justify-between items-start gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{player.nickname}</p>
-          <p className="text-xs text-muted-foreground">@{player.gameId}</p>
+          <p className="truncate font-display text-sm font-semibold text-nexus-ink">
+            {player.nickname}
+          </p>
+          <p className="font-mono text-[10px] text-nexus-faint truncate">@{player.gameId}</p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide">COST</p>
-          <p className="text-base font-semibold text-foreground leading-tight">
+        <div className="shrink-0 text-right leading-tight">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
+            COST
+          </p>
+          <p
+            className="font-mono tabular-nums text-base font-semibold"
+            style={{ color: 'rgb(var(--accent-n))' }}
+          >
             {formatCost(player.cost)}
-            <span className="text-[9px] text-muted-foreground ml-0.5">CR</span>
+            <span className="ml-0.5 font-mono text-[9px] text-nexus-faint">CR</span>
           </p>
         </div>
       </div>
 
       {/* Primary positions */}
       <div>
-        <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide mb-1">PRIMARY</p>
-        <div className="flex gap-1 flex-wrap">
-          {player.primaryPositions.map((p) => (
-            <PosChip key={`p-${p}`} pos={p} filled />
-          ))}
+        <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
+          PRIMARY
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {player.primaryPositions.map((p) => {
+            const pos = normalizePos(p);
+            return pos ? <PosPip key={`p-${p}`} pos={pos} on size={24} /> : null;
+          })}
         </div>
       </div>
 
       {/* Secondary positions */}
       {player.secondaryPositions.length > 0 && (
         <div>
-          <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wide mb-1">SECONDARY</p>
-          <div className="flex gap-1 flex-wrap">
-            {player.secondaryPositions.map((p) => (
-              <PosChip key={`s-${p}`} pos={p} />
-            ))}
+          <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
+            SECONDARY
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {player.secondaryPositions.map((p) => {
+              const pos = normalizePos(p);
+              return pos ? <PosPip key={`s-${p}`} pos={pos} size={24} /> : null;
+            })}
           </div>
         </div>
       )}
