@@ -276,7 +276,7 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
                   bodies={orreryBodies}
                   size={300}
                   onBody={(teamId) =>
-                    router.push(`/tournament?team=${encodeURIComponent(teamId)}`)
+                    router.push(`/tournament/team/${encodeURIComponent(teamId)}`)
                   }
                 />
                 <div className="flex justify-around mt-2">

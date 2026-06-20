@@ -2,6 +2,8 @@
  *  Ported from docs/design/nexus/prototype/pubextra.jsx · ChampHeat.
  *  No chart library. Pure HTML/CSS. */
 
+import { ChampAvatar } from '@/components/nexus/ChampAvatar';
+
 export interface ChampHeatRow {
   name: string;
   games: number;
@@ -26,10 +28,6 @@ export interface ChampHeatProps {
  * - <45%  → bad (red)
  * Bars are proportional to `games` scaled against `max`.
  * All numbers use tabular-nums.
- *
- * Note: the prototype referenced a `<ChampAvatar>` inline image beside the
- * name — that sub-component is out of scope for this port; name only is
- * rendered here and the avatar slot can be added by the consuming screen.
  */
 export function ChampHeat({ rows, max }: ChampHeatProps) {
   const mx = max ?? Math.max(...rows.map((r) => r.games), 1);
@@ -63,6 +61,7 @@ export function ChampHeat({ rows, max }: ChampHeatProps) {
                 gap: 7,
               }}
             >
+              <ChampAvatar champion={r.name} size={20} />
               <span
                 style={{
                   fontSize: 12,

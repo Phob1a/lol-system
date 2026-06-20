@@ -28,10 +28,11 @@ import Kicker from '@/components/nexus/Kicker';
 // ─── Nav items (prototype NAV array, mapped to real routes) ────────────────────
 
 const NAV_ITEMS = [
-  { href: '/',           glyph: '◎', label: '观测总览', sub: 'OBSERVATORY'  },
-  { href: '/tournament', glyph: '⊞', label: '赛事中心', sub: 'MATCHES'      },
-  { href: '/live',       glyph: '◇', label: '选秀直播', sub: 'DRAFT · LIVE' },
-  { href: '/register',   glyph: '+', label: '报名注册', sub: 'ENLIST'       },
+  { href: '/',                glyph: '◎', label: '观测总览', sub: 'OBSERVATORY'  },
+  { href: '/tournament',      glyph: '⊞', label: '赛事中心', sub: 'MATCHES'      },
+  { href: '/tournament/data', glyph: '◈', label: '数据中心', sub: 'DATA CENTER'  },
+  { href: '/live',            glyph: '◇', label: '选秀直播', sub: 'DRAFT · LIVE' },
+  { href: '/register',        glyph: '+', label: '报名注册', sub: 'ENLIST'       },
 ] as const;
 
 // ─── Human-readable status map ────────────────────────────────────────────────
@@ -40,7 +41,8 @@ const STATUS_LABELS: Record<string, string> = {
   SETUP:         'SETUP',
   REGISTRATION:  'REGISTRATION',
   ROSTER_LOCKED: 'LOCKED',
-  DRAFT:         'DRAFT',
+  DRAFTING:      'DRAFT',
+  GROUPING:      '分组',
   GROUP_STAGE:   'GROUP STAGE',
   KNOCKOUT:      'KNOCKOUT',
   FINISHED:      'FINISHED',
@@ -48,7 +50,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /** Statuses that count as "live" (pulsing dot, HOT colour). */
-const LIVE_STATUSES = new Set(['DRAFT', 'GROUP_STAGE', 'KNOCKOUT']);
+const LIVE_STATUSES = new Set(['DRAFTING', 'GROUP_STAGE', 'KNOCKOUT']);
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
@@ -115,8 +117,12 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
   // ── Nav link renderer (shared between wide + narrow layouts) ─────────────────
 
   function NavItem({ href, glyph, label, sub }: (typeof NAV_ITEMS)[number]) {
+    // Exact match for '/' and '/tournament' (avoid highlighting /tournament
+    // when the user is on /tournament/data or other sub-routes with their own nav entry).
     const active =
-      href === '/' ? pathname === '/' : pathname.startsWith(href);
+      href === '/' || href === '/tournament'
+        ? pathname === href
+        : pathname.startsWith(href);
     const isLiveRoute = href === '/live';
 
     return (
@@ -311,8 +317,8 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
         >
           {NAV_ITEMS.map((item) => {
             const active =
-              item.href === '/'
-                ? pathname === '/'
+              item.href === '/' || item.href === '/tournament'
+                ? pathname === item.href
                 : pathname.startsWith(item.href);
             const isLiveRoute = item.href === '/live';
             return (
