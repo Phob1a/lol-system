@@ -1,0 +1,353 @@
+/*
+ * nexus.css — NEXUS UI component structural CSS.
+ *
+ * This file owns pseudo-element decoration and structural rules that Tailwind
+ * utility classes cannot express (clip-path, ::before/::after keyed by
+ * [data-style], scanline overlays, corner-tick registration marks, sweep
+ * animations, etc.).
+ *
+ * IMPORT ONCE — imported by Panel.tsx; do not import again elsewhere:
+ *   import '@/components/nexus/nexus.css';
+ *
+ * Color / spacing are handled via Tailwind nexus-* tokens in each component.
+ * Motion is gated behind @media (prefers-reduced-motion: no-preference).
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Panel  (.nexus-panel)
+   COMMAND  — 2px radius, top-right corner registration tick
+   CELESTIAL — 4px radius, soft inset highlight
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* COMMAND: corner registration tick (top-right) on non-glow panels */
+[data-style="command"] .nexus-panel:not(.nexus-panel-glow)::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid rgb(var(--accent-n) / 0.45);
+  border-right: 1.5px solid rgb(var(--accent-n) / 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* COMMAND: glow variant — luminous top rail */
+[data-style="command"] .nexus-panel-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--accent-n)),
+    rgb(var(--accent-n2)),
+    transparent
+  );
+  opacity: 0.85;
+  z-index: 1;
+}
+
+/* COMMAND: glow variant — slow scan drift */
+[data-style="command"] .nexus-panel-glow::after {
+  content: '';
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: -32%;
+  height: 30%;
+  background: linear-gradient(
+    rgb(var(--accent-n) / 0),
+    rgb(var(--accent-n) / 0.07),
+    rgb(var(--accent-n) / 0)
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* glow panels breathe + scan drift (motion-gated) */
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="command"] .nexus-panel-glow::after {
+    animation: nexusCmdScan 6s linear infinite;
+  }
+  [data-style="command"] .nexus-panel-glow {
+    animation: nexusCmdBreath 3.6s ease-in-out infinite;
+  }
+}
+
+@keyframes nexusCmdScan {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(520%); }
+}
+
+@keyframes nexusCmdBreath {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgb(var(--accent-n) / 0.18),
+                0 0 30px rgb(var(--accent-n) / 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgb(var(--accent-n) / 0.34),
+                0 0 50px rgb(var(--accent-n) / 0.36);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Frame  (.nexus-frame)
+   COMMAND  — bracket-corner pseudo-elements (4 corners via ::before + ::after)
+   CELESTIAL — plain border, 4px radius (no pseudo decoration needed)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-frame::before,
+[data-style="command"] .nexus-frame::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 13px;
+  pointer-events: none;
+  --ac: rgb(var(--accent-n));
+}
+
+[data-style="command"] .nexus-frame::before {
+  top: 0;
+  background:
+    linear-gradient(var(--ac), var(--ac)) left top  / 13px 2px  no-repeat,
+    linear-gradient(var(--ac), var(--ac)) left top  / 2px  13px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right top / 13px 2px  no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right top / 2px  13px no-repeat;
+}
+
+[data-style="command"] .nexus-frame::after {
+  bottom: 0;
+  background:
+    linear-gradient(var(--ac), var(--ac)) left  bottom / 13px 2px  no-repeat,
+    linear-gradient(var(--ac), var(--ac)) left  bottom / 2px  13px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right bottom / 13px 2px  no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right bottom / 2px  13px no-repeat;
+}
+
+/* bracket corners pulse (motion-gated) */
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="command"] .nexus-frame::before,
+  [data-style="command"] .nexus-frame::after {
+    animation: nexusCmdBracket 2.8s ease-in-out infinite;
+  }
+  @keyframes nexusCmdBracket {
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 1; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Scanline veil  (.nexus-scan)
+   COMMAND only — faint CRT horizontal lines over the element
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-scan::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent       0 2px,
+    rgb(0 0 0 / 0.14) 2px 3px
+  );
+  opacity: 0.45;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tile / DTile  (.nexus-tile, .nexus-dtile)
+   COMMAND — corner registration tick (top-right), lift on hover
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-tile::after,
+[data-style="command"] .nexus-dtile::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-top:   1.5px solid rgb(var(--accent-n) / 0.7);
+  border-right: 1.5px solid rgb(var(--accent-n) / 0.7);
+}
+
+[data-style="command"] .nexus-tile,
+[data-style="command"] .nexus-dtile {
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+[data-style="command"] .nexus-tile:hover,
+[data-style="command"] .nexus-dtile:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--accent-n) / 0.5);
+  box-shadow: 0 8px 22px -6px rgb(var(--accent-n) / 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Chip  (.nexus-chip)
+   COMMAND — inset glow for accent/hot variants
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-chip-ac {
+  box-shadow: inset 0 0 12px rgb(var(--accent-n) / 0.12);
+}
+
+[data-style="command"] .nexus-chip-hot {
+  box-shadow: inset 0 0 12px rgb(var(--hot) / 0.14);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Live dot  (.nexus-live-dot)
+   COMMAND — pulse is orange/hot; CELESTIAL — pulse stays --good green
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.nexus-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* celestial: green pulse */
+[data-style="celestial"] .nexus-live-dot {
+  background: rgb(var(--good));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="celestial"] .nexus-live-dot {
+    animation: nexusGoodPulse 1.7s infinite;
+  }
+  @keyframes nexusGoodPulse {
+    0%   { box-shadow: 0 0 0 0   rgb(var(--good) / 0.5); }
+    70%  { box-shadow: 0 0 0 6px rgb(var(--good) / 0); }
+    100% { box-shadow: 0 0 0 0   rgb(var(--good) / 0); }
+  }
+}
+
+/* command: orange/hot pulse */
+[data-style="command"] .nexus-live-dot {
+  background: rgb(var(--hot));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="command"] .nexus-live-dot {
+    animation: nexusHotPulse 1.7s infinite;
+  }
+  @keyframes nexusHotPulse {
+    0% {
+      box-shadow: 0 0 0 0   rgb(var(--hot) / 0.55),
+                  0 0 6px   rgb(var(--hot) / 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 6px rgb(var(--hot) / 0),
+                  0 0 6px   rgb(var(--hot) / 0.7);
+    }
+    100% {
+      box-shadow: 0 0 0 0   rgb(var(--hot) / 0);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NexusButton  (.nexus-btn)
+   COMMAND — 8px corner clip-path + hover light-sweep ::after
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-btn {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+[data-style="command"] .nexus-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--accent-n) / 0.22),
+    transparent
+  );
+  transform: translateX(-120%);
+  transition: transform 0.55s ease;
+  pointer-events: none;
+}
+
+[data-style="command"] .nexus-btn:hover::after {
+  transform: translateX(120%);
+}
+
+/* primary: slightly larger clip */
+[data-style="command"] .nexus-btn-primary {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 9px) 0,
+    100% 9px,
+    100% 100%,
+    9px 100%,
+    0 calc(100% - 9px)
+  );
+}
+
+/* primary pulse animation (motion-gated) */
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="command"] .nexus-btn-primary {
+    animation: nexusBtnPulse 2.8s ease-in-out infinite;
+  }
+  @keyframes nexusBtnPulse {
+    0%, 100% { box-shadow: 0 0 16px rgb(var(--accent-n) / 0.4); }
+    50%       { box-shadow: 0 0 28px rgb(var(--accent-n) / 0.62); }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Readout serial  (.nexus-serial)
+   COMMAND — phosphor glow on numeric readouts
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-serial {
+  text-shadow: 0 0 18px rgb(var(--accent-n) / 0.55),
+               0 0  2px rgb(var(--accent-n) / 0.4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-style="command"] .nexus-serial {
+    animation: nexusCmdSerial 3.2s ease-in-out infinite;
+  }
+  @keyframes nexusCmdSerial {
+    0%, 100% {
+      text-shadow: 0 0 18px rgb(var(--accent-n) / 0.5),
+                   0 0  2px rgb(var(--accent-n) / 0.4);
+    }
+    50% {
+      text-shadow: 0 0 30px rgb(var(--accent-n) / 0.8),
+                   0 0  4px rgb(var(--accent-n) / 0.6);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Field  (.nexus-field)
+   COMMAND — brighter focus ring + outer glow
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-style="command"] .nexus-field:focus {
+  box-shadow: 0 0 0  3px rgb(var(--accent-n) / 0.18),
+              0 0 16px   rgb(var(--accent-n) / 0.18);
+}

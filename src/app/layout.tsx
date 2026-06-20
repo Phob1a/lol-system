@@ -10,6 +10,10 @@ import {
 } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import './globals.css';
+// NEXUS component structural CSS — imported once here so primitive structural
+// rules (corner ticks, scanlines, clip-paths, motion) apply app-wide even when
+// no nexus component is mounted on a given route.
+import '@/components/nexus/nexus.css';
 
 // ── NEXUS Phase-0 fonts ──────────────────────────────────────────────────────
 const saira = Saira({
