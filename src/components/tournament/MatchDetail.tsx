@@ -13,6 +13,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import Panel from '@/components/nexus/Panel';
 import PanelHead from '@/components/nexus/PanelHead';
 import Chip from '@/components/nexus/Chip';
@@ -147,9 +148,11 @@ function CompareBar({ label, a, b }: CompareBarProps) {
 interface LineupTableProps {
   players: Player[];
   mvpRegistrationId: string | null;
+  /** Called when a player link is followed, so the drawer can close. */
+  onNavigate?: () => void;
 }
 
-function LineupTable({ players, mvpRegistrationId }: LineupTableProps) {
+function LineupTable({ players, mvpRegistrationId, onNavigate }: LineupTableProps) {
   if (players.length === 0) {
     return (
       <p className="text-nexus-faint text-[12px] py-4 px-4 text-center font-mono">
@@ -182,9 +185,19 @@ function LineupTable({ players, mvpRegistrationId }: LineupTableProps) {
               key={p.registrationId}
               style={{ background: isMvp ? 'rgb(var(--gold) / 0.08)' : 'transparent' }}
             >
-              {/* nickname */}
+              {/* nickname — links to the player profile when available */}
               <td className="px-[8px] py-[8px] border-b border-nexus-line/35 whitespace-nowrap">
-                <span className="text-[12.5px] font-body text-nexus-ink">{p.nickname}</span>
+                {p.playerId ? (
+                  <Link
+                    href={`/tournament/player/${p.playerId}`}
+                    onClick={onNavigate}
+                    className="text-[12.5px] font-body text-nexus-ink transition-colors hover:text-nexus-accent"
+                  >
+                    {p.nickname}
+                  </Link>
+                ) : (
+                  <span className="text-[12.5px] font-body text-nexus-ink">{p.nickname}</span>
+                )}
                 {isMvp && (
                   <span className="text-[11px] ml-[5px]" style={{ color: 'rgb(var(--gold))' }}>
                     ★MVP
@@ -234,9 +247,11 @@ interface GameTabProps {
   game: Game;
   teamA: { id: string; name: string } | null;
   teamB: { id: string; name: string } | null;
+  /** Forwarded to lineup player links so following one closes the drawer. */
+  onNavigate?: () => void;
 }
 
-function GameTab({ game, teamA, teamB }: GameTabProps) {
+function GameTab({ game, teamA, teamB, onNavigate }: GameTabProps) {
   const teamAId = teamA?.id ?? null;
   const teamBId = teamB?.id ?? null;
   const teamAName = teamA?.name ?? '待定';
@@ -316,7 +331,7 @@ function GameTab({ game, teamA, teamB }: GameTabProps) {
             style={{ background: 'rgb(var(--accent-n))' }}
           />
         </PanelHead>
-        <LineupTable players={aPlayers} mvpRegistrationId={game.mvpRegistrationId} />
+        <LineupTable players={aPlayers} mvpRegistrationId={game.mvpRegistrationId} onNavigate={onNavigate} />
       </Panel>
 
       {/* Team B lineup */}
@@ -336,7 +351,7 @@ function GameTab({ game, teamA, teamB }: GameTabProps) {
             style={{ background: 'rgb(var(--accent-n2))' }}
           />
         </PanelHead>
-        <LineupTable players={bPlayers} mvpRegistrationId={game.mvpRegistrationId} />
+        <LineupTable players={bPlayers} mvpRegistrationId={game.mvpRegistrationId} onNavigate={onNavigate} />
       </Panel>
     </div>
   );
@@ -687,6 +702,7 @@ export function MatchDrawer({ matchId, onClose }: MatchDrawerProps) {
                     game={detail.games[activeGame]}
                     teamA={detail.teamA}
                     teamB={detail.teamB}
+                    onNavigate={onClose}
                   />
                 )}
               </div>
