@@ -170,6 +170,44 @@
     color: var(--arena-text);
   }
 
+  .workspace-console table thead {
+    background-color: rgba(94, 231, 255, 0.06);
+  }
+
+  .workspace-console table tbody tr:hover {
+    background-color: rgba(94, 231, 255, 0.08);
+  }
+
+  .workspace-console [role='tablist'] {
+    border: 1px solid rgba(96, 211, 255, 0.2);
+    background-color: rgba(2, 8, 23, 0.45);
+  }
+
+  .workspace-console [role='tab'] {
+    color: rgba(203, 213, 225, 0.78);
+  }
+
+  .workspace-console [role='tab'][data-state='active'] {
+    background-color: rgba(94, 231, 255, 0.9);
+    color: #05111f;
+  }
+
+  .workspace-console [data-radix-collection-item],
+  .workspace-console button[role='combobox'] {
+    border-color: rgba(96, 211, 255, 0.28);
+  }
+
+  .workspace-console .bg-muted,
+  .workspace-console .bg-muted\/30,
+  .workspace-console .bg-muted\/50 {
+    background-color: rgba(94, 231, 255, 0.08);
+  }
+
+  .workspace-console .bg-secondary {
+    background-color: rgba(94, 231, 255, 0.14);
+    color: rgba(230, 246, 255, 0.95);
+  }
+
   .arena-form input,
   .arena-form textarea {
     border-color: rgba(96, 211, 255, 0.28);

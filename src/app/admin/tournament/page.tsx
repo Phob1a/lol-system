@@ -19,7 +19,7 @@ export default async function AdminTournamentPage() {
     <div className="space-y-8">
       <TournamentManager initialTournaments={tournaments} />
       {tournament && (
-        <div className="border-t pt-8">
+        <div className="border-t border-cyan-200/20 pt-8">
           <TournamentAdmin tournamentId={tournament.id} teams={teamList} />
         </div>
       )}

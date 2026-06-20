@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { ArenaPanel } from '@/components/public-arena';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,42 +56,44 @@ export default async function AuditPage() {
       {events.length === 0 ? (
         <p className="text-muted-foreground">暂无事件 · 启动选秀后将在此记录</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SEQ</TableHead>
-              <TableHead>TIMESTAMP</TableHead>
-              <TableHead>TYPE</TableHead>
-              <TableHead>ACTOR</TableHead>
-              <TableHead>PAYLOAD</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {events.map((e) => {
-              const actor = userById.get(e.actorId);
-              return (
-                <TableRow key={e.id}>
-                  <TableCell className="text-muted-foreground">#{e.seq}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">
-                    {new Date(e.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{EVENT_LABEL[e.type] ?? e.type}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {actor?.username ?? e.actorId.slice(0, 6)}
-                    {actor && (
-                      <span className="ml-1 text-muted-foreground">· {actor.role}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-xs truncate">
-                    {typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload ?? {})}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <ArenaPanel className="p-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>SEQ</TableHead>
+                <TableHead>TIMESTAMP</TableHead>
+                <TableHead>TYPE</TableHead>
+                <TableHead>ACTOR</TableHead>
+                <TableHead>PAYLOAD</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.map((e) => {
+                const actor = userById.get(e.actorId);
+                return (
+                  <TableRow key={e.id}>
+                    <TableCell className="text-muted-foreground">#{e.seq}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      {new Date(e.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{EVENT_LABEL[e.type] ?? e.type}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {actor?.username ?? e.actorId.slice(0, 6)}
+                      {actor && (
+                        <span className="ml-1 text-muted-foreground">· {actor.role}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-xs truncate">
+                      {typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload ?? {})}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </ArenaPanel>
       )}
     </div>
   );

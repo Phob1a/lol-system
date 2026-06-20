@@ -83,6 +83,10 @@ function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function sumStat(players: Player[], key: 'kills' | 'deaths' | 'assists' | 'cs' | 'damage' | 'gold') {
+  return players.reduce((sum, player) => sum + (player[key] ?? 0), 0);
+}
+
 function ChampionIcon({
   championId,
   championName,
@@ -215,8 +219,8 @@ function BpTimeline({
   if (game.bans.length === 0) return null;
 
   return (
-    <div className="mb-4">
-      <h4 className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wide">
+    <div className="mb-4 rounded border border-cyan-200/15 bg-slate-950/35 p-3">
+      <h4 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200/70">
         BP 时间线
       </h4>
       <div className="flex flex-wrap gap-2">
@@ -228,17 +232,17 @@ function BpTimeline({
           return (
             <div
               key={`${ban.order}-${ban.championId}`}
-              className={`flex flex-col items-center gap-1 p-1 rounded border text-xs ${
+              className={`flex min-w-16 flex-col items-center gap-1 rounded border p-2 text-xs ${
                 isBlue
-                  ? 'border-blue-400/50 bg-blue-500/10'
-                  : 'border-red-400/50 bg-red-500/10'
+                  ? 'border-blue-300/45 bg-blue-400/10'
+                  : 'border-rose-300/45 bg-rose-400/10'
               }`}
             >
               <span
                 className={`text-[10px] font-medium ${
                   isBlue
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-red-600 dark:text-red-400'
+                    ? 'text-blue-200'
+                    : 'text-rose-200'
                 }`}
               >
                 {isBan ? 'BAN' : 'PICK'} · 队{teamName}
@@ -290,18 +294,18 @@ function PlayersTable({
       game.winnerTeamId === (isBlue === teamAIsBlue ? teamAId : teamBId);
     return (
       <>
-        <TableRow className={isBlue ? 'bg-blue-500/5' : 'bg-red-500/5'}>
+        <TableRow className={isBlue ? 'bg-blue-400/10' : 'bg-rose-400/10'}>
           <TableHead
             colSpan={8}
-            className={`text-xs font-semibold py-1 ${
+            className={`py-1 text-xs font-semibold ${
               isBlue
-                ? 'text-blue-700 dark:text-blue-300'
-                : 'text-red-700 dark:text-red-300'
+                ? 'text-blue-200'
+                : 'text-rose-200'
             }`}
           >
             {isBlue ? '蓝方' : '红方'} · {teamName}
             {isWinner && (
-              <span className="ml-2 text-green-600 dark:text-green-400">胜</span>
+              <span className="ml-2 text-emerald-300">胜</span>
             )}
           </TableHead>
         </TableRow>
@@ -314,7 +318,7 @@ function PlayersTable({
                   {player.playerId ? (
                     <Link
                       href={`/tournament/player/${player.playerId}`}
-                      className="hover:underline"
+                    className="text-cyan-100 hover:text-white hover:underline"
                     >
                       {player.nickname}
                     </Link>
@@ -387,6 +391,55 @@ function PlayersTable({
   );
 }
 
+function GameStatStrip({
+  game,
+  teamAId,
+  teamBId,
+  teamAName,
+  teamBName,
+}: {
+  game: Game;
+  teamAId: string | null;
+  teamBId: string | null;
+  teamAName: string;
+  teamBName: string;
+}) {
+  const teamAPlayers = game.players.filter((p) => p.teamId === teamAId);
+  const teamBPlayers = game.players.filter((p) => p.teamId === teamBId);
+  const metrics = [
+    { label: '击杀', a: sumStat(teamAPlayers, 'kills'), b: sumStat(teamBPlayers, 'kills') },
+    { label: '助攻', a: sumStat(teamAPlayers, 'assists'), b: sumStat(teamBPlayers, 'assists') },
+    { label: '伤害', a: sumStat(teamAPlayers, 'damage'), b: sumStat(teamBPlayers, 'damage') },
+    { label: '金币', a: sumStat(teamAPlayers, 'gold'), b: sumStat(teamBPlayers, 'gold') },
+  ];
+
+  if (game.players.length === 0) return null;
+
+  return (
+    <div className="grid gap-3 md:grid-cols-4">
+      {metrics.map((metric) => {
+        const total = metric.a + metric.b;
+        const pct = total > 0 ? (metric.a / total) * 100 : 50;
+        return (
+          <div key={metric.label} className="rounded border border-cyan-200/15 bg-slate-950/35 p-3">
+            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/65">
+              <span>{metric.label}</span>
+              <span>{teamAName} / {teamBName}</span>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between gap-2 text-sm font-bold text-white">
+              <span>{metric.a.toLocaleString()}</span>
+              <span>{metric.b.toLocaleString()}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rose-300/35">
+              <div className="h-full bg-blue-300" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Single game panel
 // ---------------------------------------------------------------------------
@@ -412,14 +465,13 @@ function GamePanel({
     game.winnerTeamId !== null && game.winnerTeamId !== game.blueTeamId;
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4">
-      {/* Blue/Red team indicator bar */}
+    <ArenaPanel className="space-y-4 p-4">
       <div
         className="flex min-h-8 overflow-hidden rounded text-xs font-medium"
         aria-label={`第 ${game.index + 1} 局蓝红方`}
       >
         <div
-          className={`flex flex-1 items-center justify-center gap-1 bg-blue-500/20 px-2 text-blue-700 dark:text-blue-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 bg-blue-400/[0.18] px-2 text-blue-100 ${
             blueWon ? 'font-bold' : ''
           }`}
         >
@@ -427,7 +479,7 @@ function GamePanel({
           {blueWon ? <span aria-hidden="true">✓</span> : null}
         </div>
         <div
-          className={`flex flex-1 items-center justify-center gap-1 bg-red-500/20 px-2 text-red-700 dark:text-red-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 bg-rose-400/[0.18] px-2 text-rose-100 ${
             redWon ? 'font-bold' : ''
           }`}
         >
@@ -438,10 +490,18 @@ function GamePanel({
 
       {/* Duration */}
       {game.durationSeconds != null && (
-      <p className="text-xs font-medium text-slate-400">
+        <p className="text-xs font-medium text-slate-400">
           时长：{formatDuration(game.durationSeconds)}
         </p>
       )}
+
+      <GameStatStrip
+        game={game}
+        teamAId={teamAId}
+        teamBId={teamBId}
+        teamAName={teamAName}
+        teamBName={teamBName}
+      />
 
       {!hasDetail ? (
         <p className="text-sm text-slate-400 text-center py-4">仅记录胜负</p>
@@ -461,7 +521,7 @@ function GamePanel({
           </div>
         </>
       )}
-    </div>
+    </ArenaPanel>
   );
 }
 

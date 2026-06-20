@@ -81,7 +81,12 @@ export function TeamHoverCard({ team, disabled, children }: Props) {
   }
 
   useEffect(() => {
-    if (disabled) close();
+    if (!disabled) return;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setOpen(false);
   }, [disabled]);
 
   useLayoutEffect(() => {
@@ -133,28 +138,36 @@ export function TeamHoverCard({ team, disabled, children }: Props) {
 
 function TeamInfoCard({ team }: { team: TeamHoverSummary }) {
   const filledCount = team.slots.filter((slot) => slot.player !== null).length;
+  const budgetTotal = team.budgetLeft + team.slots.reduce((sum, slot) => sum + (slot.player?.cost ?? 0), 0);
+  const budgetPct = budgetTotal > 0 ? Math.max(0, Math.min(100, (team.budgetLeft / budgetTotal) * 100)) : 0;
 
   return (
-    <div className="w-[300px] rounded-lg border bg-card p-3 shadow-lg">
+    <div className="arena-panel arena-corner w-[320px] overflow-hidden p-3 text-slate-100">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-cyan-200/70">
             队伍详情
           </p>
-          <p className="truncate text-sm font-semibold text-foreground">
+          <p className="mt-1 truncate text-sm font-bold text-white">
             {team.captainNickname}
           </p>
-          <p className="text-xs text-muted-foreground">@{team.captainGameId}</p>
+          <p className="text-xs text-slate-400">@{team.captainGameId}</p>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="shrink-0 rounded border border-cyan-200/20 bg-cyan-200/10 px-2 py-1 text-right">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-cyan-100/70">
             剩余预算
           </p>
-          <p className="text-base font-semibold leading-tight text-foreground">
+          <p className="text-base font-black leading-tight text-white">
             {formatCost(team.budgetLeft)} CR
           </p>
-          <p className="text-[10px] text-muted-foreground">{filledCount}/5 已成型</p>
+          <p className="text-[10px] text-cyan-100/70">{filledCount}/5 已成型</p>
         </div>
+      </div>
+      <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-cyan-200 shadow-[0_0_18px_rgba(94,231,255,0.55)]"
+          style={{ width: `${budgetPct}%` }}
+        />
       </div>
 
       <div className="space-y-1">
@@ -163,27 +176,29 @@ function TeamInfoCard({ team }: { team: TeamHoverSummary }) {
             key={slot.position}
             className={cn(
               'grid items-center gap-2 rounded border px-2 py-1.5 text-xs',
-              slot.player ? 'border-border bg-muted/30' : 'border-border/70 bg-muted/10',
+              slot.player
+                ? 'border-cyan-200/20 bg-cyan-200/[0.08]'
+                : 'border-white/10 bg-white/[0.03]',
             )}
             style={{ gridTemplateColumns: '42px minmax(0,1fr) auto' }}
           >
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-cyan-200/65">
               {POSITION_LABEL[slot.position]}
             </span>
             {slot.player ? (
-              <span className="min-w-0 truncate font-medium text-foreground">
+              <span className="min-w-0 truncate font-medium text-white">
                 {slot.player.nickname}
-                <span className="ml-1.5 text-[9px] font-normal text-muted-foreground">
+                <span className="ml-1.5 text-[9px] font-normal text-slate-400">
                   @{slot.player.gameId}
                 </span>
               </span>
             ) : (
-              <span className="text-muted-foreground">空缺</span>
+              <span className="text-slate-500">空缺</span>
             )}
             <span
               className={cn(
                 'tabular-nums',
-                slot.player ? 'font-medium text-amber-600' : 'text-muted-foreground',
+                slot.player ? 'font-bold text-amber-100' : 'text-slate-500',
               )}
             >
               {slot.player ? `${formatCost(slot.player.cost)} CR` : '—'}
