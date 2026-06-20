@@ -82,7 +82,11 @@ export function LoginForm() {
         <p role="alert" aria-live="polite" className="text-sm text-destructive">{err}</p>
       )}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button
+        type="submit"
+        className="w-full border border-cyan-200/45 bg-cyan-200 text-slate-950 shadow-[0_0_28px_rgba(94,231,255,0.3)] hover:bg-cyan-100"
+        disabled={loading}
+      >
         <LoadingButtonContent loading={loading} loadingText="登录中…">
           登录
         </LoadingButtonContent>

@@ -1,7 +1,6 @@
-import Link from 'next/link';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { ArenaCta } from '@/components/public-arena';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
 export default function AccessDeniedPage() {
   return (
@@ -13,19 +12,19 @@ export default function AccessDeniedPage() {
           </Badge>
           <Badge variant="secondary">权限不足</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-slate-300">
           请使用具备相应权限的账户登录，例如管理员账号或队伍账号。
         </p>
-        <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <div className="font-mono text-[11px] uppercase text-muted-foreground/80">
+        <div className="rounded border border-cyan-200/20 bg-slate-950/35 px-3 py-2 text-xs text-slate-300">
+          <div className="font-mono text-[11px] uppercase text-cyan-100/70">
             err_code · ACCESS_DENIED
           </div>
           <p className="mt-1">如刚切换过系统版本，请先登出再重新登录。</p>
         </div>
       </div>
-      <Button asChild variant="outline" className="mt-4 w-full">
-        <Link href="/api/auth/signout">登出</Link>
-      </Button>
+      <ArenaCta href="/api/auth/signout" variant="ghost" className="mt-5 w-full">
+        登出
+      </ArenaCta>
     </AuthCard>
   );
 }

@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArenaPanel, PublicArenaShell } from '@/components/public-arena';
 
 export default function GlobalError({
   error,
@@ -18,26 +17,35 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>页面出错了</CardTitle>
-          <CardDescription>
-            {showDetails
-              ? error.message || '未知错误'
-              : '系统遇到异常，请稍后重试；如问题持续，请联系管理员。'}
-            {error.digest && (
-              <span className="ml-2 font-mono text-xs">digest: {error.digest}</span>
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-2">
-          <Button onClick={() => reset()}>重试</Button>
-          <Button variant="outline" onClick={() => (window.location.href = '/')}>
+    <PublicArenaShell className="min-h-screen" contentClassName="min-h-screen justify-center">
+      <ArenaPanel eyebrow="SYSTEM ERROR" title="页面出错了" className="mx-auto w-full max-w-md p-6">
+        <p className="text-sm leading-6 text-slate-300">
+          {showDetails
+            ? error.message || '未知错误'
+            : '系统遇到异常，请稍后重试；如问题持续，请联系管理员。'}
+          {error.digest && (
+            <span className="ml-2 font-mono text-xs text-cyan-100/70">
+              digest: {error.digest}
+            </span>
+          )}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => reset()}
+            className="rounded border border-cyan-200/45 bg-cyan-200 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_28px_rgba(94,231,255,0.35)] transition hover:translate-y-[-1px]"
+          >
+            重试
+          </button>
+          <button
+            type="button"
+            onClick={() => (window.location.href = '/')}
+            className="rounded border border-cyan-200/25 bg-cyan-200/5 px-4 py-2 text-sm font-semibold text-cyan-50 transition hover:translate-y-[-1px]"
+          >
             回到首页
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
+          </button>
+        </div>
+      </ArenaPanel>
+    </PublicArenaShell>
   );
 }

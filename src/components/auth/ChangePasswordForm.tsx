@@ -107,7 +107,11 @@ export function ChangePasswordForm() {
         />
       </div>
 
-      <Button type="submit" className="mt-2 w-full" disabled={submitting}>
+      <Button
+        type="submit"
+        className="mt-2 w-full border border-cyan-200/45 bg-cyan-200 text-slate-950 shadow-[0_0_28px_rgba(94,231,255,0.3)] hover:bg-cyan-100"
+        disabled={submitting}
+      >
         <LoadingButtonContent loading={submitting} loadingText="更新中…">
           更新密码
         </LoadingButtonContent>

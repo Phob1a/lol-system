@@ -10,7 +10,7 @@ export default async function ChangePasswordPage() {
   if (!session) redirect('/login');
 
   return (
-    <AuthCard title="修改密码" description="首次登录需修改初始密码">
+    <AuthCard title="安全凭证更新" description="首次登录需修改初始密码。">
       <ChangePasswordForm />
     </AuthCard>
   );

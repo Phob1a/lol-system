@@ -20,7 +20,7 @@ export default async function LoginPage() {
 
   return (
     <Suspense>
-      <AuthCard title="登录">
+      <AuthCard title="控制台登录" description="进入管理员或队长工作台。">
         <LoginForm />
       </AuthCard>
     </Suspense>

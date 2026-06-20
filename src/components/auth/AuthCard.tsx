@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArenaPanel, PublicArenaShell } from '@/components/public-arena';
 
 export function AuthCard({
   title,
@@ -13,20 +13,26 @@ export function AuthCard({
   centered?: boolean;
 }) {
   const card = (
-    <Card className="mx-auto w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <ArenaPanel
+      eyebrow="SECURE ACCESS"
+      title={title}
+      className="arena-form mx-auto w-full max-w-sm p-5 md:p-6"
+    >
+      {description ? (
+        <p className="mb-5 text-sm leading-6 text-slate-300">{description}</p>
+      ) : null}
+      {children}
+    </ArenaPanel>
   );
 
   if (!centered) return card;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+    <PublicArenaShell
+      className="min-h-screen"
+      contentClassName="min-h-screen justify-center py-10"
+    >
       {card}
-    </div>
+    </PublicArenaShell>
   );
 }
