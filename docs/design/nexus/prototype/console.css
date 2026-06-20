@@ -1,0 +1,280 @@
+/* LoL Ops Dashboard — Celestial Console / Command Deck.
+   Colors from CSS vars (theme.js). Layout utilities from Tailwind (Play CDN).
+   This file owns the "look": panels, frames, tiles, catalogue rows, textures, per-style structure. */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: rgb(var(--bg)); color: rgb(var(--ink));
+  font-family: var(--font-body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+#ops-root { min-height: 100vh; position: relative; z-index: 1; }
+
+/* backdrop textures */
+.ops-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+[data-style="celestial"] .ops-bg {
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgb(var(--accent) / 0.10), transparent 55%),
+    radial-gradient(100% 120% at 100% 120%, rgb(var(--accent) / 0.06), transparent 60%),
+    radial-gradient(rgb(var(--ink) / 0.018) 1px, transparent 1px) 0 0 / 3px 3px;
+}
+[data-style="command"] .ops-bg {
+  background:
+    linear-gradient(rgb(var(--line) / 0.45) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgb(var(--line) / 0.45) 1px, transparent 1px) 0 0 / 40px 40px,
+    repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.12) 3px 4px),
+    radial-gradient(90% 60% at 50% 0%, rgb(var(--accent) / 0.07), transparent 60%);
+  mask-image: radial-gradient(140% 110% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* typography helpers */
+.kicker { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgb(var(--faint)); white-space: nowrap; }
+.label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgb(var(--dim)); }
+.readout { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+.serif-i { font-family: var(--font-serif); font-style: italic; }
+.title-xl { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.92; }
+.accent-t { color: rgb(var(--accent)); }
+[data-style="command"] .serif-i { font-style: normal; }
+
+/* panels & frames */
+.panel { position: relative; background: rgb(var(--panel)); border: 1px solid rgb(var(--line)); }
+[data-style="celestial"] .panel { border-radius: 4px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03); }
+[data-style="command"] .panel { border-radius: 2px; }
+
+.glow { border-color: rgb(var(--accent) / 0.5); box-shadow: 0 0 0 1px rgb(var(--accent) / calc(var(--glow) * 0.18)), 0 0 30px rgb(var(--accent) / calc(var(--glow) * 0.22)); }
+
+/* command bracket-corner frame (4 corners via 2 pseudos) */
+.frame { position: relative; }
+[data-style="command"] .frame::before, [data-style="command"] .frame::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 13px; pointer-events: none;
+  --ac: rgb(var(--accent));
+}
+[data-style="command"] .frame::before {
+  top: 0;
+  background:
+    linear-gradient(var(--ac), var(--ac)) left top / 13px 2px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) left top / 2px 13px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right top / 13px 2px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right top / 2px 13px no-repeat;
+}
+[data-style="command"] .frame::after {
+  bottom: 0;
+  background:
+    linear-gradient(var(--ac), var(--ac)) left bottom / 13px 2px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) left bottom / 2px 13px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right bottom / 13px 2px no-repeat,
+    linear-gradient(var(--ac), var(--ac)) right bottom / 2px 13px no-repeat;
+}
+/* celestial uses a thin double rule instead of brackets */
+[data-style="celestial"] .frame { border: 1px solid rgb(var(--line)); border-radius: 4px; }
+[data-style="command"] .frame { border: 1px solid rgb(var(--line) / 0.6); border-radius: 2px; }
+
+/* scanline veil for command panels marked .scan */
+.scan { position: relative; overflow: hidden; }
+[data-style="command"] .scan::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 2px, rgb(0 0 0 / 0.14) 2px 3px); opacity: .45; }
+
+/* catalogue rows */
+.cat-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; cursor: pointer; border: none; background: transparent; border-bottom: 1px solid rgb(var(--line) / 0.45); transition: background .15s; }
+.cat-item:hover { background: rgb(var(--ink) / 0.035); }
+.cat-item.on { background: rgb(var(--accent) / 0.10); }
+[data-style="celestial"] .cat-item.on { box-shadow: inset 3px 0 0 rgb(var(--accent)); }
+[data-style="command"] .cat-item.on { box-shadow: inset 2px 0 0 rgb(var(--accent)); }
+.cat-glyph { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgb(var(--line)); color: rgb(var(--dim)); flex: none; }
+[data-style="celestial"] .cat-glyph { border-radius: 50%; font-family: var(--font-serif); font-style: italic; font-size: 16px; }
+[data-style="command"] .cat-glyph { clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); font-family: var(--font-mono); font-size: 12px; border-radius: 0; }
+.cat-item.on .cat-glyph { border-color: rgb(var(--accent)); color: rgb(var(--accent)); background: rgb(var(--accent) / 0.12); }
+
+/* stat tile */
+.tile { position: relative; display: flex; align-items: center; gap: 12px; padding: 13px 15px; background: rgb(var(--panel-2)); border: 1px solid rgb(var(--line)); }
+[data-style="celestial"] .tile { border-radius: 4px; }
+[data-style="command"] .tile { border-radius: 2px; }
+.tile-ico { width: 30px; height: 30px; display: grid; place-items: center; color: rgb(var(--accent)); flex: none; }
+
+/* right-panel step row */
+.step { display: grid; grid-template-columns: auto 1fr; gap: 11px; padding: 11px 0; border-bottom: 1px solid rgb(var(--line) / 0.4); }
+.step-radio { width: 16px; height: 16px; border: 1.5px solid rgb(var(--line)); border-radius: 50%; margin-top: 2px; flex: none; display: grid; place-items: center; cursor: pointer; }
+.step-radio.done { border-color: rgb(var(--accent)); }
+.step-radio.done::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--accent)); box-shadow: 0 0 8px rgb(var(--accent)); }
+
+/* chips / tags */
+.chip { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; height: 20px; padding: 0 7px; border: 1px solid rgb(var(--line)); color: rgb(var(--dim)); }
+[data-style="celestial"] .chip { border-radius: 3px; }
+[data-style="command"] .chip { border-radius: 2px; }
+.chip.ac { border-color: rgb(var(--accent) / 0.6); color: rgb(var(--accent)); }
+.chip.good { border-color: rgb(var(--good) / 0.6); color: rgb(var(--good)); }
+
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--good)); box-shadow: 0 0 0 0 rgb(var(--good) / 0.6); animation: opsPulse 1.7s infinite; }
+@keyframes opsPulse { 0% { box-shadow: 0 0 0 0 rgb(var(--good) / 0.5); } 70% { box-shadow: 0 0 0 6px rgb(var(--good) / 0); } 100% { box-shadow: 0 0 0 0 rgb(var(--good) / 0); } }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 15px; font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; border: 1px solid rgb(var(--line)); background: rgb(var(--panel-2)); color: rgb(var(--ink)); transition: all .15s; }
+[data-style="celestial"] .btn { border-radius: 4px; }
+[data-style="command"] .btn { border-radius: 2px; }
+.btn:hover { border-color: rgb(var(--accent) / 0.65); color: rgb(var(--accent)); }
+.btn-primary { background: rgb(var(--accent)); color: rgb(var(--bg)); border-color: transparent; box-shadow: 0 0 20px rgb(var(--accent) / calc(var(--glow) * 0.4)); }
+.btn-primary:hover { filter: brightness(1.08); color: rgb(var(--bg)); }
+.btn-sm { height: 28px; padding: 0 10px; font-size: 11px; }
+
+/* tabs */
+.tabbtn { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; padding: 9px 4px; cursor: pointer; border: none; background: transparent; color: rgb(var(--faint)); border-bottom: 2px solid transparent; transition: all .15s; }
+.tabbtn.on { color: rgb(var(--accent)); border-bottom-color: rgb(var(--accent)); }
+.tabbtn:hover { color: rgb(var(--dim)); }
+
+/* inputs */
+.field { width: 100%; font-family: var(--font-mono); font-size: 12.5px; color: rgb(var(--ink)); background: rgb(var(--bg)); border: 1px solid rgb(var(--line)); padding: 10px 12px; outline: none; resize: none; transition: border-color .15s, box-shadow .15s; }
+[data-style="celestial"] .field { border-radius: 4px; }
+[data-style="command"] .field { border-radius: 2px; }
+.field::placeholder { color: rgb(var(--faint)); }
+.field:focus { border-color: rgb(var(--accent)); box-shadow: 0 0 0 3px rgb(var(--accent) / 0.14); }
+
+.hr { height: 1px; background: rgb(var(--line)); border: 0; }
+
+/* scrollbars */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 99px; border: 2px solid rgb(var(--bg)); }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--faint)); }
+::selection { background: rgb(var(--accent) / 0.3); color: rgb(var(--ink)); }
+
+@keyframes opsIn { from { transform: translateY(8px); } to { transform: none; } }
+.ops-in { animation: opsIn .3s ease; }
+@media (prefers-reduced-motion: reduce) { .ops-in { animation: none; } }
+
+/* ======================================================================
+   COMMAND — deepened tactical HUD layer
+   ====================================================================== */
+
+/* cut-corner buttons with a sweeping accent wipe on hover */
+[data-style="command"] .btn { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); position: relative; overflow: hidden; }
+[data-style="command"] .btn::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(var(--accent) / 0.22), transparent); transform: translateX(-120%); transition: transform .55s ease; pointer-events: none; }
+[data-style="command"] .btn:hover::after { transform: translateX(120%); }
+[data-style="command"] .btn-primary { clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px)); }
+
+/* glow panels get a luminous top rail + slow scan drift */
+[data-style="command"] .panel.glow { overflow: hidden; }
+[data-style="command"] .panel.glow::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgb(var(--accent)), rgb(var(--accent-2)), transparent); opacity: .85; z-index: 1; }
+[data-style="command"] .panel.glow::after { content: ''; position: absolute; left: -10%; right: -10%; top: -32%; height: 30%; background: linear-gradient(rgb(var(--accent) / 0), rgb(var(--accent) / 0.07), rgb(var(--accent) / 0)); animation: cmdScan 6s linear infinite; pointer-events: none; z-index: 0; }
+@keyframes cmdScan { 0% { transform: translateY(0); } 100% { transform: translateY(520%); } }
+@media (prefers-reduced-motion: reduce) { [data-style="command"] .panel.glow::after { animation: none; display: none; } }
+
+/* corner registration ticks on stat tiles */
+[data-style="command"] .tile { overflow: hidden; }
+[data-style="command"] .tile::after { content: ''; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-top: 1.5px solid rgb(var(--accent) / 0.7); border-right: 1.5px solid rgb(var(--accent) / 0.7); }
+
+/* serial readout numbers get a faint phosphor glow */
+[data-style="command"] .serial { text-shadow: 0 0 18px rgb(var(--accent) / 0.55), 0 0 2px rgb(var(--accent) / 0.4); }
+
+/* active nav: dual-tone bar + hex glow */
+[data-style="command"] .navitem.on, [data-style="command"] .cat-item.on { background: linear-gradient(90deg, rgb(var(--accent) / 0.16), rgb(var(--accent) / 0.02)); }
+[data-style="command"] .cat-item.on .cat-glyph { box-shadow: 0 0 14px rgb(var(--accent) / 0.4); }
+
+/* sharper section dividers with end ticks (command) */
+[data-style="command"] .glow-rule { position: relative; background: linear-gradient(90deg, rgb(var(--accent) / 0.65), rgb(var(--accent) / 0.1)); }
+[data-style="command"] .glow-rule::before { content: ''; position: absolute; left: 0; top: -2px; width: 2px; height: 5px; background: rgb(var(--accent)); }
+
+/* chips: cut corner + uppercase tracking already set */
+[data-style="command"] .chip.ac { box-shadow: inset 0 0 12px rgb(var(--accent) / 0.12); }
+
+/* tabs: lit underline glow */
+[data-style="command"] .tabbtn.on { text-shadow: 0 0 12px rgb(var(--accent) / 0.5); }
+[data-style="command"] .tabbtn.on { border-bottom-width: 2px; box-shadow: 0 2px 8px -2px rgb(var(--accent) / 0.6); }
+
+/* focus field: brighter command ring */
+[data-style="command"] .field:focus { box-shadow: 0 0 0 3px rgb(var(--accent) / 0.18), 0 0 16px rgb(var(--accent) / 0.18); }
+
+/* ======================================================================
+   COMMAND — "cooler" motion layer (all gated for reduced-motion)
+   ====================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  /* glow panels breathe */
+  [data-style="command"] .panel.glow { animation: cmdBreath 3.6s ease-in-out infinite; }
+  @keyframes cmdBreath {
+    0%, 100% { box-shadow: 0 0 0 1px rgb(var(--accent) / 0.18), 0 0 30px rgb(var(--accent) / 0.18); }
+    50%      { box-shadow: 0 0 0 1px rgb(var(--accent) / 0.34), 0 0 50px rgb(var(--accent) / 0.36); }
+  }
+
+  /* bracket corners pulse */
+  [data-style="command"] .frame::before, [data-style="command"] .frame::after { animation: cmdBracket 2.8s ease-in-out infinite; }
+  @keyframes cmdBracket { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
+  /* the tactical grid slowly drifts */
+  [data-style="command"] .ops-bg { animation: cmdGridDrift 26s linear infinite; }
+  @keyframes cmdGridDrift {
+    from { background-position: 0 0, 0 0, 0 0, 0 0; }
+    to   { background-position: 40px 40px, 40px 40px, 0 0, 0 0; }
+  }
+
+  /* primary button pulses with energy */
+  [data-style="command"] .btn-primary { animation: cmdBtnPulse 2.8s ease-in-out infinite; }
+  @keyframes cmdBtnPulse {
+    0%, 100% { box-shadow: 0 0 16px rgb(var(--accent) / 0.4); }
+    50%      { box-shadow: 0 0 28px rgb(var(--accent) / 0.62); }
+  }
+
+  /* serial number phosphor pulse */
+  [data-style="command"] .serial { animation: cmdSerial 3.2s ease-in-out infinite; }
+  @keyframes cmdSerial {
+    0%, 100% { text-shadow: 0 0 18px rgb(var(--accent) / 0.5), 0 0 2px rgb(var(--accent) / 0.4); }
+    50%      { text-shadow: 0 0 30px rgb(var(--accent) / 0.8), 0 0 4px rgb(var(--accent) / 0.6); }
+  }
+
+  /* active nav glyph: orbiting sweep highlight */
+  [data-style="command"] .navitem.on { position: relative; overflow: hidden; }
+  [data-style="command"] .navitem.on::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -40%; background: linear-gradient(90deg, transparent, rgb(var(--accent) / 0.12), transparent); animation: cmdNavSweep 3.4s ease-in-out infinite; pointer-events: none; }
+  @keyframes cmdNavSweep { 0% { left: -40%; } 60%, 100% { left: 130%; } }
+}
+
+/* tiles lift + light up on hover (no motion dependency for the lift itself) */
+[data-style="command"] .tile { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+[data-style="command"] .tile:hover { transform: translateY(-2px); border-color: rgb(var(--accent) / 0.5); box-shadow: 0 8px 22px -6px rgb(var(--accent) / 0.4); }
+
+/* poolcard / lbrow already lift; give command an accent edge-light on hover */
+[data-style="command"] .poolcard:hover { box-shadow: 0 6px 18px rgb(0 0 0 / 0.3), 0 0 0 1px rgb(var(--accent) / 0.3); }
+
+/* cohesion pass: every command section panel gets a corner registration tick
+   (glow panels already carry their own top rail, so exclude them) */
+[data-style="command"] .panel:not(.glow)::before {
+  content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px;
+  border-top: 1.5px solid rgb(var(--accent) / 0.45); border-right: 1.5px solid rgb(var(--accent) / 0.45);
+  pointer-events: none; z-index: 1;
+}
+
+/* data tiles (.dtile) match the .tile tactical treatment on command */
+[data-style="command"] .dtile { overflow: hidden; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+[data-style="command"] .dtile::after { content: ''; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-top: 1.5px solid rgb(var(--accent) / 0.7); border-right: 1.5px solid rgb(var(--accent) / 0.7); }
+[data-style="command"] .dtile:hover { transform: translateY(-2px); border-color: rgb(var(--accent) / 0.5); box-shadow: 0 8px 22px -6px rgb(var(--accent) / 0.4); }
+
+/* selected rows / cards get an accent glow on command */
+[data-style="command"] .lbrow.on { box-shadow: inset 2px 0 0 rgb(var(--accent)), 0 0 18px -6px rgb(var(--accent) / 0.5); }
+[data-style="command"] .poolcard.on { box-shadow: 0 0 0 1px rgb(var(--accent) / 0.4), 0 0 18px -4px rgb(var(--accent) / 0.45); }
+
+/* table rows light up on hover (command) */
+[data-style="command"] .matchrow:hover { background: rgb(var(--accent) / 0.05); box-shadow: inset 2px 0 0 rgb(var(--accent) / 0.5); }
+
+/* hover-card + match drawer entrances */
+.hovercard-in { animation: hcIn .14s ease; }
+@keyframes hcIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.md-drawer { animation: mdIn .26s cubic-bezier(.22,.61,.36,1); }
+@keyframes mdIn { from { transform: translateX(36px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hovercard-in, .md-drawer { animation: none; } }
+
+/* clickable schedule rows show intent */
+.matchrow.clickable { cursor: pointer; }
+.matchrow .row-go { opacity: 0; transition: opacity .15s, transform .15s; color: rgb(var(--accent)); }
+.matchrow.clickable:hover .row-go { opacity: 1; transform: translateX(2px); }
+
+/* champion avatar tile: circle (celestial) / hexagon (command) */
+.champ-av { border-radius: 50%; overflow: hidden; }
+[data-style="command"] .champ-av { border-radius: 0; clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%); }
+
+/* ---- orange "energy" accent (HUD complementary), used sparingly on live/active bits ---- */
+.hot-t { color: rgb(var(--hot)); }
+[data-style="command"] .hot-t { text-shadow: 0 0 12px rgb(var(--hot) / 0.5); }
+.chip.hot { border-color: rgb(var(--hot) / 0.6); color: rgb(var(--hot)); }
+[data-style="command"] .chip.hot { box-shadow: inset 0 0 12px rgb(var(--hot) / 0.14); }
+/* live dots glow orange on command (urgency reads warmer than the cyan field) */
+[data-style="command"] .live-dot { background: rgb(var(--hot)); box-shadow: 0 0 0 0 rgb(var(--hot) / 0.6); animation: hotPulse 1.7s infinite; }
+@keyframes hotPulse { 0% { box-shadow: 0 0 0 0 rgb(var(--hot) / 0.55), 0 0 6px rgb(var(--hot) / 0.7); } 70% { box-shadow: 0 0 0 6px rgb(var(--hot) / 0), 0 0 6px rgb(var(--hot) / 0.7); } 100% { box-shadow: 0 0 0 0 rgb(var(--hot) / 0); } }
+/* command primary-button pulse already cyan; give the LIVE draft on-clock an orange edge */
+[data-style="command"] .hot-edge { box-shadow: inset 0 0 0 1px rgb(var(--hot) / 0.45), 0 0 22px -6px rgb(var(--hot) / 0.5); }
