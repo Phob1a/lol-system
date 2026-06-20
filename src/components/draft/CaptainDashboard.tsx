@@ -24,6 +24,11 @@ import {
 import { formatCost, normalizeCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
 import { resolveDraftPickDrop } from '@/lib/draft/drag-pick';
+import Panel from '@/components/nexus/Panel';
+import PanelHead from '@/components/nexus/PanelHead';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import LiveDot from '@/components/nexus/LiveDot';
 
 type Props = {
   initialSnapshot: DraftSnapshot;
@@ -173,172 +178,251 @@ export function CaptainDashboard({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
-      <header className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              'w-1 h-8 rounded-sm',
-              isMyTurn
-                ? 'bg-primary'
-                : running
-                ? 'bg-green-500'
-                : finished
-                ? 'bg-violet-500'
-                : 'bg-amber-500',
-            )}
-          />
-          <div>
-            <div className="text-lg font-bold tracking-wide text-foreground">
-              DRAFT <span className="text-muted-foreground">{'//'}</span> BAY
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {!running && !finished && (
-                <>STATUS NOT_STARTED · BUDGET {formatCost(teamBudget)} CR · {teamsToRender.length} TEAMS</>
-              )}
-              {running && (
-                <>
-                  STATUS IN_PROGRESS · ROUND {session?.currentRound ?? 0} · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS
-                </>
-              )}
-              {finished && <>STATUS FINISHED · {snapshot?.pickedRegistrationIds.length ?? 0} PICKS</>}
+      <div
+        className="flex h-full min-h-0 flex-col gap-3"
+        style={{ background: 'rgb(var(--panel))' }}
+      >
+        {/* ── Top bar ─────────────────────────────────────────────────────── */}
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {/* Status accent bar */}
+            <div
+              className="w-[3px] h-8 rounded-[var(--radius-nexus)]"
+              style={{
+                background: isMyTurn
+                  ? 'rgb(var(--accent-n))'
+                  : running
+                  ? 'rgb(var(--good))'
+                  : finished
+                  ? 'rgb(var(--accent-n2))'
+                  : 'rgb(var(--gold))',
+              }}
+            />
+            <div>
+              <div className="font-display font-bold text-[15px] tracking-wide text-nexus-ink">
+                DRAFT{' '}
+                <span className="text-nexus-faint">{'//'}</span>{' '}
+                BAY
+              </div>
+              <div className="font-mono text-[10px] tracking-[0.2em] text-nexus-faint mt-0.5">
+                {!running && !finished && (
+                  <>
+                    NOT_STARTED · BUDGET{' '}
+                    <span className="tabular-nums">{formatCost(teamBudget)}</span>{' '}
+                    CR · <span className="tabular-nums">{teamsToRender.length}</span>{' '}
+                    TEAMS
+                  </>
+                )}
+                {running && (
+                  <>
+                    IN_PROGRESS · ROUND{' '}
+                    <span className="tabular-nums">{session?.currentRound ?? 0}</span>{' '}
+                    · <span className="tabular-nums">{snapshot?.pickedRegistrationIds.length ?? 0}</span>{' '}
+                    PICKS
+                  </>
+                )}
+                {finished && (
+                  <>
+                    FINISHED · <span className="tabular-nums">{snapshot?.pickedRegistrationIds.length ?? 0}</span>{' '}
+                    PICKS
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-        <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
-          <span className={connected ? 'text-green-500' : 'text-amber-500'}>●</span>
-          {connected ? 'SSE_CONNECTED' : 'RECONNECTING'}
-        </span>
-      </header>
 
-      <div className="border-t" />
+          {/* Connection status */}
+          <div className="flex items-center gap-1.5">
+            {connected ? (
+              <LiveDot />
+            ) : (
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: 'rgb(var(--gold))' }}
+              />
+            )}
+            <Kicker>{connected ? 'SSE_CONNECTED' : 'RECONNECTING'}</Kicker>
+          </div>
+        </header>
 
-      {!running && !finished && (
-        <Banner variant="amber" label="SESSION_PENDING">
-          选秀未开始 · 当前为只读视图，等待管理员开启选秀
-        </Banner>
-      )}
-      {running && (
-        <Banner
-          variant={isMyTurn ? 'primary' : 'green'}
-          label={isMyTurn ? 'PRIORITY_ALERT · ON_CLOCK' : 'SESSION_LIVE'}
-          pulse={isMyTurn}
-        >
-          {isMyTurn ? (
-            <>
-              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {formatCost(myBudget)} CR · {myEmptySlots.length} 个空位
-            </>
-          ) : (
-            <>
-              选秀进行中 · 第 {session?.currentRound ?? 0} 轮
-              {onTheClockNick && <> · 当前出手：{onTheClockNick}</>}
-            </>
-          )}
-        </Banner>
-      )}
-      {finished && (
-        <Banner variant="violet" label="SESSION_COMPLETE">
-          ✓ 选秀已完成 · 最终阵容如下，可拖动调整己方位置
-        </Banner>
-      )}
-
-      <section>
-        <div className="text-xs font-semibold text-foreground mb-2">▸ TEAMS</div>
+        {/* Divider */}
         <div
-          className="grid gap-2.5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
-        >
-          {teamsToRender.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs text-muted-foreground border border-dashed rounded-md">
-              暂无战队
-            </div>
-          ) : (
-            teamsToRender.map((t) => {
-              const isOwn = t.captainId === ownCaptainId;
-              if (isOwn && ownLiveTeam) {
-                return (
-                  <DraggableTeamBoard
-                    key={ownLiveTeam.id}
-                    team={{
-                      id: ownLiveTeam.id,
-                      captainId: ownLiveTeam.captainId,
-                      captainGameId: ownLiveTeam.captainGameId,
-                      captainNickname: ownLiveTeam.captainNickname,
-                      budgetLeft: ownLiveTeam.budgetLeft,
-                      slots: ownLiveTeam.slots.map((s) => ({
-                        position: s.position,
-                        player: s.registration as RegistrationRef | null,
-                      })),
-                    }}
-                    seq={snapshot?.seq ?? 0}
-                    pickDropEnabled={isMyTurn}
-                    dndMode="external"
-                  />
-                );
-              }
-              return <TeamPanel key={t.captainId} team={t} isOwn={isOwn} />;
-            })
-          )}
-        </div>
-      </section>
-
-      <section>
-        <div className="text-xs font-semibold text-foreground mb-2">
-          ▸ POOL · {decoratedPool.length} CANDIDATES
-        </div>
-        <PlayerPool
-          players={decoratedPool}
-          getDragData={
-            isMyTurn
-              ? (p) => {
-                  if (!canPickPlayer(p)) return null;
-                  return { type: 'pool-player', playerId: p.id };
-                }
-              : undefined
-          }
-          onPickRequest={
-            isMyTurn
-              ? (p) => {
-                  const player = p as PickableRegistration;
-                  if (!canPickPlayer(player)) return;
-                  setPickTarget(player);
-                  setPickInitialPosition(undefined);
-                }
-              : undefined
-          }
+          className="h-px w-full"
+          style={{ background: 'rgb(var(--line) / 0.6)' }}
         />
-      </section>
 
-      {pickTarget && snapshot && (
-        <PickAction
-          open
-          onOpenChange={(o) => {
-            if (!o) {
+        {/* ── Status banner ───────────────────────────────────────────────── */}
+        {!running && !finished && (
+          <StatusBanner variant="amber" label="SESSION_PENDING">
+            选秀未开始 · 当前为只读视图，等待管理员开启选秀
+          </StatusBanner>
+        )}
+        {running && (
+          <StatusBanner
+            variant={isMyTurn ? 'accent' : 'good'}
+            label={isMyTurn ? 'PRIORITY_ALERT · ON_CLOCK' : 'SESSION_LIVE'}
+            pulse={isMyTurn}
+          >
+            {isMyTurn ? (
+              <>
+                <strong className="text-nexus-ink">现在轮到你出手</strong>
+                {' · '}第{' '}
+                <span className="tabular-nums">{session?.currentRound ?? 0}</span>{' '}
+                轮 · 剩余预算{' '}
+                <span className="tabular-nums">{formatCost(myBudget)}</span>{' '}
+                CR · <span className="tabular-nums">{myEmptySlots.length}</span>{' '}
+                个空位
+              </>
+            ) : (
+              <>
+                选秀进行中 · 第{' '}
+                <span className="tabular-nums">{session?.currentRound ?? 0}</span>{' '}
+                轮
+                {onTheClockNick && (
+                  <> · 当前出手：<span className="text-nexus-ink">{onTheClockNick}</span></>
+                )}
+              </>
+            )}
+          </StatusBanner>
+        )}
+        {finished && (
+          <StatusBanner variant="violet" label="SESSION_COMPLETE">
+            选秀已完成 · 最终阵容如下，可拖动调整己方位置
+          </StatusBanner>
+        )}
+
+        {/* ── Teams section ───────────────────────────────────────────────── */}
+        <section>
+          <Panel>
+            <PanelHead
+              title={
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-nexus-faint whitespace-nowrap">
+                  TEAMS{' '}
+                  <span className="tabular-nums" style={{ color: 'rgb(var(--dim))' }}>
+                    · {teamsToRender.length}
+                  </span>
+                </span>
+              }
+            />
+            <div className="p-3">
+              {teamsToRender.length === 0 ? (
+                <div
+                  className="py-8 text-center font-mono text-[11px] uppercase tracking-[0.2em] rounded-[var(--radius-nexus)] border border-dashed"
+                  style={{
+                    color: 'rgb(var(--faint))',
+                    borderColor: 'rgb(var(--line))',
+                    background: 'rgb(var(--panel-2))',
+                  }}
+                >
+                  暂无战队
+                </div>
+              ) : (
+                <div
+                  className="grid gap-2.5"
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
+                >
+                  {teamsToRender.map((t) => {
+                    const isOwn = t.captainId === ownCaptainId;
+                    if (isOwn && ownLiveTeam) {
+                      return (
+                        <DraggableTeamBoard
+                          key={ownLiveTeam.id}
+                          team={{
+                            id: ownLiveTeam.id,
+                            captainId: ownLiveTeam.captainId,
+                            captainGameId: ownLiveTeam.captainGameId,
+                            captainNickname: ownLiveTeam.captainNickname,
+                            budgetLeft: ownLiveTeam.budgetLeft,
+                            slots: ownLiveTeam.slots.map((s) => ({
+                              position: s.position,
+                              player: s.registration as RegistrationRef | null,
+                            })),
+                          }}
+                          seq={snapshot?.seq ?? 0}
+                          pickDropEnabled={isMyTurn}
+                          dndMode="external"
+                        />
+                      );
+                    }
+                    return <TeamPanel key={t.captainId} team={t} isOwn={isOwn} />;
+                  })}
+                </div>
+              )}
+            </div>
+          </Panel>
+        </section>
+
+        {/* ── Pool section ────────────────────────────────────────────────── */}
+        <section>
+          <Panel>
+            <PanelHead
+              title={
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-nexus-faint whitespace-nowrap">
+                  POOL{' '}
+                  <span className="tabular-nums" style={{ color: 'rgb(var(--dim))' }}>
+                    · {decoratedPool.length} CANDIDATES
+                  </span>
+                </span>
+              }
+              actions={isMyTurn ? <Chip variant="hot">ON CLOCK</Chip> : null}
+            />
+            <div className="p-3">
+              <PlayerPool
+                players={decoratedPool}
+                getDragData={
+                  isMyTurn
+                    ? (p) => {
+                        if (!canPickPlayer(p)) return null;
+                        return { type: 'pool-player', playerId: p.id };
+                      }
+                    : undefined
+                }
+                onPickRequest={
+                  isMyTurn
+                    ? (p) => {
+                        const player = p as PickableRegistration;
+                        if (!canPickPlayer(player)) return;
+                        setPickTarget(player);
+                        setPickInitialPosition(undefined);
+                      }
+                    : undefined
+                }
+              />
+            </div>
+          </Panel>
+        </section>
+
+        {pickTarget && snapshot && (
+          <PickAction
+            open
+            onOpenChange={(o) => {
+              if (!o) {
+                setPickTarget(null);
+                setPickInitialPosition(undefined);
+              }
+            }}
+            onPicked={() => {
               setPickTarget(null);
               setPickInitialPosition(undefined);
-            }
-          }}
-          onPicked={() => {
-            setPickTarget(null);
-            setPickInitialPosition(undefined);
-          }}
-          player={pickTarget}
-          emptySlots={myEmptySlots}
-          budgetLeft={myBudget}
-          expectedSeq={snapshot.seq}
-          initialPosition={pickInitialPosition}
-        />
-      )}
+            }}
+            player={pickTarget}
+            emptySlots={myEmptySlots}
+            budgetLeft={myBudget}
+            expectedSeq={snapshot.seq}
+            initialPosition={pickInitialPosition}
+          />
+        )}
 
-      {noticeKind && !pickTarget && (
-        <CaptainNotificationDialog
-          kind={noticeKind}
-          currentRound={session?.currentRound}
-          budgetLeft={myBudget}
-          emptySlots={myEmptySlots.length}
-          onConfirm={() => setNoticeKind(null)}
-        />
-      )}
+        {noticeKind && !pickTarget && (
+          <CaptainNotificationDialog
+            kind={noticeKind}
+            currentRound={session?.currentRound}
+            budgetLeft={myBudget}
+            emptySlots={myEmptySlots.length}
+            onConfirm={() => setNoticeKind(null)}
+          />
+        )}
+
         {rearrangingSlots && (
           <span className="sr-only" role="status">正在调整位置</span>
         )}
@@ -347,42 +431,49 @@ export function CaptainDashboard({
   );
 }
 
-function Banner({
+// ---------------------------------------------------------------------------
+// StatusBanner — NEXUS-styled status banner replacing the old shadcn Banner
+// ---------------------------------------------------------------------------
+
+function StatusBanner({
   variant,
   label,
   pulse,
   children,
 }: {
-  variant: 'primary' | 'green' | 'violet' | 'amber';
+  variant: 'accent' | 'good' | 'violet' | 'amber';
   label: string;
   pulse?: boolean;
   children: React.ReactNode;
 }) {
-  const borderStyles: Record<string, string> = {
-    primary: 'border-l-primary bg-primary/5',
-    green: 'border-l-green-500 bg-green-500/5',
-    violet: 'border-l-violet-500 bg-violet-500/5',
-    amber: 'border-l-amber-500 bg-amber-500/5',
+  const cssVar: Record<string, string> = {
+    accent: '--accent-n',
+    good:   '--good',
+    violet: '--accent-n2',
+    amber:  '--gold',
   };
-  const labelStyles: Record<string, string> = {
-    primary: 'text-primary',
-    green: 'text-green-600',
-    violet: 'text-violet-600',
-    amber: 'text-amber-600',
-  };
+  const v = cssVar[variant];
 
   return (
     <div
       className={cn(
-        'relative px-3.5 py-2.5 border-l-[3px] rounded-sm',
-        borderStyles[variant],
-        pulse && 'animate-pulse',
+        'relative px-3.5 py-2.5 rounded-[var(--radius-nexus)]',
+        pulse && 'motion-safe:animate-pulse',
       )}
+      style={{
+        borderLeft: `3px solid rgb(var(${v}) / 0.8)`,
+        background: `rgb(var(${v}) / 0.06)`,
+      }}
     >
-      <div className={cn('text-[9px] font-semibold tracking-widest uppercase mb-0.5', labelStyles[variant])}>
+      <div
+        className="font-mono text-[9px] font-semibold tracking-[0.2em] uppercase mb-0.5"
+        style={{ color: `rgb(var(${v}))` }}
+      >
         ▸ {label}
       </div>
-      <div className="text-xs text-muted-foreground leading-relaxed">{children}</div>
+      <div className="font-mono text-[11px] text-nexus-dim leading-relaxed">
+        {children}
+      </div>
     </div>
   );
 }

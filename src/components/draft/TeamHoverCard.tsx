@@ -4,9 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
-import { POSITION_LABEL } from '@/components/players/positions';
 import { formatCost } from '@/lib/costs';
-import { cn } from '@/lib/utils';
+import { PosPip, type Position as NexusPosition } from '@/components/nexus/PosPip';
 
 const OPEN_DELAY_MS = 150;
 const GAP = 8;
@@ -135,56 +134,77 @@ function TeamInfoCard({ team }: { team: TeamHoverSummary }) {
   const filledCount = team.slots.filter((slot) => slot.player !== null).length;
 
   return (
-    <div className="w-[300px] rounded-lg border bg-card p-3 shadow-lg">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <div
+      className="w-[300px] space-y-2.5 rounded-[var(--radius-nexus)] border border-nexus-line p-3"
+      style={{
+        background: 'rgb(var(--panel))',
+        boxShadow: '0 8px 28px rgb(0 0 0 / 0.5)',
+      }}
+    >
+      {/* Header: captain name + budget */}
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
             队伍详情
           </p>
-          <p className="truncate text-sm font-semibold text-foreground">
+          <p className="truncate font-display text-sm font-semibold text-nexus-ink">
             {team.captainNickname}
           </p>
-          <p className="text-xs text-muted-foreground">@{team.captainGameId}</p>
+          <p className="font-mono text-[10px] text-nexus-faint truncate">
+            @{team.captainGameId}
+          </p>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="shrink-0 text-right leading-tight">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
             剩余预算
           </p>
-          <p className="text-base font-semibold leading-tight text-foreground">
-            {formatCost(team.budgetLeft)} CR
+          <p
+            className="font-mono tabular-nums text-base font-semibold"
+            style={{ color: 'rgb(var(--accent-n))' }}
+          >
+            {`${formatCost(team.budgetLeft)} CR`}
           </p>
-          <p className="text-[10px] text-muted-foreground">{filledCount}/5 已成型</p>
+          <p className="font-mono text-[10px] text-nexus-faint">{filledCount}/5 已成型</p>
         </div>
       </div>
 
+      {/* Slot rows */}
       <div className="space-y-1">
         {team.slots.map((slot) => (
           <div
             key={slot.position}
-            className={cn(
-              'grid items-center gap-2 rounded border px-2 py-1.5 text-xs',
-              slot.player ? 'border-border bg-muted/30' : 'border-border/70 bg-muted/10',
-            )}
-            style={{ gridTemplateColumns: '42px minmax(0,1fr) auto' }}
+            className="grid items-center gap-2 rounded-[var(--radius-nexus)] border px-2 py-1.5"
+            style={{
+              gridTemplateColumns: '28px minmax(0,1fr) auto',
+              borderColor: slot.player
+                ? 'rgb(var(--line))'
+                : 'rgb(var(--line) / 0.5)',
+              background: slot.player
+                ? 'rgb(var(--surface))'
+                : 'rgb(var(--panel-2) / 0.5)',
+            }}
           >
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {POSITION_LABEL[slot.position]}
-            </span>
+            {/* PosPip lane glyph */}
+            <PosPip pos={slot.position as NexusPosition} on={!!slot.player} size={22} />
+
+            {/* Player name or vacancy */}
             {slot.player ? (
-              <span className="min-w-0 truncate font-medium text-foreground">
+              <span className="min-w-0 truncate font-body text-xs font-medium text-nexus-ink">
                 {slot.player.nickname}
-                <span className="ml-1.5 text-[9px] font-normal text-muted-foreground">
+                <span className="ml-1.5 font-mono text-[9px] text-nexus-faint">
                   @{slot.player.gameId}
                 </span>
               </span>
             ) : (
-              <span className="text-muted-foreground">空缺</span>
+              <span className="font-body text-xs text-nexus-faint">空缺</span>
             )}
+
+            {/* Cost readout */}
             <span
-              className={cn(
-                'tabular-nums',
-                slot.player ? 'font-medium text-amber-600' : 'text-muted-foreground',
-              )}
+              className="font-mono tabular-nums text-[11px]"
+              style={{
+                color: slot.player ? 'rgb(var(--gold))' : 'rgb(var(--faint))',
+              }}
             >
               {slot.player ? `${formatCost(slot.player.cost)} CR` : '—'}
             </span>

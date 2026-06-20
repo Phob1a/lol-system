@@ -1,27 +1,28 @@
 'use client';
 
-import { type KeyboardEvent, useEffect, useId, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { RegistrationRef } from '@/lib/teams/preview';
 import { POSITIONS } from '@/lib/players/schema';
 import { POSITION_LABEL } from '@/components/players/positions';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import { debitCost, formatCost, normalizeCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
+import NexusButton from '@/components/nexus/NexusButton';
+import Chip from '@/components/nexus/Chip';
+import { PosPip } from '@/components/nexus/PosPip';
 
-/** Short letter label for a position — rendered inline, no tactical import needed. */
-const POS_LETTER: Record<string, string> = {
-  TOP: 'T',
-  JG: 'J',
-  JUNGLE: 'J',
-  MID: 'M',
-  ADC: 'A',
-  SUP: 'S',
-  SUPPORT: 'S',
+/** Normalize stored position key → canonical PosPip code. */
+const POS_NORMALIZE: Record<string, Position> = {
+  TOP: 'TOP',
+  JG: 'JUNGLE',
+  JUNGLE: 'JUNGLE',
+  MID: 'MID',
+  ADC: 'ADC',
+  SUP: 'SUPPORT',
+  SUPPORT: 'SUPPORT',
 };
 
 type Props = {
@@ -118,47 +119,86 @@ export function PickAction({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-card rounded-xl">
+      <DialogContent
+        className="max-w-lg border-nexus-line rounded-[var(--radius-nexus)]"
+        style={{ background: 'rgb(var(--panel))' }}
+      >
         <DialogTitle className="sr-only">出手确认 — {player.nickname}</DialogTitle>
         <DialogDescription className="sr-only">
           为 {player.nickname} 选择位置并确认出手；按 Esc 或点击右上角关闭。
         </DialogDescription>
+
+        {/* ── Header ─────────────────────────────────────────────────────── */}
         <header className="flex items-center gap-3 mb-4">
-          <div className="w-1 h-7 rounded-sm bg-primary shrink-0" />
-          <div>
-            <div className="text-base font-bold tracking-wide text-foreground">
-              PICK <span className="text-muted-foreground">{'//'}</span> {player.nickname}
+          <div
+            className="w-[3px] h-7 shrink-0 rounded-[var(--radius-nexus)]"
+            style={{ background: 'rgb(var(--accent-n))' }}
+          />
+          <div className="min-w-0">
+            <div className="font-display text-[15px] font-semibold tracking-wide text-nexus-ink">
+              PICK{' '}
+              <span className="text-nexus-dim">{'//'}</span>{' '}
+              {player.nickname}
             </div>
-            <div className="text-xs text-muted-foreground font-mono mt-0.5">
-              @{player.gameId} · cost {formatCost(player.cost)} CR · budget {formatCost(budgetLeft)} CR
+            <div className="font-mono text-[10px] text-nexus-faint mt-0.5 tabular-nums">
+              @{player.gameId}&nbsp;·&nbsp;cost&nbsp;
+              <span style={{ color: 'rgb(var(--accent-n))' }}>{formatCost(player.cost)}</span>
+              &nbsp;CR&nbsp;·&nbsp;budget&nbsp;
+              <span style={{ color: 'rgb(var(--accent-n))' }}>{formatCost(budgetLeft)}</span>
+              &nbsp;CR
             </div>
           </div>
         </header>
 
+        {/* ── Position chips (player's registered positions) ──────────────── */}
         <div className="flex gap-1.5 flex-wrap mb-4">
-          {player.primaryPositions.map((p) => (
-            <Badge key={`p-${p}`} variant="default" className="text-xs gap-1">
-              ◆ {p} <span className="opacity-70">{POSITION_LABEL[p]}</span>
-            </Badge>
-          ))}
-          {player.secondaryPositions.map((p) => (
-            <Badge key={`s-${p}`} variant="outline" className="text-xs gap-1">
-              ○ {p} <span className="opacity-70">{POSITION_LABEL[p]}</span>
-            </Badge>
-          ))}
+          {player.primaryPositions.map((p) => {
+            const normalized = POS_NORMALIZE[p];
+            return (
+              <Chip key={`p-${p}`} variant="ac">
+                {normalized ? <PosPip pos={normalized} on size={14} /> : null}
+                {POSITION_LABEL[p as Position] ?? p}
+              </Chip>
+            );
+          })}
+          {player.secondaryPositions.map((p) => {
+            const normalized = POS_NORMALIZE[p];
+            return (
+              <Chip key={`s-${p}`} variant="default">
+                {normalized ? <PosPip pos={normalized} size={14} /> : null}
+                {POSITION_LABEL[p as Position] ?? p}
+              </Chip>
+            );
+          })}
         </div>
 
+        {/* ── Budget / slot warnings ───────────────────────────────────────── */}
         {insufficientBudget && (
-          <div className="px-3 py-2 mb-3 border-l-[3px] border-l-destructive bg-destructive/10 rounded-sm text-xs text-destructive font-mono">
+          <div
+            className="px-3 py-2 mb-3 border-l-[3px] rounded-[var(--radius-nexus)] font-mono text-[11px] tabular-nums"
+            style={{
+              borderLeftColor: 'rgb(var(--bad))',
+              background: 'rgb(var(--bad) / 0.1)',
+              color: 'rgb(var(--bad))',
+            }}
+          >
             ⚠ 预算不足：还差 {formatCost(debitCost(player.cost, budgetLeft))} CR
           </div>
         )}
         {noSlots && (
-          <div className="px-3 py-2 mb-3 border-l-[3px] border-l-destructive bg-destructive/10 rounded-sm text-xs text-destructive font-mono">
+          <div
+            className="px-3 py-2 mb-3 border-l-[3px] rounded-[var(--radius-nexus)] font-mono text-[11px]"
+            style={{
+              borderLeftColor: 'rgb(var(--bad))',
+              background: 'rgb(var(--bad) / 0.1)',
+              color: 'rgb(var(--bad))',
+            }}
+          >
             ⚠ 该战队已无空位
           </div>
         )}
 
+        {/* ── Position selector ───────────────────────────────────────────── */}
         <fieldset
           role="radiogroup"
           aria-labelledby={`${positionGroupId}-legend`}
@@ -167,7 +207,7 @@ export function PickAction({
         >
           <legend
             id={`${positionGroupId}-legend`}
-            className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground"
+            className="font-mono text-[10px] font-semibold tracking-widest uppercase text-nexus-faint"
           >
             ASSIGN POSITION（不校验熟练位）
           </legend>
@@ -175,20 +215,26 @@ export function PickAction({
             {POSITIONS.map((pos) => {
               const empty = emptySlots.includes(pos);
               const active = position === pos;
-              const letter = POS_LETTER[pos] ?? pos[0];
               const disabled = !empty || insufficientBudget;
               return (
                 <label
                   key={pos}
                   htmlFor={`${positionGroupId}-${pos}`}
                   className={cn(
-                    'flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-md border text-xs transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+                    'flex flex-col items-center gap-1 py-2.5 px-1.5 border transition-colors',
+                    'rounded-[var(--radius-nexus)]',
+                    'focus-within:ring-2 focus-within:ring-offset-1',
                     active
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
-                    !empty && 'opacity-35 cursor-not-allowed',
+                      ? 'border-nexus-accent/70 bg-nexus-accent/10 text-nexus-accent'
+                      : 'border-nexus-line bg-nexus-surface text-nexus-dim hover:border-nexus-accent/40 hover:text-nexus-ink',
+                    !empty && 'opacity-35 cursor-not-allowed pointer-events-none',
                     empty && !insufficientBudget && 'cursor-pointer',
                   )}
+                  style={
+                    active
+                      ? ({ '--tw-ring-color': 'rgb(var(--accent-n) / 0.5)' } as CSSProperties)
+                      : undefined
+                  }
                 >
                   <input
                     id={`${positionGroupId}-${pos}`}
@@ -200,21 +246,12 @@ export function PickAction({
                     onChange={() => setPosition(pos)}
                     className="sr-only"
                   />
-                  <span
-                    className={cn(
-                      'inline-flex items-center justify-center w-5 h-5 rounded-sm border text-[10px] font-bold',
-                      active
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : empty
-                        ? 'border-border text-foreground'
-                        : 'border-muted-foreground/30 text-muted-foreground/40',
-                    )}
-                  >
-                    {letter}
+                  <PosPip pos={POS_NORMALIZE[pos] ?? (pos as Position)} on={active} size={22} />
+                  <span className="font-mono text-[9px] tracking-wide">
+                    {POSITION_LABEL[pos]}
                   </span>
-                  <span className="tracking-wide">{POSITION_LABEL[pos]}</span>
                   {!empty && (
-                    <span className="text-[9px] text-muted-foreground font-mono">OCCUPIED</span>
+                    <span className="font-mono text-[9px] text-nexus-faint">OCCUPIED</span>
                   )}
                 </label>
               );
@@ -222,15 +259,17 @@ export function PickAction({
           </div>
         </fieldset>
 
-        <div className="border-t" />
+        {/* ── Divider ─────────────────────────────────────────────────────── */}
+        <div className="border-t border-nexus-line" />
 
+        {/* ── Footer actions ──────────────────────────────────────────────── */}
         <footer className="flex justify-end gap-2 mt-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <NexusButton type="button" onClick={() => onOpenChange(false)}>
             CANCEL
-          </Button>
-          <Button
+          </NexusButton>
+          <NexusButton
             type="button"
-            variant="default"
+            variant="primary"
             onClick={submit}
             disabled={submitting || !position || insufficientBudget || noSlots}
             className="min-w-[160px]"
@@ -238,7 +277,7 @@ export function PickAction({
             <LoadingButtonContent loading={submitting} loadingText="CONFIRMING...">
               CONFIRM PICK
             </LoadingButtonContent>
-          </Button>
+          </NexusButton>
         </footer>
       </DialogContent>
     </Dialog>

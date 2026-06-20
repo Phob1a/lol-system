@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
 import {
   fromLocalDatetimeString,
   toLocalDatetimeString,
 } from '@/components/admin/tournament/datetime-local';
+import Panel from '@/components/nexus/Panel';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import NexusButton from '@/components/nexus/NexusButton';
+import Field from '@/components/nexus/Field';
 
 type ReservationMatch = {
   id: string;
@@ -116,119 +117,144 @@ export function ReservationDashboard() {
   }
 
   if (loading && !state) {
-    return <div className="text-sm text-muted-foreground">加载中…</div>;
+    return (
+      <p className="font-mono text-[12px] text-nexus-faint">加载中…</p>
+    );
   }
 
   if (!state?.tournamentId) {
-    return <div className="text-sm text-muted-foreground">暂无可预约赛事</div>;
+    return (
+      <p className="font-mono text-[12px] text-nexus-faint">暂无可预约赛事</p>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <div>
-          <h1 className="text-xl font-semibold">比赛预约</h1>
-          <p className="text-sm text-muted-foreground">预约或修改自己队伍的比赛时间。</p>
-        </div>
+      {/* Page header */}
+      <section className="space-y-1">
+        <h1 className="font-display text-xl font-semibold text-nexus-ink">比赛预约</h1>
+        <p className="font-mono text-[12px] text-nexus-dim">预约或修改自己队伍的比赛时间。</p>
       </section>
 
+      {/* Scheduled matches */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">已预约</h2>
+        <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-nexus-faint">已预约</h2>
         {state.scheduled.length === 0 && (
-          <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
-            暂无已预约比赛
-          </div>
+          <Panel className="py-8 text-center">
+            <Kicker>暂无已预约比赛</Kicker>
+          </Panel>
         )}
         <div className="grid gap-3">
           {state.scheduled.map((match) => (
-            <div key={match.id} className="rounded-md border p-3">
+            <Panel key={match.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-medium">{matchLabel(match)}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {match.stage.name} · {match.label ?? match.roundKey ?? '比赛'} ·{' '}
+                <div className="min-w-0">
+                  <p className="font-body text-[13px] font-medium text-nexus-ink">
+                    {matchLabel(match)}
+                  </p>
+                  <p className="mt-1 font-mono text-[11px] text-nexus-dim tabular-nums">
+                    {match.stage.name}
+                    {' · '}
+                    {match.label ?? match.roundKey ?? '比赛'}
+                    {' · '}
                     {formatScheduledAt(match.scheduledAt)}
-                  </div>
+                  </p>
                 </div>
-                <Badge variant={match.status === 'FINISHED' ? 'default' : 'outline'}>
+                <Chip variant={match.status === 'FINISHED' ? 'good' : 'default'}>
                   {statusLabel(match.status)}
-                </Badge>
+                </Chip>
               </div>
 
               {match.status === 'SCHEDULED' && (
-                <div className="mt-3 flex flex-wrap items-end gap-2">
-                  <div className="space-y-1">
-                    <Label htmlFor={`scheduled-${match.id}`}>时间</Label>
-                    <Input
+                <div className="mt-4 flex flex-wrap items-end gap-2">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor={`scheduled-${match.id}`}
+                      className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint"
+                    >
+                      时间
+                    </label>
+                    <Field
                       id={`scheduled-${match.id}`}
                       type="datetime-local"
                       value={getLocalTime(match)}
                       onChange={(e) =>
                         setLocalTimes((prev) => ({ ...prev, [match.id]: e.target.value }))
                       }
+                      className="tabular-nums"
                     />
                   </div>
-                  <Button
-                    variant="outline"
+                  <NexusButton
                     disabled={busyId === match.id || !getLocalTime(match)}
                     onClick={() => void save(match, fromLocalDatetimeString(getLocalTime(match)))}
                   >
                     <LoadingButtonContent loading={busyId === match.id} loadingText="保存中…">
                       修改时间
                     </LoadingButtonContent>
-                  </Button>
-                  <Button
-                    variant="outline"
+                  </NexusButton>
+                  <NexusButton
                     disabled={busyId === match.id}
                     onClick={() => void save(match, null)}
                   >
                     <LoadingButtonContent loading={busyId === match.id} loadingText="取消中…">
                       取消预约
                     </LoadingButtonContent>
-                  </Button>
+                  </NexusButton>
                 </div>
               )}
-            </div>
+            </Panel>
           ))}
         </div>
       </section>
 
+      {/* Candidate matches */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">可预约</h2>
+        <h2 className="font-mono text-[10px] uppercase tracking-[0.24em] text-nexus-faint">可预约</h2>
         {state.candidates.length === 0 && (
-          <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
-            暂无可预约比赛
-          </div>
+          <Panel className="py-8 text-center">
+            <Kicker>暂无可预约比赛</Kicker>
+          </Panel>
         )}
         <div className="grid gap-3">
           {state.candidates.map((match) => (
-            <div key={match.id} className="rounded-md border p-3">
-              <div className="font-medium">{matchLabel(match)}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {match.stage.name} · {match.label ?? match.roundKey ?? '比赛'}
-              </div>
-              <div className="mt-3 flex flex-wrap items-end gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor={`candidate-${match.id}`}>时间</Label>
-                  <Input
+            <Panel key={match.id} className="p-4">
+              <p className="font-body text-[13px] font-medium text-nexus-ink">
+                {matchLabel(match)}
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-nexus-dim">
+                {match.stage.name}
+                {' · '}
+                {match.label ?? match.roundKey ?? '比赛'}
+              </p>
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor={`candidate-${match.id}`}
+                    className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint"
+                  >
+                    时间
+                  </label>
+                  <Field
                     id={`candidate-${match.id}`}
                     type="datetime-local"
                     value={getLocalTime(match)}
                     onChange={(e) =>
                       setLocalTimes((prev) => ({ ...prev, [match.id]: e.target.value }))
                     }
+                    className="tabular-nums"
                   />
                 </div>
-                <Button
+                <NexusButton
+                  variant="primary"
                   disabled={busyId === match.id || !getLocalTime(match)}
                   onClick={() => void save(match, fromLocalDatetimeString(getLocalTime(match)))}
                 >
                   <LoadingButtonContent loading={busyId === match.id} loadingText="创建中…">
                     创建预约
                   </LoadingButtonContent>
-                </Button>
+                </NexusButton>
               </div>
-            </div>
+            </Panel>
           ))}
         </div>
       </section>

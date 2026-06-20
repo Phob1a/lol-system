@@ -3,17 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { championIconUrl } from '@/lib/tournament/champions';
+import Panel from '@/components/nexus/Panel';
+import PanelHead from '@/components/nexus/PanelHead';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import Readout from '@/components/nexus/Readout';
+import ChampAvatar from '@/components/nexus/ChampAvatar';
 
 // ---------------------------------------------------------------------------
 // Types (mirror of getPublicMatchDetail return value)
@@ -76,31 +71,57 @@ function formatDuration(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function ChampionIcon({
-  championId,
-  championName,
-  size = 24,
-}: {
-  championId: string;
-  championName: string | null;
-  size?: number;
-}) {
-  const [errored, setErrored] = useState(false);
-  if (!championId || errored) {
-    return (
-      <span className="text-xs text-muted-foreground">{championName ?? championId}</span>
-    );
-  }
+// ---------------------------------------------------------------------------
+// CompareBar — team stat comparison (mirrors MatchDetail.tsx drawer)
+// ---------------------------------------------------------------------------
+
+interface CompareBarProps {
+  label: string;
+  a: number;
+  b: number;
+}
+
+function CompareBar({ label, a, b }: CompareBarProps) {
+  const total = Math.max(1, a + b);
+  const ap = (a / total) * 100;
+  const bp = 100 - ap;
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={championIconUrl(championId)}
-      alt={championName ?? championId}
-      width={size}
-      height={size}
-      className="rounded-sm object-cover"
-      onError={() => setErrored(true)}
-    />
+    <div style={{ marginBottom: 12 }}>
+      <div className="flex justify-between items-baseline mb-[5px]">
+        <Readout
+          className="text-sm font-bold"
+          style={{ color: a >= b ? 'rgb(var(--accent-n))' : 'rgb(var(--dim))' }}
+        >
+          {a}
+        </Readout>
+        <Kicker>{label}</Kicker>
+        <Readout
+          className="text-sm font-bold"
+          style={{ color: b >= a ? 'rgb(var(--accent-n2))' : 'rgb(var(--dim))' }}
+        >
+          {b}
+        </Readout>
+      </div>
+      <div className="flex h-[6px] gap-[2px]">
+        <div
+          style={{
+            width: `${ap}%`,
+            background: 'rgb(var(--accent-n))',
+            borderRadius: '2px 0 0 2px',
+            transition: 'width 0.4s ease',
+          }}
+        />
+        <div
+          style={{
+            width: `${bp}%`,
+            background: 'rgb(var(--accent-n2) / 0.65)',
+            borderRadius: '0 2px 2px 0',
+            transition: 'width 0.4s ease',
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -126,79 +147,108 @@ function MatchHeader({ detail }: { detail: MatchDetail }) {
         ? teamBName
         : null;
 
+  const isFinished = detail.status === 'FINISHED';
+
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
-      <div className="border-b px-4 py-3">
+    <Panel as="section">
+      {/* Back navigation */}
+      <div className="border-b border-nexus-line px-4 py-3">
         <Link
           href="/tournament"
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm font-mono font-semibold text-nexus-dim transition-colors hover:text-nexus-ink"
         >
           <ArrowLeft className="h-4 w-4" />
           返回赛事页
         </Link>
       </div>
 
+      {/* Match identity + score + meta */}
       <div className="grid gap-6 px-4 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-6">
+        {/* Left: label + status */}
         <div className="min-w-0 text-center lg:text-left">
-          <p className="text-xs font-semibold uppercase text-muted-foreground">
+          <Kicker as="p">
             {[detail.roundKey, `BO${detail.bestOf}`].filter(Boolean).join(' · ')}
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-normal">{matchLabel}</h1>
-          {detail.status === 'FINISHED' && winnerName && (
-            <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+          </Kicker>
+          <h1 className="mt-2 font-display text-3xl font-extrabold tracking-normal text-nexus-ink">
+            {matchLabel}
+          </h1>
+          {isFinished && winnerName && (
+            <p
+              className="mt-2 text-sm font-semibold font-mono"
+              style={{ color: 'rgb(var(--good))' }}
+            >
               {winnerName} 胜
             </p>
           )}
         </div>
 
-        <div className="mx-auto flex w-full max-w-sm items-center justify-between rounded-lg bg-muted/30 px-4 py-3 text-center lg:w-80">
-          <div className="min-w-0 flex-1">
+        {/* Centre: score bar */}
+        <Panel
+          glow
+          className="mx-auto flex w-full max-w-sm items-center justify-between px-4 py-3 text-center lg:w-80"
+        >
+          <div className="min-w-0 flex-1 text-right">
             <div
-              className={`truncate text-sm font-semibold ${
-                detail.winnerTeamId === detail.teamA?.id
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : ''
-              }`}
+              className="truncate font-display text-sm font-semibold"
+              style={{
+                color:
+                  detail.winnerTeamId === detail.teamA?.id
+                    ? 'rgb(var(--accent-n))'
+                    : 'rgb(var(--ink))',
+              }}
             >
               {teamAName}
             </div>
           </div>
           <div className="mx-4 flex items-baseline gap-2 tabular-nums">
-            <span className="text-4xl font-black leading-none">{teamAWins}</span>
-            <span className="text-lg font-semibold text-muted-foreground">:</span>
-            <span className="text-4xl font-black leading-none">{teamBWins}</span>
+            <Readout
+              className="font-display text-4xl font-black leading-none"
+              style={{ color: 'rgb(var(--ink))' }}
+            >
+              {teamAWins}
+            </Readout>
+            <Readout className="text-lg font-semibold text-nexus-faint">:</Readout>
+            <Readout
+              className="font-display text-4xl font-black leading-none"
+              style={{ color: 'rgb(var(--ink))' }}
+            >
+              {teamBWins}
+            </Readout>
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 text-left">
             <div
-              className={`truncate text-sm font-semibold ${
-                detail.winnerTeamId === detail.teamB?.id
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : ''
-              }`}
+              className="truncate font-display text-sm font-semibold"
+              style={{
+                color:
+                  detail.winnerTeamId === detail.teamB?.id
+                    ? 'rgb(var(--accent-n2))'
+                    : 'rgb(var(--ink))',
+              }}
             >
               {teamBName}
             </div>
           </div>
-        </div>
+        </Panel>
 
+        {/* Right: meta tiles */}
         <div className="grid grid-cols-3 gap-2 text-center lg:max-w-xs">
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">局数</div>
-            <div className="mt-1 text-lg font-bold">{detail.games.length}</div>
-          </div>
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">赛制</div>
-            <div className="mt-1 text-lg font-bold">BO{detail.bestOf}</div>
-          </div>
-          <div className="rounded-lg border bg-background/60 px-3 py-2">
-            <div className="text-xs text-muted-foreground">状态</div>
-            <div className="mt-1 text-lg font-bold">
-              {detail.status === 'FINISHED' ? '已结束' : detail.status}
-            </div>
-          </div>
+          {(
+            [
+              { label: '局数', value: String(detail.games.length) },
+              { label: '赛制', value: `BO${detail.bestOf}` },
+              { label: '状态', value: isFinished ? '已结束' : detail.status },
+            ] as const
+          ).map(({ label, value }) => (
+            <Panel key={label} className="px-3 py-2">
+              <Kicker as="div" className="block text-center">{label}</Kicker>
+              <Readout className="mt-1 block text-center text-lg font-bold text-nexus-ink">
+                {value}
+              </Readout>
+            </Panel>
+          ))}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -219,39 +269,38 @@ function BpTimeline({
 
   return (
     <div className="mb-4">
-      <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+      <Kicker as="h4" className="mb-2 block">
         BP 时间线
-      </h4>
+      </Kicker>
       <div className="flex flex-wrap gap-2">
         {game.bans.map((ban) => {
           const isBlue = ban.teamId === game.blueTeamId;
           const isBan = ban.type === 'BAN';
           const teamName =
             ban.teamId === teamAId ? 'A' : ban.teamId === teamBId ? 'B' : '?';
+          const champKey = ban.championName ?? ban.championId;
           return (
             <div
               key={`${ban.order}-${ban.championId}`}
-              className={`flex flex-col items-center gap-1 p-1 rounded border text-xs ${
-                isBlue
-                  ? 'border-blue-400/50 bg-blue-500/10'
-                  : 'border-red-400/50 bg-red-500/10'
-              }`}
+              className="flex flex-col items-center gap-1 rounded-[var(--radius-nexus)] border p-1 text-xs"
+              style={{
+                borderColor: isBlue
+                  ? 'rgb(var(--accent-n) / 0.5)'
+                  : 'rgb(var(--accent-n2) / 0.5)',
+                background: isBlue
+                  ? 'rgb(var(--accent-n) / 0.08)'
+                  : 'rgb(var(--accent-n2) / 0.08)',
+              }}
             >
-              <span
-                className={`text-[10px] font-medium ${
-                  isBlue
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-red-600 dark:text-red-400'
-                }`}
+              <Kicker
+                style={{
+                  color: isBlue ? 'rgb(var(--accent-n))' : 'rgb(var(--accent-n2))',
+                }}
               >
                 {isBan ? 'BAN' : 'PICK'} · 队{teamName}
-              </span>
-              <ChampionIcon
-                championId={ban.championId}
-                championName={ban.championName}
-                size={28}
-              />
-              <span className="text-[10px] text-muted-foreground">#{ban.order}</span>
+              </Kicker>
+              <ChampAvatar champion={champKey} size={28} />
+              <Kicker>#{ban.order}</Kicker>
             </div>
           );
         })}
@@ -261,132 +310,107 @@ function BpTimeline({
 }
 
 // ---------------------------------------------------------------------------
-// 10-player comparison table
+// Lineup table — per-game player rows (mirrors MatchDetail.tsx LineupTable)
 // ---------------------------------------------------------------------------
 
-function PlayersTable({
-  game,
-  teamAId,
-  teamBId,
-  teamAName,
-  teamBName,
+function LineupTable({
+  players,
+  mvpRegistrationId,
 }: {
-  game: Game;
-  teamAId: string | null;
-  teamBId: string | null;
-  teamAName: string;
-  teamBName: string;
+  players: Player[];
+  mvpRegistrationId: string | null;
 }) {
-  if (game.players.length === 0) {
+  if (players.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">仅记录胜负</p>
+      <p className="py-4 text-center font-mono text-[12px] text-nexus-faint">
+        仅记录胜负
+      </p>
     );
   }
 
-  const teamAPlayers = game.players.filter((p) => p.teamId === teamAId);
-  const teamBPlayers = game.players.filter((p) => p.teamId === teamBId);
-  const teamAIsBlue = teamAId === game.blueTeamId;
-
-  const renderTeamRows = (players: Player[], teamName: string, isBlue: boolean) => {
-    if (players.length === 0) return null;
-    const isWinner =
-      game.winnerTeamId === (isBlue === teamAIsBlue ? teamAId : teamBId);
-    return (
-      <>
-        <TableRow className={isBlue ? 'bg-blue-500/5' : 'bg-red-500/5'}>
-          <TableHead
-            colSpan={8}
-            className={`text-xs font-semibold py-1 ${
-              isBlue
-                ? 'text-blue-700 dark:text-blue-300'
-                : 'text-red-700 dark:text-red-300'
-            }`}
-          >
-            {isBlue ? '蓝方' : '红方'} · {teamName}
-            {isWinner && (
-              <span className="ml-2 text-green-600 dark:text-green-400">胜</span>
-            )}
-          </TableHead>
-        </TableRow>
-        {players.map((player) => {
-          const isMvp = player.registrationId === game.mvpRegistrationId;
+  return (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr>
+          {['选手', '英雄', 'K/D/A', '补刀', '伤害 (k)', '金币 (k)'].map((h, i) => (
+            <th
+              key={i}
+              className="border-b border-nexus-line px-2 py-[7px] font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-nexus-faint"
+              style={{ textAlign: i > 1 ? 'center' : 'left' }}
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {players.map((p) => {
+          const isMvp = p.registrationId === mvpRegistrationId;
+          const champKey = p.championName ?? p.championId ?? '';
           return (
-            <TableRow key={player.registrationId}>
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-1">
-                  {player.playerId ? (
-                    <Link
-                      href={`/tournament/player/${player.playerId}`}
-                      className="hover:underline"
-                    >
-                      {player.nickname}
-                    </Link>
-                  ) : (
-                    player.nickname
-                  )}
-                  {isMvp && (
-                    <Badge variant="default" className="text-[10px] px-1 py-0 ml-1">
-                      MVP
-                    </Badge>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-1">
-                  <ChampionIcon
-                    championId={player.championId}
-                    championName={player.championName}
-                    size={20}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {player.championName ?? player.championId}
+            <tr
+              key={p.registrationId}
+              style={{ background: isMvp ? 'rgb(var(--gold) / 0.08)' : 'transparent' }}
+            >
+              {/* nickname */}
+              <td className="whitespace-nowrap border-b border-nexus-line/35 px-2 py-[8px]">
+                {p.playerId ? (
+                  <Link
+                    href={`/tournament/player/${p.playerId}`}
+                    className="font-body text-[12.5px] text-nexus-ink transition-colors hover:text-nexus-accent"
+                  >
+                    {p.nickname}
+                  </Link>
+                ) : (
+                  <span className="font-body text-[12.5px] text-nexus-ink">
+                    {p.nickname}
                   </span>
-                </div>
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.kills ?? '-'}
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.deaths ?? '-'}
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.assists ?? '-'}
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.cs ?? '-'}
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.damage != null ? player.damage.toLocaleString() : '-'}
-              </TableCell>
-              <TableCell className="tabular-nums text-center">
-                {player.gold != null ? player.gold.toLocaleString() : '-'}
-              </TableCell>
-            </TableRow>
+                )}
+                {isMvp && (
+                  <span
+                    className="ml-[5px] text-[11px]"
+                    style={{ color: 'rgb(var(--gold))' }}
+                  >
+                    MVP
+                  </span>
+                )}
+              </td>
+              {/* champion */}
+              <td className="border-b border-nexus-line/35 px-2 py-[8px]">
+                <span className="inline-flex items-center gap-[7px]">
+                  {champKey ? <ChampAvatar champion={champKey} size={20} /> : null}
+                  <Readout className="text-[12px] text-nexus-dim">
+                    {p.championName ?? p.championId ?? '—'}
+                  </Readout>
+                </span>
+              </td>
+              {/* kda */}
+              <td className="border-b border-nexus-line/35 px-2 py-[8px] text-center">
+                <Readout className="text-[12px]">
+                  {p.kills ?? '—'}/{p.deaths ?? '—'}/{p.assists ?? '—'}
+                </Readout>
+              </td>
+              {/* cs */}
+              <td className="border-b border-nexus-line/35 px-2 py-[8px] text-center">
+                <Readout className="text-[12px] text-nexus-dim">{p.cs ?? '—'}</Readout>
+              </td>
+              {/* damage */}
+              <td className="border-b border-nexus-line/35 px-2 py-[8px] text-center">
+                <Readout className="text-[12px] text-nexus-dim">
+                  {p.damage != null ? (p.damage / 1000).toFixed(1) : '—'}
+                </Readout>
+              </td>
+              {/* gold */}
+              <td className="border-b border-nexus-line/35 px-2 py-[8px] text-center">
+                <Readout className="text-[12px] text-nexus-dim">
+                  {p.gold != null ? (p.gold / 1000).toFixed(1) : '—'}
+                </Readout>
+              </td>
+            </tr>
           );
         })}
-      </>
-    );
-  };
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>选手</TableHead>
-          <TableHead>英雄</TableHead>
-          <TableHead className="text-center">K</TableHead>
-          <TableHead className="text-center">D</TableHead>
-          <TableHead className="text-center">A</TableHead>
-          <TableHead className="text-center">补刀</TableHead>
-          <TableHead className="text-center">伤害</TableHead>
-          <TableHead className="text-center">金币</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {renderTeamRows(teamAPlayers, teamAName, teamAIsBlue)}
-        {renderTeamRows(teamBPlayers, teamBName, !teamAIsBlue)}
-      </TableBody>
-    </Table>
+      </tbody>
+    </table>
   );
 }
 
@@ -411,54 +435,221 @@ function GamePanel({
   const blueTeamName = game.blueTeamId === teamAId ? teamAName : teamBName;
   const redTeamName = game.blueTeamId === teamAId ? teamBName : teamAName;
   const blueWon = game.winnerTeamId === game.blueTeamId;
-  const redWon =
-    game.winnerTeamId !== null && game.winnerTeamId !== game.blueTeamId;
+  const redWon = game.winnerTeamId !== null && game.winnerTeamId !== game.blueTeamId;
+
+  const teamAIsBlue = teamAId === game.blueTeamId;
+  const aPlayers = game.players.filter((p) => p.teamId === teamAId);
+  const bPlayers = game.players.filter((p) => p.teamId === teamBId);
+
+  const aKills  = aPlayers.reduce((s, p) => s + (p.kills  ?? 0), 0);
+  const bKills  = bPlayers.reduce((s, p) => s + (p.kills  ?? 0), 0);
+  const aGold   = aPlayers.reduce((s, p) => s + (p.gold   ?? 0), 0);
+  const bGold   = bPlayers.reduce((s, p) => s + (p.gold   ?? 0), 0);
+  const aDamage = aPlayers.reduce((s, p) => s + (p.damage ?? 0), 0);
+  const bDamage = bPlayers.reduce((s, p) => s + (p.damage ?? 0), 0);
+
+  const hasNumericStats =
+    aKills + bKills + aGold + bGold + aDamage + bDamage > 0;
+
+  const aWon = game.winnerTeamId === teamAId;
+  const bWon = game.winnerTeamId === teamBId;
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4">
-      {/* Blue/Red team indicator bar */}
+    <div className="space-y-4">
+      {/* Game meta row */}
+      <div className="flex items-center gap-3 px-1">
+        <Kicker>第 {game.index + 1} 局</Kicker>
+        {game.durationSeconds != null && (
+          <Readout className="text-[11px] text-nexus-dim">
+            {formatDuration(game.durationSeconds)}
+          </Readout>
+        )}
+        {game.winnerTeamId && (
+          <Chip variant="good" className="ml-auto">
+            胜 ·{' '}
+            {game.winnerTeamId === teamAId
+              ? teamAName
+              : game.winnerTeamId === teamBId
+              ? teamBName
+              : '胜者'}
+          </Chip>
+        )}
+      </div>
+
+      {/* Blue/Red team indicator bar — aria-label preserved for test */}
       <div
-        className="flex min-h-8 overflow-hidden rounded text-xs font-medium"
+        className="flex min-h-8 overflow-hidden rounded-[var(--radius-nexus)] font-mono text-xs font-medium"
         aria-label={`第 ${game.index + 1} 局蓝红方`}
       >
         <div
-          className={`flex flex-1 items-center justify-center gap-1 bg-blue-500/20 px-2 text-blue-700 dark:text-blue-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 px-2 ${
             blueWon ? 'font-bold' : ''
           }`}
+          style={{
+            background: 'rgb(var(--accent-n) / 0.15)',
+            color: 'rgb(var(--accent-n))',
+          }}
         >
           <span>{blueTeamName}（蓝）</span>
           {blueWon ? <span aria-hidden="true">✓</span> : null}
         </div>
         <div
-          className={`flex flex-1 items-center justify-center gap-1 bg-red-500/20 px-2 text-red-700 dark:text-red-300 ${
+          className={`flex flex-1 items-center justify-center gap-1 px-2 ${
             redWon ? 'font-bold' : ''
           }`}
+          style={{
+            background: 'rgb(var(--accent-n2) / 0.12)',
+            color: 'rgb(var(--accent-n2))',
+          }}
         >
           <span>{redTeamName}（红）</span>
           {redWon ? <span aria-hidden="true">✓</span> : null}
         </div>
       </div>
 
-      {/* Duration */}
-      {game.durationSeconds != null && (
-        <p className="text-xs font-medium text-muted-foreground">
-          时长：{formatDuration(game.durationSeconds)}
-        </p>
-      )}
-
       {!hasDetail ? (
-        <p className="text-sm text-muted-foreground text-center py-4">仅记录胜负</p>
+        <Panel className="py-10 text-center">
+          <Readout className="text-[13px] text-nexus-faint">仅记录胜负</Readout>
+        </Panel>
       ) : (
         <>
-          <BpTimeline game={game} teamAId={teamAId} teamBId={teamBId} />
-          <PlayersTable
-            game={game}
-            teamAId={teamAId}
-            teamBId={teamBId}
-            teamAName={teamAName}
-            teamBName={teamBName}
-          />
+          {/* Compare bars — only when numeric stats available */}
+          {game.players.length > 0 && hasNumericStats && (
+            <Panel className="px-4 py-4">
+              <Kicker className="mb-3 block">团队数据对比</Kicker>
+              <CompareBar label="击杀" a={aKills} b={bKills} />
+              <CompareBar
+                label="经济 (k)"
+                a={Math.round(aGold / 1000)}
+                b={Math.round(bGold / 1000)}
+              />
+              <CompareBar
+                label="输出 (k)"
+                a={Math.round(aDamage / 1000)}
+                b={Math.round(bDamage / 1000)}
+              />
+            </Panel>
+          )}
+
+          {/* BP timeline */}
+          {game.bans.length > 0 && (
+            <Panel className="px-4 py-4">
+              <BpTimeline game={game} teamAId={teamAId} teamBId={teamBId} />
+            </Panel>
+          )}
+
+          {/* Team A lineup */}
+          <Panel>
+            <PanelHead
+              title={teamAName}
+              actions={
+                aWon ? (
+                  <Chip variant="good">胜</Chip>
+                ) : (
+                  <Chip>{teamAIsBlue ? '蓝方' : '红方'}</Chip>
+                )
+              }
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: 'rgb(var(--accent-n))' }}
+              />
+            </PanelHead>
+            <LineupTable
+              players={aPlayers}
+              mvpRegistrationId={game.mvpRegistrationId}
+            />
+          </Panel>
+
+          {/* Team B lineup */}
+          <Panel>
+            <PanelHead
+              title={teamBName}
+              actions={
+                bWon ? (
+                  <Chip variant="good">胜</Chip>
+                ) : (
+                  <Chip>{!teamAIsBlue ? '蓝方' : '红方'}</Chip>
+                )
+              }
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: 'rgb(var(--accent-n2))' }}
+              />
+            </PanelHead>
+            <LineupTable
+              players={bPlayers}
+              mvpRegistrationId={game.mvpRegistrationId}
+            />
+          </Panel>
         </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GameTabController — manages active-game state + tab strip
+// ---------------------------------------------------------------------------
+
+function GameTabController({
+  detail,
+  teamAId,
+  teamBId,
+  teamAName,
+  teamBName,
+}: {
+  detail: MatchDetail;
+  teamAId: string | null;
+  teamBId: string | null;
+  teamAName: string;
+  teamBName: string;
+}) {
+  const [activeGame, setActiveGame] = useState(0);
+
+  return (
+    <div className="space-y-4">
+      {/* Tab strip — only for multi-game series */}
+      {detail.games.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {detail.games.map((g, i) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setActiveGame(i)}
+              className="h-7 cursor-pointer rounded-[var(--radius-nexus)] border px-3 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors duration-150"
+              style={{
+                background:
+                  activeGame === i
+                    ? 'rgb(var(--accent-n) / 0.15)'
+                    : 'transparent',
+                borderColor:
+                  activeGame === i
+                    ? 'rgb(var(--accent-n) / 0.6)'
+                    : 'rgb(var(--line))',
+                color:
+                  activeGame === i
+                    ? 'rgb(var(--accent-n))'
+                    : 'rgb(var(--dim))',
+              }}
+            >
+              第 {g.index + 1} 局
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Active game panel */}
+      {detail.games[activeGame] && (
+        <GamePanel
+          key={detail.games[activeGame].id}
+          game={detail.games[activeGame]}
+          teamAId={teamAId}
+          teamBId={teamBId}
+          teamAName={teamAName}
+          teamBName={teamBName}
+        />
       )}
     </div>
   );
@@ -479,30 +670,17 @@ export function MatchDetailView({ detail }: { detail: MatchDetail }) {
       <MatchHeader detail={detail} />
 
       {detail.games.length === 0 ? (
-        <section className="rounded-lg border bg-card py-10 text-center">
-          <p className="text-sm text-muted-foreground">暂无对局明细</p>
-        </section>
+        <Panel as="section" className="py-10 text-center">
+          <Readout className="text-[13px] text-nexus-faint">暂无对局明细</Readout>
+        </Panel>
       ) : (
-        <Tabs defaultValue={`game-${detail.games[0].index}`} className="w-full">
-          <TabsList className="mb-4">
-            {detail.games.map((g) => (
-              <TabsTrigger key={g.id} value={`game-${g.index}`}>
-                第 {g.index + 1} 局
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {detail.games.map((g) => (
-            <TabsContent key={g.id} value={`game-${g.index}`}>
-              <GamePanel
-                game={g}
-                teamAId={teamAId}
-                teamBId={teamBId}
-                teamAName={teamAName}
-                teamBName={teamBName}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
+        <GameTabController
+          detail={detail}
+          teamAId={teamAId}
+          teamBId={teamBId}
+          teamAName={teamAName}
+          teamBName={teamBName}
+        />
       )}
     </div>
   );

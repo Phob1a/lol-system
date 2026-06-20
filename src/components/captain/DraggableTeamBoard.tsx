@@ -13,12 +13,14 @@ import {
 import { toast } from 'sonner';
 import type { Position } from '@prisma/client';
 import type { TeamPreview, RegistrationRef } from '@/lib/teams/preview';
-import { POSITION_LABEL } from '@/components/players/positions';
 import { PlayerHoverCard } from '@/components/draft/PlayerHoverCard';
 import { TeamHoverCard, type TeamHoverSummary } from '@/components/draft/TeamHoverCard';
-import { Badge } from '@/components/ui/badge';
 import { formatCost } from '@/lib/costs';
 import { cn } from '@/lib/utils';
+import Panel from '@/components/nexus/Panel';
+import Chip from '@/components/nexus/Chip';
+import Kicker from '@/components/nexus/Kicker';
+import { PosPip } from '@/components/nexus/PosPip';
 
 type Props = {
   team: TeamPreview & { id: string };
@@ -97,28 +99,43 @@ export function DraggableTeamBoard({
   };
 
   const board = (
-    <div className="rounded-xl border-2 border-primary bg-primary/5 shadow p-3 relative">
+    <Panel className="p-3">
       <TeamHoverCard team={hoverTeam} disabled={submitting}>
-        <div className="flex justify-between items-baseline gap-2 mb-2.5">
+        {/* Header row — wrapping div kept so tests can do .closest('div') on the badge text */}
+        <div className="flex justify-between items-center gap-2 mb-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-sm font-semibold text-primary truncate">
-              {team.captainNickname}
-              <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
-                MINE · DRAG TO SWAP
-              </Badge>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span
+                className="font-display font-semibold text-[14px] leading-tight truncate"
+                style={{ color: 'rgb(var(--ink))' }}
+              >
+                {team.captainNickname}
+              </span>
+              <Chip variant="ac">MINE · DRAG TO SWAP</Chip>
             </div>
-            <div className="text-xs text-muted-foreground font-mono">@{team.captainGameId}</div>
+            <Kicker>@{team.captainGameId}</Kicker>
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">BUDGET</div>
-            <div className="text-base font-bold text-amber-600 tabular-nums">
+
+          {/* Budget readout */}
+          <div className="shrink-0 text-right">
+            <Kicker className="mb-0.5">BUDGET</Kicker>
+            <div
+              className="font-mono tabular-nums text-[15px] font-semibold leading-none"
+              style={{ color: 'rgb(var(--accent-n))' }}
+            >
               {formatCost(team.budgetLeft)}
-              <span className="text-xs text-muted-foreground ml-0.5 font-normal">CR</span>
+              <span
+                className="font-mono text-[10px] ml-0.5"
+                style={{ color: 'rgb(var(--faint))' }}
+              >
+                CR
+              </span>
             </div>
           </div>
         </div>
       </TeamHoverCard>
 
+      {/* Slot rows */}
       <div className="flex flex-col gap-1">
         {slots.map((slot) => (
           <DroppableSlot
@@ -129,7 +146,7 @@ export function DraggableTeamBoard({
           />
         ))}
       </div>
-    </div>
+    </Panel>
   );
 
   if (dndMode === 'external') return board;
@@ -156,32 +173,38 @@ function DroppableSlot({
       data-testid={`team-slot-drop-${slot.position}`}
       data-pick-drop-enabled={String(canDropPick)}
       className={cn(
-        'grid items-center gap-2 px-2 py-1.5 rounded-md border text-xs transition-colors',
+        'grid items-center gap-2 px-2 py-[7px] rounded-[var(--radius-nexus)] border text-xs transition-colors',
         isOver
-          ? 'ring-2 ring-primary bg-accent border-primary'
+          ? 'border-nexus-accent ring-1 ring-nexus-accent/40 bg-nexus-panel-2'
           : slot.registration
-          ? 'border-border bg-muted/30'
+          ? 'border-nexus-line bg-nexus-panel'
           : canDropPick
-          ? 'border-dashed border-primary/60 bg-primary/5'
-          : 'border-border bg-muted/10',
+          ? 'border-dashed border-nexus-accent/50 bg-nexus-panel'
+          : 'border-nexus-line bg-nexus-panel',
       )}
-      style={{ gridTemplateColumns: '46px 1fr auto' }}
+      style={{ gridTemplateColumns: '26px 1fr auto' }}
     >
-      <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">
-        {POSITION_LABEL[slot.position]}
-      </span>
+      {/* Position pip */}
+      <PosPip
+        pos={slot.position as 'TOP' | 'JUNGLE' | 'MID' | 'ADC' | 'SUPPORT'}
+        on={!!slot.registration}
+        size={22}
+      />
+
       {slot.registration ? (
         <PlayerHoverCard player={slot.registration} disabled={disabled}>
           <DraggablePlayer slot={slot} disabled={disabled} />
         </PlayerHoverCard>
       ) : (
-        <span className="text-xs text-muted-foreground font-mono">— empty —</span>
+        <span className="font-mono text-[10px] text-nexus-faint">— 空缺 —</span>
       )}
+
+      {/* Cost */}
       <span
-        className={cn(
-          'tabular-nums text-xs font-medium',
-          slot.registration ? 'text-amber-600' : 'text-muted-foreground',
-        )}
+        className="tabular-nums font-mono text-[11px]"
+        style={{
+          color: slot.registration ? 'rgb(var(--accent-n))' : 'rgb(var(--faint))',
+        }}
       >
         {slot.registration ? formatCost(slot.registration.cost) : '—'}
       </span>
@@ -204,18 +227,24 @@ function DraggablePlayer({ slot, disabled }: { slot: LocalSlot; disabled: boolea
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 5,
         cursor: disabled ? 'not-allowed' : 'grab',
         opacity: isDragging ? 0.4 : 1,
         userSelect: 'none',
         minWidth: 0,
       }}
     >
-      <span className="text-muted-foreground text-[10px]">⋮⋮</span>
-      <span className="text-xs font-medium text-foreground truncate">
+      <span style={{ color: 'rgb(var(--faint))', fontSize: 10 }}>⋮⋮</span>
+      <span
+        className="font-display text-[12.5px] truncate"
+        style={{ color: 'rgb(var(--ink))' }}
+      >
         {slot.registration.nickname}
       </span>
-      <span className="text-[9px] text-muted-foreground font-mono shrink-0">
+      <span
+        className="font-mono text-[10px] shrink-0"
+        style={{ color: 'rgb(var(--faint))' }}
+      >
         @{slot.registration.gameId}
       </span>
     </span>
