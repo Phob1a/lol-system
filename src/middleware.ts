@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 // Reachable with no session at all.
-const PUBLIC_PREFIXES = ['/', '/login', '/access-denied', '/register', '/live', '/tournament'];
+const PUBLIC_PREFIXES = ['/', '/login', '/access-denied', '/register', '/live', '/tournament', '/players'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
