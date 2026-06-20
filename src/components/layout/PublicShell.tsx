@@ -383,6 +383,9 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
         flexDirection: 'column',
         position: 'relative',
         zIndex: 1,
+        // Solid nexus base so the semi-transparent statbar/nav rail blend over
+        // the dark theme (and the fixed Starfield) — not the white shadcn body.
+        background: 'rgb(var(--bg))',
       }}
     >
       {/* Fixed starfield behind everything */}
