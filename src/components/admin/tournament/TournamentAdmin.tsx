@@ -2,6 +2,7 @@
 
 import { useAdminTournamentState } from '@/hooks/useTournamentState';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ArenaPanel } from '@/components/public-arena';
 import { SetupTab } from './SetupTab';
 import { GroupsTab } from './GroupsTab';
 import { ScheduleTab } from './ScheduleTab';
@@ -17,22 +18,35 @@ export function TournamentAdmin({ tournamentId, teams }: Props) {
   const { state, loaded, refetch } = useAdminTournamentState(tournamentId);
 
   if (!loaded) {
-    return <div className="text-muted-foreground text-sm">加载中…</div>;
+    return (
+      <ArenaPanel className="p-5 text-sm text-slate-300">
+        正在同步赛事控制台…
+      </ArenaPanel>
+    );
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">赛事管理</h1>
-        {state?.tournament && (
-          <p className="text-sm text-muted-foreground">
-            {state.tournament.name} · {state.tournament.kind} · {state.tournament.status}
-          </p>
+      <ArenaPanel
+        eyebrow="TOURNAMENT OPERATIONS"
+        title="赛事管理"
+        className="arena-scanline p-5"
+      >
+        {state?.tournament ? (
+          <div className="flex flex-wrap gap-2 text-sm text-slate-300">
+            <span>{state.tournament.name}</span>
+            <span className="text-cyan-200/45">/</span>
+            <span>{state.tournament.kind}</span>
+            <span className="text-cyan-200/45">/</span>
+            <span>{state.tournament.status}</span>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">当前没有已加载的赛事配置。</p>
         )}
-      </div>
+      </ArenaPanel>
 
       <Tabs defaultValue="setup">
-        <TabsList>
+        <TabsList className="bg-slate-950/45">
           <TabsTrigger value="setup">设置</TabsTrigger>
           <TabsTrigger value="groups">分组</TabsTrigger>
           <TabsTrigger value="schedule">赛程</TabsTrigger>

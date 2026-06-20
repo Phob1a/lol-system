@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { ArenaEmptyState, ArenaPanel } from '@/components/public-arena';
 import {
   Select,
   SelectContent,
@@ -75,12 +76,9 @@ function roundLabel(m: MatchRow, standings: NonNullable<AdminState>['standings']
 
 function formatScheduledAt(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toISOString().slice(5, 16).replace('T', ' ');
 }
 
 // ─── WalkoverDialog ───────────────────────────────────────────────────────────
@@ -366,8 +364,12 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
 
   if (!tournament) {
     return (
-      <div className="pt-4 text-muted-foreground text-sm">
-        请先在「设置」tab 创建赛事并确认分组。
+      <div className="pt-4">
+        <ArenaEmptyState
+          eyebrow="MATCH GRID"
+          title="等待赛事初始化"
+          description="请先在设置 tab 创建赛事并确认分组，再编排赛程。"
+        />
       </div>
     );
   }
@@ -487,37 +489,46 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
 
   return (
     <div className="space-y-4 pt-4">
-      {/* Top action bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
-          <Button size="sm" onClick={() => setReservationOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            创建预约
-          </Button>
-        )}
+      <ArenaPanel
+        className="p-4"
+        eyebrow="MATCH GRID"
+        title="赛程控制"
+        action={
+          <div className="flex flex-wrap justify-end gap-2">
+            {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
+              <Button size="sm" onClick={() => setReservationOpen(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                创建预约
+              </Button>
+            )}
 
-        {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
-          <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            自定义比赛
-          </Button>
-        )}
+            {(tournament.status === 'GROUP_STAGE' || tournament.status === 'KNOCKOUT') && (
+              <Button size="sm" variant="outline" onClick={() => setAddMatchOpen(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                自定义比赛
+              </Button>
+            )}
 
-        {showCloseGroups && (
-          <Button
-            size="sm"
-            disabled={closingGroups}
-            onClick={() => void handleOpenKnockoutSeeding()}
-          >
-            <LoadingButtonContent loading={closingGroups} loadingText="处理中…">
-              收小组进淘汰赛
-            </LoadingButtonContent>
-          </Button>
-        )}
-      </div>
+            {showCloseGroups && (
+              <Button
+                size="sm"
+                disabled={closingGroups}
+                onClick={() => void handleOpenKnockoutSeeding()}
+              >
+                <LoadingButtonContent loading={closingGroups} loadingText="处理中…">
+                  收小组进淘汰赛
+                </LoadingButtonContent>
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          当前状态：{tournament.status} · 已预约 {scheduledMatches.length} 场
+        </p>
+      </ArenaPanel>
 
-      {/* Matches table */}
-      <div className="overflow-x-auto rounded-md border">
+      <ArenaPanel className="overflow-x-auto p-3" eyebrow="RESERVATIONS" title="已预约比赛">
         <Table>
           <TableHeader>
             <TableRow>
@@ -624,7 +635,7 @@ export function ScheduleTab({ teams, state, refetch }: Props) {
             })}
           </TableBody>
         </Table>
-      </div>
+      </ArenaPanel>
 
       {/* Dialogs */}
       <ScoreDialog

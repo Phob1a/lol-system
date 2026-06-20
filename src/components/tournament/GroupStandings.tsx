@@ -11,7 +11,7 @@ type Props = {
 export function GroupStandings({ standings }: Props) {
   if (standings.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm text-center py-8">暂无小组赛数据</p>
+      <p className="py-8 text-center text-sm text-muted-foreground">暂无小组赛数据</p>
     );
   }
 
@@ -20,10 +20,10 @@ export function GroupStandings({ standings }: Props) {
       {standings.map((group) => (
         <div key={group.groupId}>
           <h3 className="text-sm font-semibold mb-3">{group.name}</h3>
-          <div className="border rounded-md overflow-hidden">
+          <div className="overflow-hidden rounded-md border border-cyan-200/15 bg-slate-950/25">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/50">
+                <tr className="border-b border-cyan-200/12 bg-cyan-200/10">
                   <th className="px-4 py-2 text-left text-muted-foreground font-medium w-12">
                     排名
                   </th>
@@ -50,6 +50,7 @@ export function GroupStandings({ standings }: Props) {
                     key={row.teamId}
                     className={[
                       'border-b last:border-0',
+                      'border-cyan-200/10',
                       row.tied ? 'bg-amber-500/10' : '',
                     ]
                       .filter(Boolean)

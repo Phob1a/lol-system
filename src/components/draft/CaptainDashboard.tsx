@@ -173,7 +173,7 @@ export function CaptainDashboard({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="flex h-full min-h-0 flex-col gap-3 bg-background">
+      <div className="flex h-full min-h-0 flex-col gap-3 bg-transparent">
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div
@@ -226,7 +226,7 @@ export function CaptainDashboard({
         >
           {isMyTurn ? (
             <>
-              🎯 <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {formatCost(myBudget)} CR · {myEmptySlots.length} 个空位
+              <strong>现在轮到你出手</strong> · 第 {session?.currentRound ?? 0} 轮 · 剩余预算 {formatCost(myBudget)} CR · {myEmptySlots.length} 个空位
             </>
           ) : (
             <>
@@ -238,7 +238,7 @@ export function CaptainDashboard({
       )}
       {finished && (
         <Banner variant="violet" label="SESSION_COMPLETE">
-          ✓ 选秀已完成 · 最终阵容如下，可拖动调整己方位置
+          选秀已完成 · 最终阵容如下，可拖动调整己方位置
         </Banner>
       )}
 
@@ -249,7 +249,7 @@ export function CaptainDashboard({
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
         >
           {teamsToRender.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs text-muted-foreground border border-dashed rounded-md">
+            <div className="col-span-full rounded-md border border-dashed border-cyan-200/24 py-6 text-center text-xs text-muted-foreground">
               暂无战队
             </div>
           ) : (
@@ -365,16 +365,16 @@ function Banner({
     amber: 'border-l-amber-500 bg-amber-500/5',
   };
   const labelStyles: Record<string, string> = {
-    primary: 'text-primary',
-    green: 'text-green-600',
-    violet: 'text-violet-600',
-    amber: 'text-amber-600',
+    primary: 'text-cyan-200',
+    green: 'text-emerald-300',
+    violet: 'text-fuchsia-300',
+    amber: 'text-amber-200',
   };
 
   return (
     <div
       className={cn(
-        'relative px-3.5 py-2.5 border-l-[3px] rounded-sm',
+        'relative rounded-sm border border-cyan-200/10 px-3.5 py-2.5 border-l-[3px]',
         borderStyles[variant],
         pulse && 'animate-pulse',
       )}

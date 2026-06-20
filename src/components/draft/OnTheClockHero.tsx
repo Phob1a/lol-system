@@ -31,11 +31,11 @@ export type HeroStatus =
 export function OnTheClockHero(props: HeroStatus) {
   if (props.status === 'pending') {
     return (
-      <div className="rounded-lg border bg-muted p-4">
+      <div className="arena-panel rounded-lg border border-cyan-200/18 bg-slate-950/55 p-4">
         <div className="text-xs font-mono tracking-widest uppercase text-muted-foreground mb-1">
           选秀状态
         </div>
-        <div className="text-lg font-medium text-foreground">尚未开始</div>
+        <div className="text-lg font-medium text-slate-100">尚未开始</div>
         <div className="text-sm text-muted-foreground mt-1">
           等待管理员开启选秀。
         </div>
@@ -45,14 +45,14 @@ export function OnTheClockHero(props: HeroStatus) {
 
   if (props.status === 'waiting') {
     return (
-      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
-        <div className="text-xs font-mono tracking-widest uppercase text-amber-800 dark:text-amber-300 mb-1">
+      <div className="arena-panel rounded-lg border border-amber-300/35 bg-amber-950/20 p-4">
+        <div className="text-xs font-mono tracking-widest uppercase text-amber-200 mb-1">
           轮次间隙
         </div>
-        <div className="text-lg font-medium text-amber-900 dark:text-amber-100">
+        <div className="text-lg font-medium text-amber-50">
           第 {props.round} 轮已结束
         </div>
-        <div className="text-sm text-amber-700 dark:text-amber-200 mt-1">
+        <div className="text-sm text-amber-100/75 mt-1">
           等待管理员开启第 {props.round + 1} 轮（共 {props.totalRounds} 轮）。
         </div>
       </div>
@@ -61,7 +61,7 @@ export function OnTheClockHero(props: HeroStatus) {
 
   if (props.status === 'completed') {
     return (
-      <div className="rounded-lg border bg-violet-600 text-violet-50 p-4 dark:bg-violet-700">
+      <div className="arena-panel rounded-lg border border-fuchsia-300/35 bg-fuchsia-950/25 p-4 text-fuchsia-50">
         <div className="text-xs font-mono tracking-widest uppercase opacity-80 mb-1">
           选秀结果
         </div>
@@ -76,7 +76,7 @@ export function OnTheClockHero(props: HeroStatus) {
 
   // on-the-clock
   return (
-    <div className="relative rounded-lg border bg-primary text-primary-foreground p-4">
+    <div className="arena-panel relative rounded-lg border border-cyan-200/30 bg-cyan-950/35 p-4 text-cyan-50">
       <div className="text-xs font-mono tracking-widest uppercase mb-1 opacity-70">
         第 {props.round} 轮
       </div>

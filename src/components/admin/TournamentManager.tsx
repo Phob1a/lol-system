@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ArenaPanel } from '@/components/public-arena';
 import {
   TournamentConfigForm,
   type TournamentConfigValue,
@@ -45,6 +46,12 @@ const DEFAULT_TCFG: TournamentConfigValue = {
     knockoutBestOf: { SF: 3, FINAL: 5 },
   },
 };
+
+function formatCreatedAt(value: Date | string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toISOString().slice(0, 16).replace('T', ' ');
+}
 
 export function TournamentManager({ initialTournaments }: Props) {
   const router = useRouter();
@@ -170,55 +177,53 @@ export function TournamentManager({ initialTournaments }: Props) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">赛事管理</h1>
+      <ArenaPanel eyebrow="TOURNAMENT CONTROL" title="赛事管理" className="p-5">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">赛事名</label>
+              <Input
+                value={name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setName(v);
+                  if (!tnameEdited) setTcfg((p) => ({ ...p, name: v }));
+                }}
+                placeholder="例：2025 Spring"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground">队伍预算</label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={teamBudget}
+                onChange={(e) => setTeamBudget(e.target.value)}
+                placeholder="预算"
+                required
+              />
+            </div>
+          </div>
 
-      {/* Create form */}
-      <form onSubmit={handleCreate} className="space-y-4 max-w-xl">
-        <div className="flex items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">赛事名</label>
-            <Input
-              value={name}
-              onChange={(e) => {
-                const v = e.target.value;
-                setName(v);
-                if (!tnameEdited) setTcfg((p) => ({ ...p, name: v }));
-              }}
-              placeholder="例：2025 Spring"
-              required
+          <div className="space-y-3 rounded-md border border-cyan-200/15 bg-slate-950/35 p-4">
+            <p className="text-sm font-medium text-slate-100">赛事设置</p>
+            <TournamentConfigForm
+              value={tcfg}
+              onChange={setTcfg}
+              onValidityChange={setTcfgValid}
+              showNameField
+              onNameUserEdit={() => setTnameEdited(true)}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">队伍预算</label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={teamBudget}
-              onChange={(e) => setTeamBudget(e.target.value)}
-              placeholder="预算"
-              required
-            />
-          </div>
-        </div>
 
-        {/* 赛事设置 */}
-        <div className="rounded-md border p-4 space-y-3">
-          <p className="text-sm font-medium">赛事设置</p>
-          <TournamentConfigForm
-            value={tcfg}
-            onChange={setTcfg}
-            onValidityChange={setTcfgValid}
-            showNameField
-            onNameUserEdit={() => setTnameEdited(true)}
-          />
-        </div>
-
-        <Button type="submit" disabled={submitting || !tcfgValid || !name.trim() || !teamBudget}>
-          <LoadingButtonContent loading={submitting} loadingText="创建中…">
-            新建赛事
-          </LoadingButtonContent>
-        </Button>
-      </form>
+          <Button type="submit" disabled={submitting || !tcfgValid || !name.trim() || !teamBudget}>
+            <LoadingButtonContent loading={submitting} loadingText="创建中…">
+              新建赛事
+            </LoadingButtonContent>
+          </Button>
+        </form>
+      </ArenaPanel>
 
       {/* Confirm dialog */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -238,31 +243,32 @@ export function TournamentManager({ initialTournaments }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tournaments table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>赛事名</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>预算</TableHead>
-            <TableHead>创建时间</TableHead>
-            <TableHead>操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {initialTournaments.map((t) => (
-            <TableRow key={t.id}>
-              <TableCell>{t.name}</TableCell>
-              <TableCell>
-                <Badge variant={statusVariant(t.status)}>{t.status}</Badge>
-              </TableCell>
-              <TableCell>{t.teamBudget}</TableCell>
-              <TableCell>{t.createdAt.toLocaleString('zh-CN')}</TableCell>
-              <TableCell>{t.status !== 'ARCHIVED' ? transitionButton(t) : null}</TableCell>
+      <ArenaPanel eyebrow="EVENT LEDGER" title="赛事列表" className="overflow-x-auto p-3">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>赛事名</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>预算</TableHead>
+              <TableHead>创建时间</TableHead>
+              <TableHead>操作</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {initialTournaments.map((t) => (
+              <TableRow key={t.id}>
+                <TableCell>{t.name}</TableCell>
+                <TableCell>
+                  <Badge variant={statusVariant(t.status)}>{t.status}</Badge>
+                </TableCell>
+                <TableCell>{t.teamBudget}</TableCell>
+                <TableCell>{formatCreatedAt(t.createdAt)}</TableCell>
+                <TableCell>{t.status !== 'ARCHIVED' ? transitionButton(t) : null}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ArenaPanel>
     </div>
   );
 }

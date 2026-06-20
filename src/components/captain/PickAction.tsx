@@ -118,7 +118,7 @@ export function PickAction({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-card rounded-xl">
+      <DialogContent className="max-w-lg rounded-xl">
         <DialogTitle className="sr-only">出手确认 — {player.nickname}</DialogTitle>
         <DialogDescription className="sr-only">
           为 {player.nickname} 选择位置并确认出手；按 Esc 或点击右上角关闭。

@@ -32,8 +32,8 @@ export function BroadcastLayout({
         consuming page is expected to bound the height — see live/admin
         draft/captain layout chains).
       */}
-      <div className="hidden lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)_minmax(260px,320px)] bg-background">
-        <div className="min-h-0 overflow-y-auto border-r">{pool}</div>
+      <div className="hidden bg-transparent lg:grid lg:h-full lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)_minmax(260px,320px)]">
+        <div className="min-h-0 overflow-y-auto border-r border-cyan-200/12">{pool}</div>
 
         <div className="flex min-w-0 min-h-0 flex-col gap-3 px-3">
           {controls && <div>{controls}</div>}
@@ -41,15 +41,15 @@ export function BroadcastLayout({
           <div className="min-h-0 flex-1 overflow-y-auto">{grid}</div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto border-l">{events}</div>
+        <div className="min-h-0 overflow-y-auto border-l border-cyan-200/12">{events}</div>
       </div>
 
       {/* ── Mobile layout (below lg) ── */}
-      <div className="flex flex-col gap-3 lg:hidden bg-background">
+      <div className="flex flex-col gap-3 bg-transparent lg:hidden">
         {controls && <div>{controls}</div>}
 
         {/* Pinned hero */}
-        <div className="sticky top-0 z-10 bg-background">{hero}</div>
+        <div className="sticky top-0 z-10 bg-slate-950/95 pb-2">{hero}</div>
 
         {/* Tabs for pool / grid / events */}
         <Tabs defaultValue={defaultMobileTab}>

@@ -11,6 +11,12 @@ type Props = {
   matches: Match[];
 };
 
+function formatMatchTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toISOString().slice(11, 16);
+}
+
 function StatusBadge({ match }: { match: Match }) {
   if (match.isWalkover || match.status === 'WALKOVER') {
     return <Badge variant="secondary">轮空</Badge>;
@@ -38,14 +44,14 @@ function StatusBadge({ match }: { match: Match }) {
 export function ScheduleList({ matches }: Props) {
   if (matches.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm text-center py-8">暂无赛程</p>
+      <p className="py-8 text-center text-sm text-muted-foreground">暂无赛程</p>
     );
   }
 
   const scheduledMatches = matches.filter((match) => match.scheduledAt !== null);
   if (scheduledMatches.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm text-center py-8">暂无已排期比赛</p>
+      <p className="py-8 text-center text-sm text-muted-foreground">暂无已排期比赛</p>
     );
   }
 
@@ -63,29 +69,26 @@ export function ScheduleList({ matches }: Props) {
               const isCanceled = match.status === 'CANCELED';
               const rowContent = (
                 <>
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     {match.scheduledAt && (
-                      <span className="text-muted-foreground shrink-0 tabular-nums">
-                        {new Date(match.scheduledAt).toLocaleString('zh-CN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {formatMatchTime(match.scheduledAt)}
                       </span>
                     )}
                     {match.label && (
-                      <span className="text-muted-foreground shrink-0">
+                      <span className="shrink-0 text-muted-foreground">
                         {match.label}
                       </span>
                     )}
-                    <span className="font-medium truncate">
+                    <span className="truncate font-medium text-slate-100">
                       {match.teamA?.name ?? '待定'}
                     </span>
-                    <span className="text-muted-foreground shrink-0">vs</span>
-                    <span className="font-medium truncate">
+                    <span className="shrink-0 text-muted-foreground">vs</span>
+                    <span className="truncate font-medium text-slate-100">
                       {match.teamB?.name ?? '待定'}
                     </span>
                   </div>
-                  <div className="shrink-0 ml-4">
+                  <div className="ml-4 shrink-0">
                     <StatusBadge match={match} />
                   </div>
                 </>
@@ -94,7 +97,7 @@ export function ScheduleList({ matches }: Props) {
               return isCanceled ? (
                 <div
                   key={match.id}
-                  className="flex items-center justify-between border rounded-md px-4 py-3 text-sm"
+                  className="flex items-center justify-between rounded-md border border-cyan-200/15 bg-slate-950/30 px-4 py-3 text-sm"
                 >
                   {rowContent}
                 </div>
@@ -102,7 +105,7 @@ export function ScheduleList({ matches }: Props) {
                 <Link
                   key={match.id}
                   href={`/tournament/match/${match.id}`}
-                  className="flex items-center justify-between border rounded-md px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between rounded-md border border-cyan-200/15 bg-slate-950/30 px-4 py-3 text-sm transition-colors hover:border-cyan-200/35 hover:bg-cyan-200/10"
                 >
                   {rowContent}
                 </Link>

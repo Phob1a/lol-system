@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
+import { ArenaEmptyState, ArenaPanel } from '@/components/public-arena';
 import type { AdminState } from '@/hooks/useTournamentState';
 import type { GroupKnockoutConfig } from '@/lib/tournament/types';
 import {
@@ -74,17 +75,25 @@ export function GroupsTab({ teams, state, refetch }: Props) {
 
   if (!tournament) {
     return (
-      <div className="pt-4 text-muted-foreground text-sm">请先在「设置」tab 创建赛事。</div>
+      <div className="pt-4">
+        <ArenaEmptyState
+          eyebrow="GROUP MATRIX"
+          title="等待赛事配置"
+          description="请先在设置 tab 创建赛事，再进行分组编排。"
+        />
+      </div>
     );
   }
 
   if (!isGrouping) {
     return (
       <div className="space-y-4 pt-4">
-        <p className="text-sm text-muted-foreground">分组已锁定（状态：{tournament.status}）。</p>
+        <ArenaPanel className="p-4" eyebrow="GROUP MATRIX" title="分组已锁定">
+          <p className="text-sm text-muted-foreground">当前状态：{tournament.status}</p>
+        </ArenaPanel>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {standings.map((g) => (
-            <div key={g.groupId} className="rounded-md border p-4 space-y-2">
+            <ArenaPanel key={g.groupId} className="space-y-2 p-4">
               <h3 className="text-sm font-semibold">{g.name}</h3>
               <ul className="space-y-1">
                 {Object.entries(g.teams).map(([id, name]) => (
@@ -93,7 +102,7 @@ export function GroupsTab({ teams, state, refetch }: Props) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </ArenaPanel>
           ))}
         </div>
       </div>
@@ -200,30 +209,41 @@ export function GroupsTab({ teams, state, refetch }: Props) {
 
   return (
     <div className="space-y-6 pt-4">
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={handleRandomize}>
-          随机分组
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={saving}
-          onClick={() => void handleSave()}
-        >
-          <LoadingButtonContent loading={saving} loadingText="保存中…">
-            保存分组
-          </LoadingButtonContent>
-        </Button>
-        <Button
-          size="sm"
-          disabled={confirming}
-          onClick={() => void handleConfirm()}
-        >
-          <LoadingButtonContent loading={confirming} loadingText="确认中…">
-            确认分组并生成对阵
-          </LoadingButtonContent>
-        </Button>
-      </div>
+      <ArenaPanel
+        className="p-4"
+        eyebrow="GROUP MATRIX"
+        title="分组编排"
+        action={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={handleRandomize}>
+              随机分组
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={() => void handleSave()}
+            >
+              <LoadingButtonContent loading={saving} loadingText="保存中…">
+                保存分组
+              </LoadingButtonContent>
+            </Button>
+            <Button
+              size="sm"
+              disabled={confirming}
+              onClick={() => void handleConfirm()}
+            >
+              <LoadingButtonContent loading={confirming} loadingText="确认中…">
+                确认分组并生成对阵
+              </LoadingButtonContent>
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          拖动队伍到指定小组席位，确认后自动生成小组赛对阵。
+        </p>
+      </ArenaPanel>
 
       <DndContext
         sensors={sensors}
@@ -285,8 +305,8 @@ function GroupColumn({
       ref={setNodeRef}
       data-testid={`group-column-${groupIdx}`}
       className={cn(
-        'space-y-3 rounded-md border p-4 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'arena-panel space-y-3 rounded-md border border-cyan-200/18 bg-slate-950/35 p-4 transition-colors',
+        isOver && 'border-primary bg-primary/10',
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -311,8 +331,8 @@ function TeamPool({ teams }: { teams: Team[] }) {
       ref={setNodeRef}
       data-testid="group-team-pool"
       className={cn(
-        'space-y-2 rounded-md border border-dashed p-3 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'arena-panel space-y-2 rounded-md border border-dashed border-cyan-200/24 bg-slate-950/35 p-3 transition-colors',
+        isOver && 'border-primary bg-primary/10',
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -324,7 +344,7 @@ function TeamPool({ teams }: { teams: Team[] }) {
           <DraggableTeamCard key={team.id} team={team} source={{ teamId: team.id, from: 'pool' }} />
         ))}
         {teams.length === 0 && (
-          <div className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
+          <div className="rounded-md border border-dashed border-cyan-200/20 py-6 text-center text-xs text-muted-foreground">
             已全部分配
           </div>
         )}
@@ -352,8 +372,8 @@ function GroupSlot({
       ref={setNodeRef}
       data-testid={`group-slot-${groupIdx}-${slotIdx}`}
       className={cn(
-        'min-h-12 rounded-md border border-dashed p-2 transition-colors',
-        isOver && 'border-primary bg-primary/5',
+        'min-h-12 rounded-md border border-dashed border-cyan-200/20 bg-slate-950/25 p-2 transition-colors',
+        isOver && 'border-primary bg-primary/10',
       )}
     >
       {team ? (
@@ -383,7 +403,7 @@ function DraggableTeamCard({ team, source }: { team: Team; source: GroupDragSour
       {...attributes}
       {...listeners}
       className={cn(
-        'rounded-md border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50',
+        'rounded-md border border-cyan-200/18 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-100 shadow-sm transition-colors hover:bg-slate-800/90',
         'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40',
       )}

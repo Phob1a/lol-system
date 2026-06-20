@@ -5,9 +5,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LoadingButtonContent } from '@/components/ui/loading-button-content';
-import { TournamentConfigForm, type TournamentConfigValue } from './TournamentConfigForm';
+import { ArenaPanel } from '@/components/public-arena';
 import type { AdminState } from '@/hooks/useTournamentState';
 import { BUDGET_EDITABLE_STATUSES } from '@/lib/tournament/tournament-service';
+import { TournamentConfigForm, type TournamentConfigValue } from './TournamentConfigForm';
 
 type Props = {
   tournamentId: string;
@@ -186,29 +187,25 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
 
     return (
       <div className="space-y-6 pt-4">
-        {/* 当前赛事摘要 */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold">当前赛事</h2>
-          <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-1">
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">名称</span>
-              <span>{t.name}</span>
+        <ArenaPanel eyebrow="ACTIVE EVENT" title="当前赛事" className="p-4">
+          <div className="grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-slate-400">名称</p>
+              <p className="mt-1 font-medium text-slate-100">{t.name}</p>
             </div>
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">类型</span>
-              <span>{t.kind}</span>
+            <div>
+              <p className="text-xs text-slate-400">类型</p>
+              <p className="mt-1 font-medium text-slate-100">{t.kind}</p>
             </div>
-            <div className="flex gap-2">
-              <span className="w-24 shrink-0 text-muted-foreground">状态</span>
-              <span>{t.status}</span>
+            <div>
+              <p className="text-xs text-slate-400">状态</p>
+              <p className="mt-1 font-medium text-slate-100">{t.status}</p>
             </div>
           </div>
-        </div>
+        </ArenaPanel>
 
-        {/* 队伍总费用 */}
-        <div className="space-y-4 max-w-xl rounded-md border p-4">
+        <ArenaPanel className="max-w-xl space-y-4 p-4" eyebrow="BUDGET LOCK" title="队伍总费用">
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold">队伍总费用</h2>
             <p className="text-xs text-muted-foreground">
               每支队伍的初始预算。选秀开始后该值会被锁定，因为各队剩余预算已基于它计算。
             </p>
@@ -242,12 +239,10 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               队伍预算已锁定（{t.status}），无法修改。
             </p>
           )}
-        </div>
+        </ArenaPanel>
 
-        {/* 修改配置表单（FINISHED 时隐藏） */}
         {!isFinished && (
-          <div className="space-y-4 max-w-xl">
-            <h2 className="text-sm font-semibold">修改配置</h2>
+          <ArenaPanel className="max-w-xl space-y-4 p-4" eyebrow="RULESET" title="修改配置">
             <TournamentConfigForm
               value={currentEditValue}
               onChange={(v) => setEditValue(v)}
@@ -263,12 +258,14 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
                 保存配置
               </LoadingButtonContent>
             </Button>
-          </div>
+          </ArenaPanel>
         )}
 
-        {/* 危险区 */}
-        <div className="space-y-2 rounded-md border border-destructive/40 p-4">
-          <p className="text-sm font-semibold text-destructive">危险区</p>
+        <ArenaPanel
+          className="max-w-xl space-y-2 border-red-400/35 bg-red-950/20 p-4"
+          eyebrow="DANGER ZONE"
+          title="危险区"
+        >
           <p className="text-xs text-muted-foreground">
             重置赛事将清空全部比赛、分组及比分数据，回到设置状态，且不可恢复。
           </p>
@@ -282,7 +279,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               重置赛事
             </LoadingButtonContent>
           </Button>
-        </div>
+        </ArenaPanel>
       </div>
     );
   }
@@ -316,7 +313,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
   }
 
   return (
-    <div className="space-y-6 pt-4 max-w-xl">
+    <ArenaPanel className="mt-4 max-w-xl space-y-6 p-4" eyebrow="INITIALIZE" title="创建赛事">
       <TournamentConfigForm
         value={createValue}
         onChange={setCreateValue}
@@ -333,6 +330,6 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
           创建赛事
         </LoadingButtonContent>
       </Button>
-    </div>
+    </ArenaPanel>
   );
 }
