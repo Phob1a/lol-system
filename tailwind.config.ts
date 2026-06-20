@@ -49,6 +49,31 @@ const config: Config = {
           DEFAULT: 'hsl(var(--popover))',
           foreground: 'hsl(var(--popover-foreground))',
         },
+        // ── NEXUS design tokens (RGB channel triplets; grouped under `nexus`
+        //    to avoid clobbering shadcn's own `accent` / `background` etc.) ─
+        nexus: {
+          bg: 'rgb(var(--bg) / <alpha-value>)',
+          surface: 'rgb(var(--surface) / <alpha-value>)',
+          panel: 'rgb(var(--panel) / <alpha-value>)',
+          'panel-2': 'rgb(var(--panel-2) / <alpha-value>)',
+          line: 'rgb(var(--line) / <alpha-value>)',
+          ink: 'rgb(var(--ink) / <alpha-value>)',
+          dim: 'rgb(var(--dim) / <alpha-value>)',
+          faint: 'rgb(var(--faint) / <alpha-value>)',
+          accent: 'rgb(var(--accent-n) / <alpha-value>)',
+          'accent-2': 'rgb(var(--accent-n2) / <alpha-value>)',
+          good: 'rgb(var(--good) / <alpha-value>)',
+          bad: 'rgb(var(--bad) / <alpha-value>)',
+          gold: 'rgb(var(--gold) / <alpha-value>)',
+          hot: 'rgb(var(--hot) / <alpha-value>)',
+        },
+      },
+      fontFamily: {
+        // NEXUS font families — resolved via CSS variables set by next/font
+        display: ['var(--font-display)'],
+        body: ['var(--font-body)'],
+        mono: ['var(--font-mono)'],
+        serif: ['var(--font-serif)'],
       },
       borderRadius: {
         lg: 'var(--radius)',

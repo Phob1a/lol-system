@@ -2,6 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── NEXUS Phase-0: design-token defaults (command style) ───────────────────
+   Tokens are R G B channel triplets, consumed as rgb(var(--x) / <alpha>).
+   Overridden per-style by :root[data-style="command"] / [data-style="celestial"].
+   The bare :root block below ensures tokens exist before JS hydrates. */
+:root {
+  /* command defaults */
+  --bg: 8 13 20;
+  --surface: 11 17 26;
+  --panel: 13 21 32;
+  --panel-2: 17 28 42;
+  --line: 29 53 72;
+  --ink: 216 230 238;
+  --dim: 138 160 176;
+  --faint: 90 112 128;
+  --accent-n: 54 212 230;
+  --accent-n2: 92 232 200;
+  --good: 108 222 150;
+  --bad: 255 110 120;
+  --gold: 255 196 96;
+  --hot: 255 138 56;
+  --glow: 0.9;
+  --radius-nexus: 2px;
+  /* font stacks — overridden by next/font variables wired in layout.tsx */
+  --font-display: "Saira Condensed", "Noto Sans SC", sans-serif;
+  --font-serif: "Saira Condensed", "Noto Sans SC", sans-serif;
+  --font-body: "Saira", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root[data-style="command"] {
+  --bg: 8 13 20;
+  --surface: 11 17 26;
+  --panel: 13 21 32;
+  --panel-2: 17 28 42;
+  --line: 29 53 72;
+  --ink: 216 230 238;
+  --dim: 138 160 176;
+  --faint: 90 112 128;
+  --accent-n: 54 212 230;
+  --accent-n2: 92 232 200;
+  --good: 108 222 150;
+  --bad: 255 110 120;
+  --gold: 255 196 96;
+  --hot: 255 138 56;
+  --glow: 0.9;
+  --radius-nexus: 2px;
+  --font-display: "Saira Condensed", "Noto Sans SC", sans-serif;
+  --font-serif: "Saira Condensed", "Noto Sans SC", sans-serif;
+  --font-body: "Saira", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+:root[data-style="celestial"] {
+  --bg: 18 14 10;
+  --surface: 24 19 13;
+  --panel: 28 22 16;
+  --panel-2: 38 30 22;
+  --line: 58 47 35;
+  --ink: 239 230 216;
+  --dim: 184 168 146;
+  --faint: 122 110 92;
+  --accent-n: 232 116 42;
+  --accent-n2: 255 158 74;
+  --good: 120 196 120;
+  --bad: 224 96 72;
+  --gold: 230 178 90;
+  --hot: 232 132 42;
+  --glow: 0.85;
+  --radius-nexus: 4px;
+  --font-display: "Saira Condensed", "Noto Sans SC", sans-serif;
+  --font-serif: "Newsreader", "Noto Serif SC", Georgia, serif;
+  --font-body: "Saira", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "Space Mono", "JetBrains Mono", monospace;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 @layer base {
   :root {
     --background: 0 0% 100%;
