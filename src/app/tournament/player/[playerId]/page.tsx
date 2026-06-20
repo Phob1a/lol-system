@@ -33,7 +33,7 @@ export default function PlayerStatsPage() {
     return (
       <PublicArenaShell bleed>
         <ArenaEmptyState
-          eyebrow="PLAYER DOSSIER"
+          eyebrow="PLAYER PROFILE"
           title="选手档案加载中"
           description="正在同步公开数据。"
         />
@@ -45,7 +45,7 @@ export default function PlayerStatsPage() {
     return (
       <PublicArenaShell bleed>
         <ArenaEmptyState
-          eyebrow="PLAYER DOSSIER"
+          eyebrow="PLAYER PROFILE"
           title="选手不存在或暂无数据"
           description="该选手还没有可公开的赛事数据。"
           action={<ArenaCta href="/tournament">返回赛事页</ArenaCta>}

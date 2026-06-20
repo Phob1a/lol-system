@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db';
 import { getDraftSnapshot } from '@/lib/draft/engine';
 import { listTournaments } from '@/lib/tournament/tournament-service';
 import { SpectatorView } from '@/components/live/SpectatorView';
-import { ArenaCta, ArenaEmptyState, PublicArenaShell } from '@/components/public-arena';
+import { LiveOfflineConsole } from '@/components/live/LiveOfflineConsole';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,16 +20,7 @@ export default async function LivePage({
     draftable.find((t) => t.id === season) ?? draftable[0] ?? null;
 
   if (!selected) {
-    return (
-      <PublicArenaShell className="min-h-screen">
-        <ArenaEmptyState
-          eyebrow="LIVE SIGNAL OFFLINE"
-          title="选秀尚未开始"
-          description="有可公开赛季后会自动显示直播控制台。"
-          action={<ArenaCta href="/">返回首页</ArenaCta>}
-        />
-      </PublicArenaShell>
-    );
+    return <LiveOfflineConsole />;
   }
 
   const [snapshot, poolRegistrations] = await Promise.all([

@@ -50,7 +50,7 @@ export function PlayerHero({ stats }: { stats: PlayerTournamentStats }) {
           </div>
           <div className="min-w-0">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/80">
-              PLAYER DOSSIER
+              PLAYER PROFILE
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-3xl font-extrabold leading-tight">{stats.nickname}</h1>

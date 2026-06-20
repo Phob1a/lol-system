@@ -65,8 +65,9 @@ describe('SpectatorView', () => {
       />,
     );
 
-    expect(screen.getByText('LOL-SYSTEM / LIVE DRAFT')).toBeInTheDocument();
-    expect(screen.getByText('Live Draft Console')).toBeInTheDocument();
+    expect(screen.getByText('LOL-SYSTEM / LIVE SPECTATOR')).toBeInTheDocument();
+    expect(screen.getAllByText('LIVE COMMAND VIEW').length).toBeGreaterThan(0);
+    expect(screen.getByText('TEAM PULSE')).toBeInTheDocument();
     expect(screen.getAllByText('队伍席位').length).toBeGreaterThan(0);
     expect(screen.getAllByText('选手池').length).toBeGreaterThan(0);
     expect(screen.getAllByText('事件流').length).toBeGreaterThan(0);

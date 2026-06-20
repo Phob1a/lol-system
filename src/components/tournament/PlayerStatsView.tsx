@@ -38,7 +38,7 @@ export function PlayerStatsView({ stats }: { stats: PlayerTournamentStats }) {
       bleed
       hud={
         <PublicArenaHud
-          eyebrow="LOL-SYSTEM / PLAYER DOSSIER"
+          eyebrow="LOL-SYSTEM / PLAYER PROFILE"
           title={stats.nickname}
           signals={[
             { label: 'TEAM', detail: stats.teamName ?? 'UNASSIGNED' },

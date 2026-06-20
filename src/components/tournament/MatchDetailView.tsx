@@ -138,7 +138,11 @@ function MatchHeader({ detail }: { detail: MatchDetail }) {
         : null;
 
   return (
-    <ArenaPanel eyebrow="MATCH REPORT" title="Score Stage" className="p-5 md:p-6">
+    <ArenaPanel
+      eyebrow="/TOURNAMENT/MATCH/[ID]"
+      title="MATCH CONTROL RECORD"
+      className="p-5 md:p-6"
+    >
       <div className="grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
         <div className="min-w-0 text-center lg:text-left">
           <p className="text-xs font-semibold uppercase text-cyan-200/70">
@@ -540,7 +544,7 @@ export function MatchDetailView({ detail }: { detail: MatchDetail }) {
       bleed
       hud={
         <PublicArenaHud
-          eyebrow="LOL-SYSTEM / MATCH REPORT"
+          eyebrow="LOL-SYSTEM / MATCH ARCHIVE"
           title={detail.label ?? detail.roundKey ?? '比赛详情'}
           signals={[
             { label: 'STATUS', detail: detail.status },

@@ -27,7 +27,7 @@ export default function MatchDetailPage() {
     return (
       <PublicArenaShell bleed>
         <ArenaEmptyState
-          eyebrow="MATCH REPORT"
+          eyebrow="MATCH ARCHIVE"
           title="比赛数据加载中"
           description="正在同步公开比赛数据。"
         />
@@ -39,7 +39,7 @@ export default function MatchDetailPage() {
     return (
       <PublicArenaShell bleed>
         <ArenaEmptyState
-          eyebrow="MATCH REPORT"
+          eyebrow="MATCH ARCHIVE"
           title="比赛不存在或暂未公开"
           description="该比赛还没有可公开的详情。"
           action={<ArenaCta href="/tournament">返回赛事页</ArenaCta>}

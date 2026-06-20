@@ -178,8 +178,8 @@ describe('PlayerStatsView fan-facing profile', () => {
   it('renders hero identity, role tag, KP and recent form', () => {
     render(<PlayerStatsView stats={stats()} />);
 
-    expect(screen.getByText('LOL-SYSTEM / PLAYER DOSSIER')).toBeInTheDocument();
-    expect(screen.getByText('PLAYER DOSSIER')).toBeInTheDocument();
+    expect(screen.getByText('LOL-SYSTEM / PLAYER PROFILE')).toBeInTheDocument();
+    expect(screen.getByText('PLAYER PROFILE')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '夜阑惊梦' })).toBeInTheDocument();
     expect(screen.getByText('输出核心')).toBeInTheDocument();
     expect(screen.getByText('58.3%')).toBeInTheDocument(); // 参团率
