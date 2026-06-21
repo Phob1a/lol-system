@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
   { href: '/admin', label: '概览', sub: 'CONTROL', glyph: '▦' },
   { href: '/admin/tournament', label: '赛事管理', sub: 'STATE', glyph: '◈' },
   { href: '/admin/registrations', label: '报名管理', sub: 'REVIEW', glyph: '⊕' },
+  { href: '/admin/imports', label: '对局导入', sub: 'LCU · REVIEW', glyph: '⤓' },
   { href: '/admin/teams', label: '队伍账号', sub: 'ROSTERS', glyph: '⬡' },
   { href: '/admin/draft', label: '选秀控制台', sub: 'STATE · DRAFT', glyph: '◇' },
   { href: '/admin/audit', label: '审计日志', sub: 'AUDIT', glyph: '▤' },
