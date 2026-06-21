@@ -257,6 +257,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
               onValidityChange={setEditValid}
               showNameField
               showStructure={isConfigEditable}
+              idPrefix="edit"
             />
             <NexusButton
               variant={editValid && !saving ? 'primary' : 'default'}
@@ -327,6 +328,7 @@ export function SetupTab({ tournamentId, state, refetch }: Props) {
         onValidityChange={setCreateValid}
         showNameField
         showStructure
+        idPrefix="setup"
       />
 
       <NexusButton

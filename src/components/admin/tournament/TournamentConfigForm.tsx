@@ -53,6 +53,11 @@ type Props = {
   showStructure?: boolean;
   /** 用户主动修改赛事名时的回调（仅 showNameField=true 时有意义） */
   onNameUserEdit?: () => void;
+  /**
+   * DOM id 前缀，用于区分同页多个实例（避免重复 id / 错乱的 label 关联）。
+   * 默认空 = 沿用裸 id（如 `t-groups`）。
+   */
+  idPrefix?: string;
 };
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -73,7 +78,10 @@ export function TournamentConfigForm({
   showNameField = false,
   showStructure = true,
   onNameUserEdit,
+  idPrefix,
 }: Props) {
+  // Scope DOM ids to this instance so multiple forms can coexist on one page.
+  const fid = (s: string) => (idPrefix ? `${idPrefix}-${s}` : s);
   // Derive local ui state from value prop on first render; subsequent changes
   // are driven by internal state and synced back via onChange.
   const parsedKind = parseKind(value.kind);
@@ -161,9 +169,9 @@ export function TournamentConfigForm({
       {/* 赛事名 */}
       {showNameField && (
         <div className="space-y-1">
-          <Label htmlFor="t-name">赛事名</Label>
+          <Label htmlFor={fid('t-name')}>赛事名</Label>
           <Input
-            id="t-name"
+            id={fid('t-name')}
             value={value.name}
             onChange={handleNameChange}
             placeholder="例：2025 夏季正赛"
@@ -201,9 +209,9 @@ export function TournamentConfigForm({
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="t-groups">组数</Label>
+              <Label htmlFor={fid('t-groups')}>组数</Label>
               <Input
-                id="t-groups"
+                id={fid('t-groups')}
                 type="number"
                 min={1}
                 value={groupCount}
@@ -211,9 +219,9 @@ export function TournamentConfigForm({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="t-tpg">每组队数</Label>
+              <Label htmlFor={fid('t-tpg')}>每组队数</Label>
               <Input
-                id="t-tpg"
+                id={fid('t-tpg')}
                 type="number"
                 min={1}
                 value={teamsPerGroup}
@@ -221,9 +229,9 @@ export function TournamentConfigForm({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="t-apg">每组出线数</Label>
+              <Label htmlFor={fid('t-apg')}>每组出线数</Label>
               <Input
-                id="t-apg"
+                id={fid('t-apg')}
                 type="number"
                 min={1}
                 value={advancingPerGroup}
