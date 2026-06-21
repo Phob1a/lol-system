@@ -114,6 +114,9 @@ test.describe('Tournament M1 E2E', () => {
 
     // ─── Pre-check: reset any existing tournament ────────────────────────
     const dangerZone = page.locator('text=危险区');
+    // SetupTab loads its body async; wait for it to settle before deciding the
+    // exists-vs-create branch (otherwise we race into the create path).
+    await dangerZone.waitFor({ timeout: 10000 }).catch(() => {});
     if (await dangerZone.isVisible({ timeout: 1500 }).catch(() => false)) {
       console.log('[setup] Tournament already exists — resetting');
       const stateResp = await apiGet(page, '/api/tournament/public/state');
