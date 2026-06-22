@@ -106,11 +106,31 @@ const FIELD_LABELS: Record<string, string> = {
   firstBlood: '一血',
   firstTower: '一塔',
   firstInhibitor: '首个水晶',
+  vilemawKills: '巨型蜘蛛击杀',
+  dominionVictoryScore: '统治模式胜利分',
+  // internal / rare (translated for completeness)
+  totalScoreRank: '总评分排名',
+  totalPlayerScore: '玩家总分',
+  combatPlayerScore: '战斗评分',
+  objectivePlayerScore: '目标评分',
+  playerSubteamId: '子队伍 ID',
+  subteamPlacement: '子队伍排名',
+  causedEarlySurrender: '触发提前投降',
+  wasSevereTransgressor: '严重违规者',
+  earlySurrenderAccomplice: '提前投降参与者',
+  gameEndedInIGNBSurrender: 'IGNB 投降结束',
+  causedGameEndFromIGNBSurrender: '触发 IGNB 投降结束',
 };
 
 /** 字段名 → 中文标签（未知回退原 key）。 */
 export function fieldLabel(key: string): string {
-  return FIELD_LABELS[key] ?? key;
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  // families: perk0Var1 → 符文1 数值1；playerScore0 → 玩家评分0；playerAugment1 → 强化符文1
+  let m: RegExpExecArray | null;
+  if ((m = /^perk([0-5])Var([1-3])$/.exec(key))) return `符文${Number(m[1]) + 1} 数值${m[2]}`;
+  if ((m = /^playerScore([0-9])$/.exec(key))) return `玩家评分 ${m[1]}`;
+  if ((m = /^playerAugment([1-6])$/.exec(key))) return `强化符文 ${m[1]}`;
+  return key;
 }
 
 function asNum(v: unknown): number | null {
@@ -125,6 +145,11 @@ function asNum(v: unknown): number | null {
  * 把已知 ID 字段格式化成可读名称；返回 null 表示无特殊映射，调用方走默认格式化。
  */
 export function formatLcuField(key: string, value: unknown): string | null {
+  // win: player stats use boolean, team uses "Win"/"Fail" string
+  if (key === 'win') {
+    if (value === true || value === 'Win') return '胜';
+    if (value === false || value === 'Fail') return '负';
+  }
   // items
   if (/^item[0-6]$/.test(key)) {
     const id = asNum(value);
@@ -156,6 +181,16 @@ export function formatLcuField(key: string, value: unknown): string | null {
     if (id === 0) return '未设置';
     const n = runeName(id);
     return n ? `${n}（${id}）` : null;
+  }
+  // bans: [{ pickTurn, championId }] → champion names
+  if (key === 'bans' && Array.isArray(value)) {
+    if (value.length === 0) return '无';
+    const names = value.map((b) => {
+      const cid = typeof b === 'number' ? b : asNum((b as { championId?: unknown })?.championId);
+      if (cid == null || cid <= 0) return '无';
+      return championName(championKeyByNumericId(cid) ?? '') ?? `#${cid}`;
+    });
+    return names.join('、');
   }
   return null;
 }
