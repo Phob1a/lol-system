@@ -53,6 +53,9 @@ const FIELD_LABELS: Record<string, string> = {
   perkSubStyle: '副系',
   // combat
   totalDamageDealt: '总伤害',
+  physicalDamageDealt: '物理伤害（总）',
+  magicDamageDealt: '魔法伤害（总）',
+  trueDamageDealt: '真实伤害（总）',
   totalDamageDealtToChampions: '对英雄总伤害',
   physicalDamageDealtToChampions: '对英雄物理伤害',
   magicDamageDealtToChampions: '对英雄魔法伤害',
@@ -85,6 +88,12 @@ const FIELD_LABELS: Record<string, string> = {
   firstTowerKill: '一塔击杀',
   firstTowerAssist: '一塔助攻',
   firstInhibitorKill: '首个水晶击杀',
+  firstInhibitorAssist: '首个水晶助攻',
+  unrealKills: '究极多杀',
+  roleBoundItem: '位置专属道具',
+  gameEndedInSurrender: '投降结束',
+  gameEndedInEarlySurrender: '提前投降结束',
+  teamEarlySurrendered: '本方提前投降',
   // team-level
   bans: '禁用英雄',
   baronKills: '男爵击杀',
