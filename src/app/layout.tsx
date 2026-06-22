@@ -68,7 +68,7 @@ const notoSerifSC = Noto_Serif_SC({
 // ────────────────────────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {
-  title: 'LoL 选人系统',
+  title: 'LOL大王杯',
   description: '战队选秀管理系统',
 };
 

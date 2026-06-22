@@ -225,7 +225,7 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
           whiteSpace: 'nowrap',
         }}
       >
-        ◢ NEXUS
+        ◢ LOL大王杯
       </span>
 
       {/* Center: link status + tournament */}
