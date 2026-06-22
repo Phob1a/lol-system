@@ -294,6 +294,9 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
           flexDirection: 'column',
           position: 'relative',
           zIndex: 1,
+          // Solid nexus base so mobile doesn't show the white shadcn body
+          // (matches the wide layout below).
+          background: 'rgb(var(--bg))',
         }}
       >
         <Starfield />

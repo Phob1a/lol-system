@@ -686,7 +686,7 @@ export function ImportReviewDialog({ importId, onClose, onCommitted }: Props) {
                           const isBlue = player.teamId === 100;
                           return (
                             <TableRow key={pid} className="border-nexus-line/40">
-                              <TableCell className="font-mono text-[11px]">
+                              <TableCell className="font-mono text-[11px] text-nexus-ink">
                                 {player.name}
                               </TableCell>
                               <TableCell>

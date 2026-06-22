@@ -217,7 +217,7 @@ function LineupTable({ players, mvpRegistrationId, onNavigate }: LineupTableProp
               </td>
               {/* kda */}
               <td className="px-[8px] py-[8px] border-b border-nexus-line/35 text-center">
-                <Readout className="text-[12px]">
+                <Readout className="text-[12px] text-nexus-dim">
                   {p.kills ?? '—'}/{p.deaths ?? '—'}/{p.assists ?? '—'}
                 </Readout>
               </td>
