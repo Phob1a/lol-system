@@ -9,6 +9,7 @@ export type RegistrationRef = {
   primaryPositions: Position[];
   secondaryPositions: Position[];
   cost: number;
+  availability: string;
 };
 
 export type TeamSlotPreview = {

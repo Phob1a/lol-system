@@ -179,6 +179,7 @@ const registrationRefSelect = {
   primaryPositions: true,
   secondaryPositions: true,
   cost: true,
+  availability: true,
   player: { select: { gameId: true } },
 } satisfies Prisma.RegistrationSelect;
 
@@ -195,6 +196,7 @@ function toRegistrationRef(r: RegistrationRow): RegistrationRef {
     primaryPositions: r.primaryPositions,
     secondaryPositions: r.secondaryPositions,
     cost: r.cost,
+    availability: r.availability,
   };
 }
 

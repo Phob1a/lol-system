@@ -25,6 +25,7 @@ export default async function CaptainPage() {
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
+        availability: true,
         player: { select: { gameId: true } },
       },
       orderBy: { registeredAt: 'asc' },
@@ -34,6 +35,7 @@ export default async function CaptainPage() {
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
+        availability: true,
         player: { select: { gameId: true } },
       },
       orderBy: { registeredAt: 'asc' },
@@ -44,6 +46,7 @@ export default async function CaptainPage() {
   const flat = (r: (typeof pool)[number]) => ({
     id: r.id, gameId: r.player.gameId, nickname: r.nickname, cost: r.cost,
     primaryPositions: r.primaryPositions, secondaryPositions: r.secondaryPositions,
+    availability: r.availability,
   });
 
   return (

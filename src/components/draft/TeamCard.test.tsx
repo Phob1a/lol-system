@@ -20,6 +20,7 @@ const team: DraftTeamSnapshot = {
         primaryPositions: ['TOP'],
         secondaryPositions: [],
         cost: 120,
+        availability: '周末全天',
       },
     },
     { id: 'slot-jungle', position: 'JUNGLE', registration: null },

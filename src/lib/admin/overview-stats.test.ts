@@ -18,6 +18,7 @@ describe('getAdminOverviewStats', () => {
       currentRank: '大师',
       peakRank: '宗师',
       willingToCaptain: true,
+      availability: '周末全天',
     });
     await submitPublicRegistration(testDb, {
       gameId: 'uzi',
@@ -27,6 +28,7 @@ describe('getAdminOverviewStats', () => {
       currentRank: '大师',
       peakRank: '宗师',
       willingToCaptain: false,
+      availability: '工作日晚',
     });
 
     await expect(getAdminOverviewStats(testDb, tournament.id)).resolves.toMatchObject({

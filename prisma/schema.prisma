@@ -83,6 +83,7 @@ model Registration {
   peakRank           String
   willingToCaptain   Boolean            @default(false)
   statement          String?
+  availability       String             @default("")
   cost               Float              @default(0)
   isCaptain          Boolean            @default(false)
   status             RegistrationStatus @default(ACTIVE)

@@ -10,6 +10,7 @@ const captain: RegistrationRef = {
   primaryPositions: ['TOP'],
   secondaryPositions: [],
   cost: 80,
+  availability: '周末全天',
 };
 
 const team: TeamPreview & { id: string } = {

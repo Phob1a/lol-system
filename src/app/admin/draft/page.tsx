@@ -19,6 +19,7 @@ export default async function DraftConsolePage() {
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
+        availability: true,
         player: { select: { gameId: true } },
       },
       orderBy: { registeredAt: 'asc' },
@@ -34,6 +35,7 @@ export default async function DraftConsolePage() {
       pool={pool.map((r) => ({
         id: r.id, gameId: r.player.gameId, nickname: r.nickname, cost: r.cost,
         primaryPositions: r.primaryPositions, secondaryPositions: r.secondaryPositions,
+        availability: r.availability,
       }))}
     />
   );

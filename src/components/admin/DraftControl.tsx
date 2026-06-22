@@ -29,6 +29,7 @@ type PoolPlayer = {
   cost: number;
   primaryPositions: Position[];
   secondaryPositions: Position[];
+  availability: string;
 };
 
 type Props = {

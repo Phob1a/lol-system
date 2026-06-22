@@ -18,6 +18,7 @@ const player: RegistrationRef = {
   primaryPositions: ['MID'],
   secondaryPositions: ['ADC'],
   cost: 20,
+  availability: '工作日晚',
 };
 
 function renderPickAction(

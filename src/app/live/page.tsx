@@ -29,6 +29,7 @@ export default async function LivePage({
       select: {
         id: true, nickname: true, cost: true,
         primaryPositions: true, secondaryPositions: true,
+        availability: true,
         player: { select: { gameId: true } },
       },
       orderBy: { registeredAt: 'asc' },
@@ -41,6 +42,7 @@ export default async function LivePage({
     cost: r.cost,
     primaryPositions: r.primaryPositions,
     secondaryPositions: r.secondaryPositions,
+    availability: r.availability,
   }));
   return (
     <SpectatorView

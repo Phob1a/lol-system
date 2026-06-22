@@ -29,6 +29,7 @@ function registrationInput(gameId: string, nickname: string, cost = 10) {
     currentRank: '钻石',
     peakRank: '大师',
     willingToCaptain: false,
+    availability: '周末全天',
     cost,
   };
 }

@@ -81,6 +81,18 @@ export function PlayerInfoCard({ player }: { player: RegistrationRef }) {
           </div>
         </div>
       )}
+
+      {/* Availability — weekly match/training time (captain-facing) */}
+      {player.availability && (
+        <div>
+          <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.16em] text-nexus-faint">
+            可参赛时间
+          </p>
+          <p className="text-[11px] leading-relaxed text-nexus-dim">
+            {player.availability}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

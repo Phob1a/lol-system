@@ -12,6 +12,7 @@ const player: RegistrationForPool = {
   secondaryPositions: ['MID'],
   cost: 100,
   isPicked: false,
+  availability: '周末全天',
 };
 
 describe('PlayerPool', () => {

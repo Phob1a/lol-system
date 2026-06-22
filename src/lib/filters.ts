@@ -25,6 +25,7 @@ export type RegistrationForPool = {
   primaryPositions: Position[];
   secondaryPositions: Position[];
   cost: number;
+  availability: string;
   isPicked?: boolean;
 };
 

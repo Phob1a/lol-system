@@ -12,6 +12,7 @@ async function seasonWithReg(gameId = 'cap1') {
   const reg = await submitPublicRegistration(testDb, {
     gameId, nickname: '队长甲', primaryPositions: ['MID'],
     secondaryPositions: [], currentRank: '大师', peakRank: '大师', willingToCaptain: true,
+    availability: '工作日晚',
   });
   await transitionTournament(testDb, tournament.id, 'ROSTER_LOCKED');
   return { tournament, reg };
@@ -36,6 +37,7 @@ describe('appointCaptain', () => {
     const reg = await submitPublicRegistration(testDb, {
       gameId: 'c', nickname: 'c', primaryPositions: ['TOP'], secondaryPositions: [],
       currentRank: '大师', peakRank: '大师', willingToCaptain: true,
+      availability: '工作日晚',
     });
     await expect(appointCaptain(testDb, reg.id)).rejects.toBeInstanceOf(CaptainError);
   });

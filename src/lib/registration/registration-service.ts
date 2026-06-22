@@ -57,6 +57,7 @@ export async function submitPublicRegistration(
           peakRank: input.peakRank,
           willingToCaptain: input.willingToCaptain,
           statement: input.statement ?? null,
+          availability: input.availability,
         },
       });
     } catch (e) {
@@ -140,6 +141,7 @@ export async function adminCreateRegistration(
           peakRank: input.peakRank,
           willingToCaptain: input.willingToCaptain,
           statement: input.statement ?? null,
+          availability: input.availability ?? '',
           cost: input.cost,
         },
       });

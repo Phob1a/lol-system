@@ -303,6 +303,7 @@ export function RegistrationForm({
       peakRank: '',
       willingToCaptain: false,
       statement: '',
+      availability: '',
     },
   });
 
@@ -740,6 +741,35 @@ export function RegistrationForm({
                         })}
                     </div>
                     <FieldErr msg={errors.secondaryPositions?.message} />
+                  </FormItem>
+                )}
+              />
+
+              {/* ── Availability (required) ─────────────────────────────── */}
+              <FormField
+                control={form.control}
+                name="availability"
+                render={({ field }) => (
+                  <FormItem className="space-y-0">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <FieldLabel>每周可参赛 / 训练时间（必填）</FieldLabel>
+                      <Readout
+                        className="text-[10px]"
+                        style={{ color: 'rgb(var(--faint))' }}
+                      >
+                        {(field.value ?? '').length}/200
+                      </Readout>
+                    </div>
+                    <FormControl>
+                      <Field
+                        multiline
+                        rows={2}
+                        placeholder="例：周一至周五 20:00 后可，周末全天；考试周除外"
+                        maxLength={200}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FieldErr msg={errors.availability?.message} />
                   </FormItem>
                 )}
               />

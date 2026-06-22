@@ -13,6 +13,7 @@ async function appointed() {
   const reg = await submitPublicRegistration(testDb, {
     gameId: 'cap', nickname: '队长', primaryPositions: ['MID'], secondaryPositions: [],
     currentRank: '大师', peakRank: '大师', willingToCaptain: true,
+    availability: '周末全天',
   });
   await transitionTournament(testDb, tournament.id, 'ROSTER_LOCKED');
   const result = await appointCaptain(testDb, reg.id);

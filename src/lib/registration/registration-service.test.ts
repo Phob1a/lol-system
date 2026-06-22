@@ -19,6 +19,7 @@ const form = {
   currentRank: '大师',
   peakRank: '宗师',
   willingToCaptain: true,
+  availability: '周末全天',
 };
 
 async function openSeason() {

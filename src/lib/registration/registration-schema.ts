@@ -19,6 +19,11 @@ export const PublicRegistrationInput = z
     peakRank: z.string().trim().min(1, '历史最高段位必填').max(20, '段位过长'),
     willingToCaptain: z.boolean().default(false),
     statement: z.string().trim().max(200, '参赛宣言不超过 200 字').optional(),
+    availability: z
+      .string()
+      .trim()
+      .min(1, '请填写每周可参赛/训练时间')
+      .max(200, '可参赛时间不超过 200 字'),
   })
   .refine(
     (d) => d.secondaryPositions.every((p) => !d.primaryPositions.includes(p)),
@@ -34,6 +39,7 @@ export const AdminRegistrationPatch = z.object({
   peakRank: z.string().trim().min(1).max(20).optional(),
   willingToCaptain: z.boolean().optional(),
   statement: z.string().trim().max(200).optional(),
+  availability: z.string().trim().max(200).optional(),
   cost: z.number().min(0).optional(),
   status: z.enum(['ACTIVE', 'EXCLUDED']).optional(),
 });
@@ -48,6 +54,7 @@ export const AdminRegistrationCreate = z.object({
   peakRank: z.string().trim().min(1).max(20),
   willingToCaptain: z.boolean().default(false),
   statement: z.string().trim().max(200).optional(),
+  availability: z.string().trim().max(200).optional(),
   cost: z.number().min(0).default(0),
 });
 export type AdminRegistrationCreate = z.infer<typeof AdminRegistrationCreate>;

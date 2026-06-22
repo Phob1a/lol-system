@@ -297,7 +297,7 @@ test.describe('Tournament M1 E2E', () => {
     // coverage).
     if (hiddenCandidateBeforeReservation?.teamA?.name) {
       const leaks = [hiddenCandidateBeforeReservation.teamA.name, hiddenCandidateBeforeReservation.teamB?.name]
-        .filter((n): n is string => !!n && pubScheduleBody.includes(n));
+        .filter((n): n is string => !!n && (pubScheduleBody ?? '').includes(n));
       if (leaks.length) {
         console.log(`[public][soft] unscheduled candidate team name(s) present elsewhere on page (expected on redesigned page): ${leaks.join(', ')}`);
       }
