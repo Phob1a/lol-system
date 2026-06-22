@@ -84,7 +84,7 @@ export function AppSidebar() {
   return (
     <>
       <div className="flex h-14 items-center justify-between border-b border-nexus-line bg-nexus-panel px-4 lg:hidden">
-        <div className="font-display text-sm tracking-wide text-nexus-ink">LoL 选人系统</div>
+        <div className="font-display text-sm tracking-wide text-nexus-ink">LOL大王杯</div>
         <button
           type="button"
           aria-label="打开导航"
@@ -114,7 +114,7 @@ export function AppSidebar() {
         className="hidden w-56 shrink-0 flex-col gap-1 border-r border-nexus-line bg-nexus-bg p-3 lg:flex"
       >
         <div className="px-2 pb-3">
-          <div className="font-display text-sm tracking-wide text-nexus-ink">LoL 选人系统</div>
+          <div className="font-display text-sm tracking-wide text-nexus-ink">LOL大王杯</div>
           <Kicker className="mt-1 block">OPS BACK-OFFICE</Kicker>
         </div>
         {navLinks()}
