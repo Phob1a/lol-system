@@ -32,6 +32,7 @@ import {
   championKeyByNumericId,
   championName as dataDragonChampionName,
 } from '@/lib/tournament/champions';
+import { fieldLabel, formatLcuField } from '@/lib/tournament/lcu-labels';
 import Panel from '@/components/nexus/Panel';
 import PanelHead from '@/components/nexus/PanelHead';
 import NexusButton from '@/components/nexus/NexusButton';
@@ -220,8 +221,8 @@ function DetailDialog({
         <div className="grid gap-2 sm:grid-cols-2">
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-[var(--radius-nexus)] border border-nexus-line bg-nexus-panel-2 p-2">
-              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-nexus-faint">{key}</div>
-              <div className="mt-1 break-words text-[12px] font-medium text-nexus-ink">{valueText(value)}</div>
+              <div className="font-mono text-[9px] tracking-[0.12em] text-nexus-faint">{fieldLabel(key)}</div>
+              <div className="mt-1 break-words text-[12px] font-medium text-nexus-ink">{formatLcuField(key, value) ?? valueText(value)}</div>
             </div>
           ))}
         </div>
