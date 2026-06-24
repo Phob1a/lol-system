@@ -38,6 +38,7 @@ const sharedFieldClasses = [
   'w-full',
   'font-mono text-[12.5px] text-nexus-ink',
   'bg-nexus-bg border border-nexus-line',
+  '[color-scheme:dark]',
   'px-3 py-[10px]',
   'rounded-[var(--radius-nexus)]',
   'outline-none resize-none',

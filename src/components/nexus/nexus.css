@@ -347,7 +347,27 @@
    COMMAND — brighter focus ring + outer glow
    ═══════════════════════════════════════════════════════════════════════════ */
 
+.nexus-field {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--ink));
+  caret-color: rgb(var(--accent-n));
+}
+
 [data-style="command"] .nexus-field:focus {
   box-shadow: 0 0 0  3px rgb(var(--accent-n) / 0.18),
               0 0 16px   rgb(var(--accent-n) / 0.18);
+}
+
+.nexus-field:-webkit-autofill,
+.nexus-field:-webkit-autofill:hover,
+.nexus-field:-webkit-autofill:focus,
+.nexus-field:-webkit-autofill:active {
+  border-color: rgb(var(--accent-n) / 0.7);
+  box-shadow: 0 0 0 1000px rgb(var(--bg)) inset,
+              0 0 0 3px rgb(var(--accent-n) / 0.14);
+  -webkit-box-shadow: 0 0 0 1000px rgb(var(--bg)) inset,
+                      0 0 0 3px rgb(var(--accent-n) / 0.14);
+  -webkit-text-fill-color: rgb(var(--ink));
+  caret-color: rgb(var(--accent-n));
+  transition: background-color 9999s ease-out, color 9999s ease-out;
 }
