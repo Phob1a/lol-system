@@ -419,11 +419,7 @@ export function RegistrationForm({
         Collapses to single column on narrow viewports via the responsive class below.
       */}
       <div
-        className="grid gap-[18px] p-[22px] mx-auto items-start w-full"
-        style={{
-          gridTemplateColumns: 'minmax(0,1fr) 380px',
-          maxWidth: 1100,
-        }}
+        className="mx-auto grid w-full max-w-[1100px] grid-cols-1 items-start gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:grid-cols-[minmax(0,1fr)_380px] min-[1180px]:p-[22px]"
       >
         {/* ── Left: form panel ─────────────────────────────────────────── */}
         <Panel>
@@ -462,7 +458,7 @@ export function RegistrationForm({
               </div>
 
               {/* ── Row: Game ID + Nickname ───────────────────────────── */}
-              <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
                 {/* Game ID */}
                 <FormField
                   control={form.control}
@@ -537,7 +533,7 @@ export function RegistrationForm({
               </div>
 
               {/* ── Row: Current Rank + Peak Rank ────────────────────── */}
-              <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="grid grid-cols-1 gap-4 min-[640px]:grid-cols-2">
                 {/* Current Rank */}
                 <FormField
                   control={form.control}
@@ -866,7 +862,7 @@ export function RegistrationForm({
         </Panel>
 
         {/* ── Right: preview + overview ───────────────────────────────── */}
-        <div className="grid gap-4" style={{ position: 'sticky', top: 76 }}>
+        <div className="grid gap-4 min-[1180px]:sticky min-[1180px]:top-[76px]">
           {/* Live player card preview */}
           <PlayerCard
             nickname={watchedNickname}

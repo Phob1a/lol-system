@@ -201,9 +201,9 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 22,
+        gap: narrow ? 12 : 22,
         height: 54,
-        padding: '0 22px',
+        padding: narrow ? '0 14px' : '0 22px',
         borderBottom: '1px solid rgb(var(--line))',
         background: 'rgb(var(--surface) / 0.72)',
         backdropFilter: 'blur(8px)',
@@ -234,7 +234,7 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
           flex: 1,
           minWidth: 0,
           overflow: 'hidden',
-          display: 'flex',
+          display: narrow ? 'none' : 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           gap: 18,
@@ -277,7 +277,9 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}
       >
-        <Clock />
+        <span className="max-[430px]:hidden">
+          <Clock />
+        </span>
         <ThemeSwitch />
       </div>
     </div>
