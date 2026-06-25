@@ -7,11 +7,16 @@ const OPTIONS: { value: NexusStyle; label: string }[] = [
   { value: 'celestial', label: 'CELESTIAL' },
 ];
 
+const COMPACT_LABELS: Record<NexusStyle, string> = {
+  command: 'CMD',
+  celestial: 'CEL',
+};
+
 /**
  * Segmented control that toggles between the NEXUS 'command' and 'celestial'
  * theme styles. Uses the ThemeStyleContext wired via ThemeStyleProvider.
  */
-export function ThemeSwitch() {
+export function ThemeSwitch({ compact = false }: { compact?: boolean }) {
   const { style, setStyle } = useThemeStyle();
 
   return (
@@ -24,8 +29,8 @@ export function ThemeSwitch() {
         borderRadius: 3,
         overflow: 'hidden',
         fontFamily: 'var(--font-display)',
-        fontSize: 11,
-        letterSpacing: '0.08em',
+        fontSize: compact ? 10 : 11,
+        letterSpacing: compact ? '0.04em' : '0.08em',
       }}
     >
       {OPTIONS.map(({ value, label }) => {
@@ -36,7 +41,7 @@ export function ThemeSwitch() {
             onClick={() => setStyle(value)}
             aria-pressed={active}
             style={{
-              padding: '4px 12px',
+              padding: compact ? '4px 7px' : '4px 12px',
               background: active ? 'rgb(var(--accent-n) / 0.15)' : 'transparent',
               color: active ? 'rgb(var(--accent-n))' : 'rgb(var(--dim))',
               border: 'none',
@@ -48,7 +53,7 @@ export function ThemeSwitch() {
               transition: 'background 0.15s, color 0.15s',
             }}
           >
-            {label}
+            {compact ? COMPACT_LABELS[value] : label}
           </button>
         );
       })}

@@ -275,12 +275,15 @@ export default function PublicShell({ children, tournament }: PublicShellProps) 
 
       {/* Right: clock + theme switch */}
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: narrow ? 8 : 18,
+          flexShrink: 0,
+        }}
       >
-        <span className="max-[430px]:hidden">
-          <Clock />
-        </span>
-        <ThemeSwitch />
+        {!narrow && <Clock />}
+        <ThemeSwitch compact={narrow} />
       </div>
     </div>
   );

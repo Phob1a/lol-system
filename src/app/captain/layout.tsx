@@ -22,7 +22,7 @@ export default async function CaptainLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-14 items-center gap-4 border-b px-6">
+      <header className="flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2 min-[640px]:gap-4 min-[640px]:px-6">
         <span className="text-sm font-semibold text-foreground">LOL大王杯</span>
         <CaptainNav showTeamManagement={showTeamManagement} />
         <div className="ml-auto flex items-center gap-3 text-sm">
@@ -31,7 +31,7 @@ export default async function CaptainLayout({
           <a href="/api/auth/signout" className="text-muted-foreground hover:text-foreground">登出</a>
         </div>
       </header>
-      <main className="flex min-h-0 flex-1 flex-col p-6">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col p-3 min-[640px]:p-6">{children}</main>
     </div>
   );
 }

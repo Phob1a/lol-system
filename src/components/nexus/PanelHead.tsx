@@ -27,7 +27,7 @@ const PanelHead = forwardRef<HTMLDivElement, PanelHeadProps>(
       <div
         ref={ref}
         className={cn(
-          'flex items-center justify-between gap-3',
+          'flex min-w-0 items-center justify-between gap-3',
           'px-4 py-3',
           'border-b border-nexus-line',
           className
@@ -37,9 +37,8 @@ const PanelHead = forwardRef<HTMLDivElement, PanelHeadProps>(
         {title != null && (
           <span
             className={cn(
-              'font-mono text-[10px] font-semibold uppercase tracking-[0.24em]',
+              'min-w-0 truncate font-mono text-[10px] font-semibold uppercase tracking-[0.24em]',
               'text-nexus-faint',
-              'whitespace-nowrap'
             )}
           >
             {title}

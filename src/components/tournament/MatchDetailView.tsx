@@ -329,7 +329,8 @@ function LineupTable({
   }
 
   return (
-    <table className="w-full border-collapse">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] border-collapse">
       <thead>
         <tr>
           {['选手', '英雄', 'K/D/A', '补刀', '伤害 (k)', '金币 (k)'].map((h, i) => (
@@ -410,7 +411,8 @@ function LineupTable({
           );
         })}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }
 

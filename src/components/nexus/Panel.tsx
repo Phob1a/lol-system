@@ -40,7 +40,7 @@ const Panel = forwardRef<HTMLElement, PanelProps>(
         ref={ref}
         className={cn(
           // positioning anchor for pseudo-elements
-          'relative',
+          'relative min-w-0',
           // base surface
           'bg-nexus-panel border border-nexus-line',
           // per-style structural CSS classes from nexus.css

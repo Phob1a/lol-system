@@ -97,8 +97,7 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
 
   return (
     <div
-      className="grid gap-[18px] p-[22px] items-start"
-      style={{ gridTemplateColumns: '1.55fr 1fr' }}
+      className="grid items-start gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:grid-cols-[1.55fr_1fr] min-[1180px]:p-[22px]"
     >
       {/* ── LEFT COLUMN ──────────────────────────────────────────── */}
       <div className="grid gap-[18px]">
@@ -106,8 +105,7 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
         {/* HERO — tournament identity + phase serial + progress */}
         <Panel glow className="p-[22px]">
           <div
-            className="grid gap-[26px] items-center"
-            style={{ gridTemplateColumns: 'auto 1fr' }}
+            className="grid items-start gap-5 min-[560px]:grid-cols-[auto_minmax(0,1fr)] min-[560px]:items-center min-[560px]:gap-[26px]"
           >
             {/* Phase serial */}
             <div className="text-center min-w-[72px]">
@@ -177,8 +175,7 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
 
         {/* KPI TILES — 4 data tiles */}
         <div
-          className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(4,1fr)' }}
+          className="grid grid-cols-2 gap-3 min-[700px]:grid-cols-4"
         >
           <DTile
             label="报名人数"
@@ -242,10 +239,7 @@ export function OverviewDashboard({ props }: { props: OverviewProps }) {
         {/* STANDINGS — A/B group segmented bars */}
         {standings.length > 0 ? (
           <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${Math.min(standings.length, 2)},1fr)`,
-            }}
+            className="grid grid-cols-1 gap-3 min-[700px]:grid-cols-2"
           >
             {standings.slice(0, 2).map((group, i) => (
               <Panel key={group.groupId}>

@@ -74,12 +74,7 @@ function HeroPanel({ data }: { data: TeamPageData }) {
   return (
     <Panel glow className="p-5">
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr auto',
-          gap: 20,
-          alignItems: 'center',
-        }}
+        className="grid gap-5 min-[560px]:grid-cols-[minmax(0,1fr)_auto] min-[560px]:items-center"
       >
         {/* left: identity */}
         <div style={{ minWidth: 0 }}>
@@ -88,17 +83,14 @@ function HeroPanel({ data }: { data: TeamPageData }) {
           </Kicker>
 
           <div
+            className="break-words text-3xl min-[560px]:truncate min-[560px]:text-[40px]"
             style={{
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
-              fontSize: 40,
               lineHeight: 0.92,
               color: 'rgb(var(--ink))',
               textTransform: 'uppercase',
               letterSpacing: '-0.01em',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
             }}
           >
             {data.teamName}
@@ -139,7 +131,7 @@ function HeroPanel({ data }: { data: TeamPageData }) {
         </div>
 
         {/* right: win donut */}
-        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+        <div className="justify-self-center text-center min-[560px]:justify-self-end">
           <WinDonut pct={winPct} size={120} />
           <Kicker className="block mt-2">队伍胜率</Kicker>
         </div>
@@ -375,10 +367,6 @@ function MatchRow({
     <button
       onClick={() => onOpen(m.id)}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '90px 64px 1fr auto auto',
-        alignItems: 'center',
-        gap: 10,
         width: '100%',
         padding: '11px 16px',
         borderTop: 'none',
@@ -390,13 +378,15 @@ function MatchRow({
         textAlign: 'left',
         color: 'inherit',
       }}
-      className="hover:bg-[rgb(var(--panel-2)/0.6)] transition-colors"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 transition-colors hover:bg-[rgb(var(--panel-2)/0.6)] min-[700px]:grid-cols-[90px_64px_minmax(0,1fr)_auto_auto] min-[700px]:gap-[10px]"
     >
-      <Readout className="text-nexus-faint text-[11px]">
+      <Readout className="order-2 text-nexus-faint text-[11px] min-[700px]:order-none">
         {fmtDateTime(m.scheduledAt)}
       </Readout>
 
-      <Chip>{label.slice(0, 6)}</Chip>
+      <span className="order-3 min-[700px]:order-none">
+        <Chip>{label.slice(0, 6)}</Chip>
+      </span>
 
       <span
         style={{
@@ -411,34 +401,36 @@ function MatchRow({
         vs {opp}
       </span>
 
-      {isFinished ? (
-        m.isWin === true ? (
-          <Chip variant="good">胜</Chip>
-        ) : m.isWin === false ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              height: 20,
-              padding: '0 7px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              border: '1px solid rgb(var(--bad) / 0.5)',
-              color: 'rgb(var(--bad))',
-              borderRadius: 'var(--radius-nexus)',
-            }}
-          >
-            负
-          </span>
+      <span className="order-4 justify-self-start min-[700px]:order-none min-[700px]:justify-self-auto">
+        {isFinished ? (
+          m.isWin === true ? (
+            <Chip variant="good">胜</Chip>
+          ) : m.isWin === false ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: 20,
+                padding: '0 7px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                border: '1px solid rgb(var(--bad) / 0.5)',
+                color: 'rgb(var(--bad))',
+                borderRadius: 'var(--radius-nexus)',
+              }}
+            >
+              负
+            </span>
+          ) : (
+            <Chip>完赛</Chip>
+          )
         ) : (
-          <Chip>完赛</Chip>
-        )
-      ) : (
-        <Chip variant="ac">待赛</Chip>
-      )}
+          <Chip variant="ac">待赛</Chip>
+        )}
+      </span>
 
       <Readout className="text-nexus-faint text-[13px]">▸</Readout>
     </button>
@@ -496,11 +488,7 @@ export function TeamPage({ data }: TeamPageProps) {
 
   return (
     <div
-      style={{
-        padding: 22,
-        display: 'grid',
-        gap: 18,
-      }}
+      className="grid gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:p-[22px]"
     >
       {/* 1. Dossier hero */}
       <HeroPanel data={data} />

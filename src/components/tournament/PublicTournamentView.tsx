@@ -33,7 +33,7 @@ function NexusTabBar({
 }) {
   return (
     <div
-      className="flex border-b border-nexus-line px-1"
+      className="flex overflow-x-auto border-b border-nexus-line px-1"
       role="tablist"
       aria-label="赛事中心标签"
     >
@@ -48,7 +48,7 @@ function NexusTabBar({
             onClick={() => onChange(key)}
             className={[
               // layout
-              'flex items-center gap-[7px] px-4 py-3',
+              'flex shrink-0 items-center gap-[7px] px-3 py-3 min-[430px]:px-4',
               // bottom border as active indicator
               'border-b-2 -mb-px',
               'transition-colors duration-100',
@@ -111,7 +111,7 @@ export function PublicTournamentView() {
       <NexusTabBar active={tab} onChange={setTab} />
 
       {/* Tab content */}
-      <div className="pt-5">
+      <div className="px-3 pt-5 min-[430px]:px-[18px] min-[1180px]:px-[22px]">
         {tab === 'schedule' && (
           <ScheduleList matches={state.matches} standings={state.standings} />
         )}

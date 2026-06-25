@@ -15,7 +15,7 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-nexus-bg text-nexus-ink lg:flex">
       <AppSidebar />
       <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b border-nexus-line bg-nexus-panel px-4 lg:px-6">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-nexus-line bg-nexus-panel px-3 py-2 lg:px-6">
           <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-nexus-faint">
             管理后台
           </span>
@@ -30,7 +30,7 @@ export default async function AdminLayout({
             </a>
           </div>
         </header>
-        <main className="flex min-h-0 flex-1 flex-col p-4 lg:p-6">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col p-3 min-[430px]:p-4 lg:p-6">{children}</main>
       </div>
     </div>
   );

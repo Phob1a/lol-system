@@ -59,7 +59,7 @@ export function DataCenter({
   powerRanking,
 }: DataCenterProps) {
   return (
-    <div style={{ padding: 22, display: 'grid', gap: 18 }}>
+    <div className="grid gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:p-[22px]">
       {/* ── 1. KPI tiles ─────────────────────────────────────────────────────── */}
       <div className="grid gap-[12px] grid-cols-2 min-[560px]:grid-cols-4">
         <DTile
@@ -216,10 +216,11 @@ export function DataCenter({
             <EmptyNote>暂无队伍数据</EmptyNote>
           </div>
         ) : (
-          <table
-            style={{ width: '100%', borderCollapse: 'collapse' }}
-            aria-label="战力排行榜"
-          >
+          <div className="overflow-x-auto">
+            <table
+              style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}
+              aria-label="战力排行榜"
+            >
             <thead>
               <tr>
                 {[
@@ -261,7 +262,8 @@ export function DataCenter({
                 />
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </Panel>
     </div>

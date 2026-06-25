@@ -371,16 +371,11 @@ function ObservationFile({ profile: p }: ObservationFileProps) {
   const axes = buildRadarAxes(p);
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
+    <div className="grid gap-[14px]">
       {/* Hero card */}
-      <Panel glow style={{ padding: 22 }}>
+      <Panel glow className="p-4 min-[560px]:p-[22px]">
         <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: 16,
-          }}
+          className="grid gap-4 min-[560px]:grid-cols-[minmax(0,1fr)_auto] min-[560px]:items-start"
         >
           <div style={{ minWidth: 0 }}>
             <Kicker style={{ display: 'block', marginBottom: 8 }}>
@@ -404,14 +399,15 @@ function ObservationFile({ profile: p }: ObservationFileProps) {
             <div
               className="font-display uppercase"
               style={{
-                fontSize: 40,
                 fontWeight: 700,
                 lineHeight: 0.92,
                 color: 'rgb(var(--ink))',
                 letterSpacing: '-0.01em',
               }}
             >
-              {p.nickname}
+              <span className="block break-words text-3xl min-[560px]:text-[40px]">
+                {p.nickname}
+              </span>
             </div>
 
             {/* Recent form */}
@@ -424,7 +420,9 @@ function ObservationFile({ profile: p }: ObservationFileProps) {
           </div>
 
           {/* Win rate donut */}
-          <WinDonut pct={s.winRate} size={104} />
+          <div className="justify-self-center min-[560px]:justify-self-end">
+            <WinDonut pct={s.winRate} size={104} />
+          </div>
         </div>
       </Panel>
 
@@ -768,7 +766,7 @@ export function PlayersPage() {
   // Pre-tournament / empty state
   if (profiles.length === 0) {
     return (
-      <div style={{ padding: 22 }}>
+      <div className="p-3 min-[430px]:p-[18px] min-[1180px]:p-[22px]">
         <EmptyState />
       </div>
     );
@@ -777,7 +775,7 @@ export function PlayersPage() {
   // Main two-column layout — collapses to a single stacked column < ~1180px.
   return (
     <div
-      className="grid items-start gap-[18px] p-[22px] grid-cols-1 min-[1180px]:grid-cols-[380px_1fr]"
+      className="grid grid-cols-1 items-start gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:grid-cols-[380px_1fr] min-[1180px]:p-[22px]"
     >
       {/* LEFT — catalogue */}
       <Catalogue

@@ -18,7 +18,7 @@ export function CaptainNav({ showTeamManagement }: Props) {
       : []),
   ];
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="flex flex-wrap items-center gap-1">
       {links.map((l) => {
         const active =
           l.href === '/captain' ? pathname === '/captain' : pathname.startsWith(l.href);

@@ -31,7 +31,7 @@ const DTile = forwardRef<HTMLDivElement, DTileProps>(
       <div
         ref={ref}
         className={cn(
-          'relative',
+          'relative min-w-0 overflow-hidden',
           'px-4 py-[14px]',
           'bg-nexus-panel-2 border border-nexus-line',
           'rounded-[var(--radius-nexus)]',
@@ -42,17 +42,17 @@ const DTile = forwardRef<HTMLDivElement, DTileProps>(
         {...rest}
       >
         {label != null && (
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint mb-1 whitespace-nowrap">
+          <p className="mb-1 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-faint">
             {label}
           </p>
         )}
         {value != null && (
-          <p className="font-display font-bold text-[30px] leading-none tabular-nums text-nexus-ink">
+          <p className="truncate font-display text-[30px] font-bold leading-none tabular-nums text-nexus-ink">
             {value}
           </p>
         )}
         {sub != null && (
-          <p className="font-mono text-[10px] text-nexus-dim mt-1 whitespace-nowrap">
+          <p className="mt-1 truncate font-mono text-[10px] text-nexus-dim">
             {sub}
           </p>
         )}

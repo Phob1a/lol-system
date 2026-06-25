@@ -55,16 +55,14 @@ export function PreTournamentOverview({
 
   return (
     <div
-      className="grid gap-[18px] p-[22px] items-start"
-      style={{ gridTemplateColumns: '1.55fr 1fr' }}
+      className="grid items-start gap-[18px] p-3 min-[430px]:p-[18px] min-[1180px]:grid-cols-[1.55fr_1fr] min-[1180px]:p-[22px]"
     >
       {/* ── LEFT COLUMN ──────────────────────────────────────────── */}
       <div className="grid gap-[18px]">
         {/* HERO */}
         <Panel glow className="p-[22px]">
           <div
-            className="grid gap-[26px] items-center"
-            style={{ gridTemplateColumns: 'auto 1fr' }}
+            className="grid items-start gap-5 min-[560px]:grid-cols-[auto_minmax(0,1fr)] min-[560px]:items-center min-[560px]:gap-[26px]"
           >
             {/* Phase indicator — pre-tournament shows 00 */}
             <div className="text-center min-w-[72px]">
@@ -129,8 +127,7 @@ export function PreTournamentOverview({
 
         {/* KPI Tiles */}
         <div
-          className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(4,1fr)' }}
+          className="grid grid-cols-2 gap-3 min-[700px]:grid-cols-4"
         >
           <DTile
             label="报名人数"
